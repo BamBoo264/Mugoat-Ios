@@ -1672,32 +1672,13 @@ u32 pg_script_level_index(u32 index) {
   return answer;
 }
 
-// HAS_STREAMED_TEXTURE_DICT_LOADED (Scripts/prepare_missing_txd.py): the scripts are newer than
-// the game files and some wait for a texture dictionary no archive has (Los Santos Customs waits
-// for "MPShopSale" before its menu). A name missing from the texture dictionary store can never
-// load, so it reports loaded and the script carries on. The store's name map: bucket heads (u32)
-// at 11097512, bucket count at 11097520, entries {hash, slot, next} (3 x u32) at 11097504.
+// Preserve HAS_STREAMED_TEXTURE_DICT_LOADED's real result. Missing assets must not be
+// reported as loaded to bypass script waits; the owning game data must supply them.
 u32 pg_streamed_txd_loaded(w2c_game *instance, u64 name, u32 hash, u32 loaded) {
   (void)instance;
-  if (loaded) return loaded;
-  uint32_t buckets = *(uint32_t *)pg_pointer(&env, 11097520, 4);
-  if (!buckets) return 0; // the store isn't set up yet
-  uint64_t heads = *(uint64_t *)pg_pointer(&env, 11097512, 8), entries = *(uint64_t *)pg_pointer(&env, 11097504, 8);
-  uint32_t i = *(uint32_t *)pg_pointer(&env, heads + 4ull * (hash % buckets), 4);
-  for (int steps = 0; i != UINT32_MAX && steps < 100000; steps++) {
-    const uint32_t *entry = pg_pointer(&env, entries + 12ull * i, 12);
-    if (entry[0] == hash) { if (entry[1] != UINT32_MAX) return 0; break; } // known: its real state
-    i = entry[2];
-  }
-  static uint32_t logged[32]; static int loggedCount; // log each name once (script commands run on one thread)
-  bool seen = false;
-  for (int k = 0; k < loggedCount; k++) seen |= logged[k] == hash;
-  if (!seen && loggedCount < 32) {
-    logged[loggedCount++] = hash;
-    char line[160]; snprintf(line, sizeof line, "Texture dictionary \"%.64s\" is not in the game files; scripts waiting for it carry on.", pg_string(&env, name));
-    pg_log(line);
-  }
-  return 1;
+  (void)name;
+  (void)hash;
+  return loaded;
 }
 // datResourceMap fixup miss (Scripts/prepare_fixup_guard.py). The map: chunk table pointer at +0,
 // resource name at +16, entries {src, size | index << 56} (2 x u64) from +24, entry count (u8) at

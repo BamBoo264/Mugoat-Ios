@@ -19,6 +19,9 @@ Không phải bản phát hành chính thức của IOSVN hoặc hai tác giả 
   iOS.** Đây là công việc tiếp theo; không hứa mọi mod PC hoạt động.
 - Bundle ID `vn.iosvn.mugoat.recovery`, tên app **Mugoat Rebuild**, version 2.1
   (21), cài riêng app cũ. Không tự chép/xóa save của app cũ.
+- Đã bỏ patch cũ báo texture dictionary vắng mặt là "đã tải". Trạng thái tải
+  thật được giữ nguyên. Data thiếu `MPShopSale` vẫn có thể chặn Los Santos
+  Customs; bản này chưa bổ sung asset đó và không vượt điều kiện nhiệm vụ.
 
 `UPSTREAMS.json` ghi commit của hai repo đang hoạt động đã tải để đối chiếu,
 danh sách file giống/khác host mới và các packet ID chung. Host phục hồi có

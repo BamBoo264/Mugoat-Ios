@@ -65,7 +65,22 @@ jobs:
         with:
           path: native-port/app/Tools
           key: recovery-tools-arm64-v1-${{ hashFiles('native-port/app/Scripts/prepare.py', 'native-port/app/Scripts/patch_wasm2c.py', 'native-port/app/Scripts/fetch_shader_tool.py') }}
+      - name: Identify Apple compiler for prepared cache
+        id: compiler
+        run: echo "version=$(xcodebuild -version | tr '\n ' '--')" >> "$GITHUB_OUTPUT"
+      - name: Reuse native engine and Metal build products
+        id: prepared
+        uses: actions/cache@v4
+        with:
+          path: |
+            native-port/app/Generated
+            native-port/app/GeneratedResources
+            native-port/app/Build/MetalShaders
+            native-port/app/Build/Release
+          key: recovery-prepared-arm64-v1-${{ steps.compiler.outputs.version }}-${{ hashFiles('inputs/files.json', 'native-port/app/Scripts/**', 'native-port/app/ShaderTool/**', 'native-port/app/project.yml', 'src/mp.rs', 'native-port/online-bridge/src/**') }}
       - name: Build native ARM64 and Metal Release IPA
+        env:
+          PG_REUSE_PREPARED: ${{ steps.prepared.outputs.cache-hit == 'true' && '1' || '0' }}
         run: bash native-port/build_ipa.sh --mirror "$RUNNER_TEMP/game-files"
       - name: Verify both IPA variants
         working-directory: native-port

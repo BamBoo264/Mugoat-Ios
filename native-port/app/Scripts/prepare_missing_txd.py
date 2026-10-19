@@ -1,12 +1,7 @@
-"""Let scripts stop waiting for texture dictionaries the game files don't have.
+"""Keep the existing typed texture-dictionary hook and the engine's true load result.
 
-HAS_STREAMED_TEXTURE_DICT_LOADED (graphics_commands::HasStreamedTxdLoaded, f50534) looks the
-name up in the texture dictionary store and answers false when it isn't there. The pinned
-scripts are newer than the game files: Los Santos Customs (carmod_shop) waits for "MPShopSale"
-before it shows its menu, that dictionary is in none of the game's archives, and the shop hung
-with the car inside and no menu. pg_streamed_txd_loaded answers true for a name the store has
-never heard of (it can never load), so the script continues and draws nothing for it. Names the
-store knows still report their real state.
+The recovery host returns the original loaded argument unchanged. This hook does not
+mark absent dictionaries as loaded or skip mission/script conditions.
 """
 from pathlib import Path
 import re
