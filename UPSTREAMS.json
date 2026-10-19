@@ -177,7 +177,10 @@
       "App/Assets.xcassets/StartBackground.imageset/start-bg-ipad.jpg",
       "App/Assets.xcassets/StartBackground.imageset/start-bg-iphone.jpg"
     ],
-    "host_ancestor": "2cf36db9ed719c8233008a1efeb80e24f99b0b16"
+    "host_ancestor": "2cf36db9ed719c8233008a1efeb80e24f99b0b16",
+    "removed_build_input_files": [
+      "Resources/manifest.json"
+    ]
   },
   "muguet": {
     "url": "https://github.com/c22dev/muguet",

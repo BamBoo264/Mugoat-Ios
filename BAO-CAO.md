@@ -42,6 +42,11 @@ hoàn thành hoặc giả điều kiện đã tải.
   programs, không có shader biên dịch lỗi; xác thực cấu trúc và codesign strict
   thành công. Kết quả **bản cuối** nằm trong `BUILD-STATUS.json`, phân biệt rõ
   với lượt baseline trước khi bỏ báo tải texture giả.
+- Bản cuối đã build thành công, tải về PC và đối chiếu SHA-256 khớp CI; đúng
+  source revision `bb6098232e50e962a32db4038152ed30e96871ee`, version 2.1 (21).
+  Đọc mã ARM64 trong cả hai IPA xác nhận helper texture chỉ `mov x0, x3; ret`,
+  trả lại đối số load thật, không còn nhánh ép thành công. Xem
+  `../Mugoat-iOS-Recovery-v1-IPAs/TXD-BINARY-VALIDATION.json` trên PC.
 
 Log baseline còn cảnh báo guard gián tiếp không khớp f91082/f10006; không sửa
 theo suy đoán. Build thành công không xác nhận guard đó cần/đã áp dụng cho mọi

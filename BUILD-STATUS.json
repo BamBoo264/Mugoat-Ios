@@ -1,0 +1,71 @@
+{
+  "repository": "https://github.com/BamBoo264/Mugoat-Ios",
+  "source_revision": "bb6098232e50e962a32db4038152ed30e96871ee",
+  "build_run": "https://github.com/BamBoo264/Mugoat-Ios/actions/runs/39259463686",
+  "status": "success",
+  "local_tests": {
+    "rust_bridge": 6,
+    "online_codegen": 3,
+    "private_inputs_and_identity": 5,
+    "udp_relay": "2, 32 and 64 players PASS",
+    "engine_and_shader_index_hash": "PASS",
+    "actual_memory64_abi": "PASS",
+    "actual_native_exports": 215
+  },
+  "macos_ci_checks": "multiplayer ABI UDP, C/C++ input memory frame metrics, Swift mod paths camera saves all passed",
+  "device_gameplay": "NOT TESTED",
+  "pc_v10": "unchanged",
+  "protocol_same_as_pc_v10": true,
+  "server_same_as_pc_v10": true,
+  "texture_load_semantics": "original load state preserved; missing dictionaries are not marked loaded",
+  "ipa_validation": [
+    {
+      "ipa": "outputs\\Mugoat-iOS-Recovery-v1-IPAs\\Mugoat-AppleID-Free.ipa",
+      "bytes": 86743965,
+      "sha256": "089e885286ff6003b4ba9ebc323fb95007abc2db8fdba3519a64dd5bab952ede",
+      "architecture": "ARM64 native",
+      "binary_minimum_os": "15.0.0",
+      "bundle_minimum_os": "15.0",
+      "bundle_id": "vn.iosvn.mugoat.recovery",
+      "version": "2.1 (21)",
+      "revision": "bb6098232e50e962a32db4038152ed30e96871ee",
+      "metal_library": true,
+      "water_shader_programs": 100,
+      "vm_game_payload": false,
+      "old_vm_graphics_runtime": false,
+      "app_icon_files": [
+        "Payload/PlayGTA5Native.app/AppIcon60x60@2x.png",
+        "Payload/PlayGTA5Native.app/AppIcon76x76@2x~ipad.png"
+      ],
+      "sha256_matches_ci": true
+    },
+    {
+      "ipa": "outputs\\Mugoat-iOS-Recovery-v1-IPAs\\Mugoat-Cert-Paid.ipa",
+      "bytes": 86743965,
+      "sha256": "3c01b3120332fca799dde8bf8fb94c9ac75a880b03aec9bff5dc0887460e412d",
+      "architecture": "ARM64 native",
+      "binary_minimum_os": "15.0.0",
+      "bundle_minimum_os": "15.0",
+      "bundle_id": "vn.iosvn.mugoat.recovery",
+      "version": "2.1 (21)",
+      "revision": "bb6098232e50e962a32db4038152ed30e96871ee",
+      "metal_library": true,
+      "water_shader_programs": 100,
+      "vm_game_payload": false,
+      "old_vm_graphics_runtime": false,
+      "app_icon_files": [
+        "Payload/PlayGTA5Native.app/AppIcon60x60@2x.png",
+        "Payload/PlayGTA5Native.app/AppIcon76x76@2x~ipad.png"
+      ],
+      "sha256_matches_ci": true
+    }
+  ],
+  "ci_codesign": "strict verification PASS",
+  "shader_coverage": {
+    "total": 4808,
+    "water_programs": 100,
+    "failures": 0
+  },
+  "txd_binary_identity_return": "PASS in both IPAs: mov x0,x3; ret",
+  "latest_repository_docs_revision": "e81b166"
+}
