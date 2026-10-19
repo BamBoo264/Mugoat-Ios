@@ -1,5 +1,10 @@
 # Mugoat native integration
 
+> Archived integration notes. The recovery entry point is now
+> `.github/workflows/build-ios.yml`; use the root README for the current build
+> instructions, bundle ID and limitations. The old release workflow names below
+> are historical references.
+
 The release entry point is `.github/workflows/build-game-ipa.yml`, which calls
 `build-mugoat-native.yml`. Root Rust/wgpu sources remain for reference and
 protocol reuse, and are not the release engine.

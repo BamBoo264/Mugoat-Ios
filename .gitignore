@@ -4,6 +4,7 @@ native-port/app/Build/
 native-port/app/Tools/
 native-port/app/Generated/
 native-port/app/GeneratedResources/
+native-port/app/Resources/manifest.json
 *.ipa
 *.enc
 *.p12

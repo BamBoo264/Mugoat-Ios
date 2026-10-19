@@ -1,4 +1,10 @@
-# Mugoat · iOSVN
+# Mugoat · iOSVN — archived integration notes
+
+> Historical notes preserved from the recovered snapshot. Version, bundle ID,
+> deployment target and feature descriptions below may refer to an older stage.
+> The recovery build's current identity, multiplayer integration, validation and
+> limits are documented in [the root README](../README.md) and
+> [the recovery report](../BAO-CAO.md).
 
 Mugoat is the native C/Metal variant requested for the Muguet project. It imports the GTA V Port host source at revision `2cf36db9ed719c8233008a1efeb80e24f99b0b16`, then changes app identity, interface and packaging. The engine and renderer are reused directly, not reimplemented behind similar-looking settings.
 
