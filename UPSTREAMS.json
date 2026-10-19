@@ -1,0 +1,314 @@
+{
+  "gta5-ios-port": {
+    "url": "https://github.com/kevinerikjs/gta5-ios-port",
+    "inspected_commit": "ac2a59cbf331c5b7eb22a6c05ac1dabcb8411c88",
+    "identical_files_to_latest": [
+      "Resources/bootset_low.json",
+      "Vendor/libarchive.xcframework/ios-arm64/libarchive.a",
+      "Vendor/libarchive.xcframework/ios-arm64-simulator/libarchive.a",
+      "Vendor/libarchive.xcframework/macos-arm64/libarchive.a",
+      "Resources/ControlIcons/icon_aim.png",
+      "Resources/ControlIcons/icon_brake.png",
+      "Resources/ControlIcons/icon_camera.png",
+      "Resources/ControlIcons/icon_cover.png",
+      "Resources/ControlIcons/icon_enter_exit.png",
+      "Resources/ControlIcons/icon_fire.png",
+      "Resources/ControlIcons/icon_gas.png",
+      "Resources/ControlIcons/icon_gyro.png",
+      "Resources/ControlIcons/icon_handbrake.png",
+      "Resources/ControlIcons/icon_horn.png",
+      "Resources/ControlIcons/icon_jump.png",
+      "Resources/ControlIcons/icon_landing_gear.png",
+      "Resources/ControlIcons/icon_lights.png",
+      "Resources/ControlIcons/icon_look.png",
+      "Resources/ControlIcons/icon_pause.png",
+      "Resources/ControlIcons/icon_phone.png",
+      "Resources/ControlIcons/icon_reload.png",
+      "Resources/ControlIcons/icon_settings.png",
+      "Resources/ControlIcons/icon_special.png",
+      "Resources/ControlIcons/icon_sprint.png",
+      "Resources/ControlIcons/icon_vehicle_weapon.png",
+      "Resources/ControlIcons/icon_weapons.png"
+    ],
+    "changed_files_to_latest": [
+      ".gitignore",
+      "project.yml",
+      "App/AppDelegate.swift",
+      "App/AssetPreloader.swift",
+      "App/ControlsLayout.swift",
+      "App/DownloadBrowserViewController.swift",
+      "App/Free.entitlements",
+      "App/Full.entitlements",
+      "App/GameFiles.swift",
+      "App/GameFilesViewController.swift",
+      "App/GameFolder.swift",
+      "App/GameInstall.swift",
+      "App/GameSettings.swift",
+      "App/GraphicsOptions.swift",
+      "App/GyroInput.swift",
+      "App/HomeView.swift",
+      "App/Info.plist",
+      "App/KeyboardMouse.swift",
+      "App/LogUploader.swift",
+      "App/NativePortViewController.swift",
+      "App/SettingsViewController.swift",
+      "App/Theme.swift",
+      "App/TouchControlsView.swift",
+      "App/VirtualPad.swift",
+      "Resources/bootset_native.json",
+      "Resources/bootset_native.summary.json",
+      "Scripts/analyze_streaming.py",
+      "Scripts/analyze_texture_streaming.py",
+      "Scripts/assemble_inputs.py",
+      "Scripts/build_metal_shaders.py",
+      "Scripts/build_native.sh",
+      "Scripts/build_simulator.sh",
+      "Scripts/check_asset_pipeline.sh",
+      "Scripts/check_game_files.py",
+      "Scripts/check_runtime.sh",
+      "Scripts/create_native_bootset.py",
+      "Scripts/fetch_game_files.py",
+      "Scripts/fetch_shader_tool.py",
+      "Scripts/generate_imports.py",
+      "Scripts/patch_wasm2c.py",
+      "Scripts/prepare.py",
+      "Scripts/prepare_fixup_guard.py",
+      "Scripts/prepare_format_strings.py",
+      "Scripts/prepare_heap_diagnostics.py",
+      "Scripts/prepare_level_index.py",
+      "Scripts/prepare_memory_pressure.py",
+      "Scripts/prepare_missing_txd.py",
+      "Scripts/prepare_movie_wait.py",
+      "Scripts/prepare_plain_dsp.py",
+      "Scripts/prepare_scenario_blockers.py",
+      "Scripts/prepare_trap_context.py",
+      "Scripts/prepare_unchecked_memory.py",
+      "Scripts/prepare_video_memory.py",
+      "Scripts/prepare_virtual_pad.py",
+      "Scripts/reset_streaming_cache.py",
+      "Scripts/run_simulator.sh",
+      "Scripts/safe_extract.py",
+      "Scripts/sha256_shim.c",
+      "Scripts/unpack_shaders.py",
+      "ShaderTool/build_pgmsl.sh",
+      "ShaderTool/pgmsl.cc",
+      "Source/BCTextureDecoder.c",
+      "Source/BCTextureDecoder.h",
+      "Source/BCTextureDecoderReference.inc",
+      "Source/EngineHost.c",
+      "Source/EngineHost.h",
+      "Source/HostInternal.h",
+      "Source/MetalGraphicsHost.mm",
+      "Source/Native-Bridging-Header.h",
+      "Source/NativeARM64Memory.h",
+      "Source/NativeAssetHints.h",
+      "Source/NativeAssetPreload.h",
+      "Source/NativeAssets.m",
+      "Source/NativeAssetServer.h",
+      "Source/NativeControllerLook.h",
+      "Source/NativeEngineConfiguration.h",
+      "Source/NativeFiles.c",
+      "Source/NativeFrameMetrics.h",
+      "Source/NativeFrameRate.h",
+      "Source/NativeGraphics.h",
+      "Source/NativeMemoryBudget.h",
+      "Source/NativePackedAssetCache.h",
+      "Source/NativeProxy.c",
+      "Source/NativeRingPackets.h",
+      "Source/NativeRuntime.h",
+      "Source/NativeThreads.c",
+      "Source/NativeTouchContext.h",
+      "Source/SharedSIMD.h",
+      "Source/WasmFutex.c",
+      "Source/WasmFutex.h",
+      "Tests/arm_shared_simd.c",
+      "Tests/asset_hints.c",
+      "Tests/asset_pipeline.m",
+      "Tests/bc_textures.c",
+      "Tests/controller_look.c",
+      "Tests/engine_configuration.c",
+      "Tests/frame_metrics.cpp",
+      "Tests/frame_rate.cpp",
+      "Tests/frame_reports.mm",
+      "Tests/memory_budget.c",
+      "Tests/metal_buffer_cache.cpp",
+      "Tests/native_runtime.c",
+      "Tests/native_uniform_resolver.mm",
+      "Tests/packed_asset_cache.c",
+      "Tests/prepared_draws.mm",
+      "Tests/ring_packets.cpp",
+      "Tests/state_packing.mm",
+      "Tests/texture_rows.mm",
+      "Tests/texture_views.mm",
+      "Tests/threads64.wat",
+      "Tests/WarmDispatchHarness.inc",
+      "Tests/warm_dispatch.mm",
+      "Tests/warm_javascript.mm",
+      "Vendor/LICENSE-libarchive.txt",
+      "Vendor/libarchive.xcframework/Info.plist",
+      "Vendor/libarchive.xcframework/LICENSE-libarchive.txt",
+      "Vendor/libarchive.xcframework/macos-arm64/Headers/archive.h",
+      "Vendor/libarchive.xcframework/macos-arm64/Headers/archive_entry.h",
+      "Vendor/libarchive.xcframework/ios-arm64-simulator/Headers/archive.h",
+      "Vendor/libarchive.xcframework/ios-arm64-simulator/Headers/archive_entry.h",
+      "Vendor/libarchive.xcframework/ios-arm64/Headers/archive.h",
+      "Vendor/libarchive.xcframework/ios-arm64/Headers/archive_entry.h",
+      "Source/MetalRenderer/MetalRenderer.h",
+      "Source/MetalRenderer/MRFrameReports.h",
+      "Source/MetalRenderer/MRFrameReports.mm",
+      "Source/MetalRenderer/MRInternal.h",
+      "Source/MetalRenderer/MRRenderer.mm",
+      "Source/MetalRenderer/MRShaders.mm",
+      "App/Assets.xcassets/Contents.json",
+      "App/GameInstaller/GameInstaller.swift",
+      "App/GameInstaller/GameInstallerShim.c",
+      "App/GameInstaller/GameInstallerShim.h",
+      "App/GameInstaller/GameManifest.swift",
+      "App/GameInstaller/InstallJob.swift",
+      "App/GameInstaller/LocalSource.swift",
+      "App/GameInstaller/RemoteSource.swift",
+      "App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png",
+      "App/Assets.xcassets/AppIcon.appiconset/Contents.json",
+      "App/Assets.xcassets/HomeIcon.imageset/Contents.json",
+      "App/Assets.xcassets/SettingsBackground.imageset/Contents.json",
+      "App/Assets.xcassets/SettingsBackground.imageset/settings-bg-ipad.jpg",
+      "App/Assets.xcassets/SettingsBackground.imageset/settings-bg-iphone.jpg",
+      "App/Assets.xcassets/StartBackground.imageset/Contents.json",
+      "App/Assets.xcassets/StartBackground.imageset/start-bg-ipad.jpg",
+      "App/Assets.xcassets/StartBackground.imageset/start-bg-iphone.jpg"
+    ],
+    "host_ancestor": "2cf36db9ed719c8233008a1efeb80e24f99b0b16"
+  },
+  "muguet": {
+    "url": "https://github.com/c22dev/muguet",
+    "inspected_commit": "1b4600b052b864c78fe36180073ff406663b7e0b",
+    "shared_packet_constants": {
+      "DEFAULT_PORT": {
+        "upstream": "47520",
+        "recovered": "47520"
+      },
+      "MAGIC": {
+        "upstream": "0x47",
+        "recovered": "0x47"
+      },
+      "TIMEOUT_SECS": {
+        "upstream": "5",
+        "recovered": "5"
+      },
+      "HELLO": {
+        "upstream": "1",
+        "recovered": "1"
+      },
+      "WELCOME": {
+        "upstream": "2",
+        "recovered": "2"
+      },
+      "STATE": {
+        "upstream": "3",
+        "recovered": "3"
+      },
+      "NAME": {
+        "upstream": "4",
+        "recovered": "4"
+      },
+      "LEAVE": {
+        "upstream": "5",
+        "recovered": "5"
+      },
+      "BYE": {
+        "upstream": "6",
+        "recovered": "6"
+      },
+      "FULL": {
+        "upstream": "7",
+        "recovered": "7"
+      },
+      "LOOK": {
+        "upstream": "8",
+        "recovered": "8"
+      },
+      "SHOT": {
+        "upstream": "9",
+        "recovered": "9"
+      },
+      "POP": {
+        "upstream": "10",
+        "recovered": "10"
+      },
+      "KILL": {
+        "upstream": "11",
+        "recovered": "11"
+      },
+      "VLOOK": {
+        "upstream": "12",
+        "recovered": "12"
+      },
+      "TAKEN": {
+        "upstream": "13",
+        "recovered": "13"
+      },
+      "EXPLODE": {
+        "upstream": "14",
+        "recovered": "14"
+      },
+      "HIT": {
+        "upstream": "15",
+        "recovered": "15"
+      },
+      "VHIT": {
+        "upstream": "16",
+        "recovered": "16"
+      },
+      "TIME": {
+        "upstream": "17",
+        "recovered": "17"
+      },
+      "POPX": {
+        "upstream": "18",
+        "recovered": "18"
+      },
+      "REL": {
+        "upstream": "19",
+        "recovered": "19"
+      },
+      "ACK": {
+        "upstream": "20",
+        "recovered": "20"
+      },
+      "KILLFEED": {
+        "upstream": "21",
+        "recovered": "21"
+      },
+      "VCTL": {
+        "upstream": "22",
+        "recovered": "22"
+      },
+      "FLAG_IN_VEHICLE": {
+        "upstream": "1",
+        "recovered": "1"
+      },
+      "FLAG_DEAD": {
+        "upstream": "2",
+        "recovered": "2"
+      },
+      "FLAG_AIMING": {
+        "upstream": "4",
+        "recovered": "4"
+      },
+      "FLAG_INSIDE": {
+        "upstream": "8",
+        "recovered": "8"
+      },
+      "FLAG_RAGDOLL": {
+        "upstream": "16",
+        "recovered": "16"
+      },
+      "FLAG_ENTERING": {
+        "upstream": "32",
+        "recovered": "32"
+      }
+    },
+    "packet_constants_equal": true,
+    "note": "Recovered Mugoat protocol extends upstream; matching packet IDs is not full gameplay interoperability proof."
+  }
+}

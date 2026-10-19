@@ -1,0 +1,97 @@
+name: Build Mugoat iOS Recovery IPA
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ios-recovery
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 180
+    env:
+      JOBS: '2'
+      CARGO_BUILD_JOBS: '2'
+    steps:
+      - name: Require private repository and ARM64 runner
+        env:
+          IS_PRIVATE: ${{ github.event.repository.private }}
+        run: |
+          test "$IS_PRIVATE" = true || { echo 'Use a PRIVATE repository for your game build inputs.'; exit 1; }
+          test "$(uname -m)" = arm64
+          xcodebuild -version
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Assemble and validate your own inputs
+        run: |
+          python3 tools/assemble_inputs.py --inputs inputs --out "$RUNNER_TEMP/game-files"
+          python3 native-port/app/Scripts/check_game_files.py --mirror "$RUNNER_TEMP/game-files"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+      - name: Check multiplayer bridge, UDP relay and engine ABI
+        run: |
+          cargo test --locked --manifest-path native-port/online-bridge/Cargo.toml --lib
+          cargo build --locked --manifest-path native-port/online-bridge/Cargo.toml --bin mugoat-server
+          node tools/test-server.cjs native-port/online-bridge/target/debug/mugoat-server
+          python3 native-port/app/Tests/online_codegen.py
+          python3 native-port/app/Tests/memory_configuration.py --engine "$RUNNER_TEMP/game-files/b/8b0b5899ed/game.wasm"
+          python3 -m unittest discover -s tests -v
+      - name: Check native input, memory, FPS, saves and mod paths
+        working-directory: native-port/app
+        run: |
+          for test in memory_budget engine_configuration drag_camera touch_camera controller_look; do
+            clang -std=c11 -I Source Tests/$test.c -o "$RUNNER_TEMP/$test"
+            "$RUNNER_TEMP/$test"
+          done
+          for test in frame_rate frame_metrics; do
+            clang++ -std=c++20 -I Source Tests/$test.cpp -o "$RUNNER_TEMP/$test"
+            "$RUNNER_TEMP/$test"
+          done
+          swiftc App/ModFiles.swift Tests/mod_files.swift -o "$RUNNER_TEMP/mod-files"
+          "$RUNNER_TEMP/mod-files"
+          swiftc App/DragCamera.swift Tests/drag_camera.swift -o "$RUNNER_TEMP/drag-camera"
+          "$RUNNER_TEMP/drag-camera"
+          cp Resources/Localizations.json "$RUNNER_TEMP/Localizations.json"
+          swiftc App/Localization.swift App/SaveStore.swift Tests/save_store.swift -o "$RUNNER_TEMP/save-store"
+          "$RUNNER_TEMP/save-store"
+      - name: Install Apple build tools
+        run: |
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+          xcrun -sdk iphoneos metal --version >/dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain
+      - uses: actions/cache@v4
+        with:
+          path: native-port/app/Tools
+          key: recovery-tools-arm64-v1-${{ hashFiles('native-port/app/Scripts/prepare.py', 'native-port/app/Scripts/patch_wasm2c.py', 'native-port/app/Scripts/fetch_shader_tool.py') }}
+      - name: Build native ARM64 and Metal Release IPA
+        run: bash native-port/build_ipa.sh --mirror "$RUNNER_TEMP/game-files"
+      - name: Verify both IPA variants
+        working-directory: native-port
+        run: |
+          python3 app/Scripts/verify_native_ipa.py Mugoat-AppleID-Free.ipa --revision "$GITHUB_SHA" > validation-free.json
+          python3 app/Scripts/verify_native_ipa.py Mugoat-Cert-Paid.ipa --revision "$GITHUB_SHA" > validation-full.json
+          codesign --verify --deep --strict app/Build/IPA-Free/Payload/PlayGTA5Native.app
+          codesign --verify --deep --strict app/Build/IPA-Paid/Payload/PlayGTA5Native.app
+          shasum -a 256 Mugoat-AppleID-Free.ipa Mugoat-Cert-Paid.ipa > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mugoat-iOS-Recovery-IPAs
+          path: |
+            native-port/Mugoat-AppleID-Free.ipa
+            native-port/Mugoat-Cert-Paid.ipa
+            native-port/validation-*.json
+            native-port/SHA256SUMS.txt
+          retention-days: 7
+          if-no-files-found: error
+      - name: Preserve failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mugoat-build-diagnostics
+          path: |
+            native-port/app/Build/xcodebuild.log
+            native-port/app/Generated/online-game.json
+          if-no-files-found: ignore
+          retention-days: 7
