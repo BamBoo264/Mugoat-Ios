@@ -77,7 +77,7 @@ jobs:
             native-port/app/GeneratedResources
             native-port/app/Build/MetalShaders
             native-port/app/Build/Release
-          key: recovery-prepared-arm64-v1-${{ steps.compiler.outputs.version }}-${{ hashFiles('inputs/files.json', 'native-port/app/Scripts/**', 'native-port/app/ShaderTool/**', 'native-port/app/project.yml', 'src/mp.rs', 'native-port/online-bridge/src/**') }}
+          key: recovery-prepared-arm64-v1-${{ steps.compiler.outputs.version }}-${{ hashFiles('inputs/files.json', 'native-port/app/Scripts/**', '!native-port/app/Scripts/**/__pycache__/**', 'native-port/app/ShaderTool/**', 'native-port/app/project.yml', 'src/mp.rs', 'native-port/online-bridge/src/**') }}
       - name: Build native ARM64 and Metal Release IPA
         env:
           PG_REUSE_PREPARED: ${{ steps.prepared.outputs.cache-hit == 'true' && '1' || '0' }}
