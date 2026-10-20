@@ -5,6 +5,7 @@
 #include <stdlib.h>
 
 extern "C" void pg_log(const char *);
+extern "C" void PGMetalRendererSetUpscaling(int on);
 extern "C" void PGMetalRendererSetPresentInterval(double interval);
 
 void PGAttachMetalLayer(void *layer) { PGMetalRendererAttachLayer(layer); }
