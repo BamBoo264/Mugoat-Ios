@@ -59,6 +59,8 @@ jobs:
           "$RUNNER_TEMP/save-store"
           clang -std=c11 -I Source Source/ManagedOpenRPF.c Tests/managed_open_rpf.c -o "$RUNNER_TEMP/open-rpf"
           "$RUNNER_TEMP/open-rpf"
+          clang -std=c11 -I Source Source/NativeVehicleAudio.c Tests/vehicle_audio.c -o "$RUNNER_TEMP/vehicle-audio"
+          "$RUNNER_TEMP/vehicle-audio"
           clang -c -I App/GameInstaller Source/NativeRPFInflate.c -o "$RUNNER_TEMP/rpf-inflate.o"
           clang -c -I Vendor/libarchive.xcframework/macos-arm64/Headers -I App/GameInstaller App/GameInstaller/GameInstallerShim.c -o "$RUNNER_TEMP/archive-shim.o"
           swiftc -import-objc-header App/GameInstaller/GameInstallerShim.h App/ModFiles.swift App/RPFArchive.swift App/ModRuntime.swift App/VehicleInstaller.swift Tests/vehicle_installer.swift "$RUNNER_TEMP/rpf-inflate.o" "$RUNNER_TEMP/archive-shim.o" Vendor/libarchive.xcframework/macos-arm64/libarchive.a -lz -lbz2 -o "$RUNNER_TEMP/vehicle-installer"

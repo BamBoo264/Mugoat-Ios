@@ -100,6 +100,8 @@ struct RPFArchive {
 
 final class ModXML: NSObject, XMLParserDelegate {
     private var current = "", text = ""
+    private var stack: [String] = [], row: [String:String] = [:]
+    private(set) var audioPolicies: [(model:String,profile:String,kind:String)] = []
     private(set) var values: [String: [String]] = [:]
     static func read(_ data: Data) throws -> ModXML {
         let delegate = ModXML(), parser = XMLParser(data: data)
@@ -107,11 +109,18 @@ final class ModXML: NSObject, XMLParserDelegate {
         guard parser.parse() else { throw ModError("XML của mod không hợp lệ.") }
         return delegate
     }
-    func parser(_ parser: XMLParser, didStartElement name: String, namespaceURI: String?, qualifiedName: String?, attributes: [String: String]) { current = name; text = "" }
+    func parser(_ parser: XMLParser, didStartElement name: String, namespaceURI: String?, qualifiedName: String?, attributes: [String: String]) { current = name; text = ""; stack.append(name)
+        if stack.count == 3 && stack[1] == "InitDatas" && name == "Item" { row = [:] }
+    }
     func parser(_ parser: XMLParser, foundCharacters string: String) { text += string }
     func parser(_ parser: XMLParser, didEndElement name: String, namespaceURI: String?, qualifiedName: String?) {
         if name == current { let value = text.trimmingCharacters(in: .whitespacesAndNewlines); if !value.isEmpty { values[name, default: []].append(value) } }
-        current = ""; text = ""
+        if stack.count == 4 && stack[1] == "InitDatas" && stack[2] == "Item" { row[name] = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+        if stack.count == 3 && stack[1] == "InitDatas" && name == "Item", let model = row["modelName"], !model.isEmpty {
+            let profile = row["audioNameHash"] ?? ""
+            audioPolicies.append((model,profile.isEmpty ? model : profile,row["vehicleClass"] ?? ""))
+        }
+        stack.removeLast(); current = ""; text = ""
     }
 }
 
@@ -120,6 +129,7 @@ struct ModPack {
     let url: URL
     let models: [String]
     let vehicleModels: [String]
+    let audioPolicies: [(model:String,profile:String,kind:String)]
     let archive: RPFArchive
     static func validName(_ name: String) -> Bool {
         !name.isEmpty && name.utf8.count<=63 && name.utf8.allSatisfy{(97...122).contains($0)||(48...57).contains($0)||$0==95}
@@ -130,12 +140,14 @@ struct ModPack {
         let xml=try ModXML.read(archive.metadata(setup))
         guard let device=xml.values["deviceName"]?.first?.lowercased(),device.hasPrefix("dlc_"),Self.validName(String(device.dropFirst(4))) else {throw ModError("DLC không có deviceName hợp lệ.")}
         name=String(device.dropFirst(4));self.url=url;self.archive=archive
+        var audio: [(model:String,profile:String,kind:String)] = []
         var vehicles=Set<String>(),peds=Set<String>(),fragments=Set<String>(),total=0
         func scan(_ rpf:RPFArchive,_ depth:Int) throws {
             guard depth<=4 else {throw ModError("DLC lồng archive quá sâu.")}
             for e in rpf.entries {
                 if e.path.hasSuffix("vehicles.meta") {
-                    for m in try ModXML.read(rpf.metadata(e)).values["modelName"] ?? [] {let n=m.lowercased();guard Self.validName(n) else {throw ModError("Model không hợp lệ: \(n)")};vehicles.insert(n)}
+                    let parsed = try ModXML.read(rpf.metadata(e)); audio += parsed.audioPolicies
+                    for m in parsed.values["modelName"] ?? [] {let n=m.lowercased();guard Self.validName(n) else {throw ModError("Model không hợp lệ: \(n)")};vehicles.insert(n)}
                 } else if e.path.hasSuffix("peds.meta") {
                     let data=try ModXML.read(rpf.metadata(e));for m in (data.values["ModelName"] ?? [])+(data.values["Name"] ?? []) {if Self.validName(m.lowercased()){peds.insert(m.lowercased())}}
                 } else if e.path.hasSuffix(".rpf") {
@@ -151,6 +163,6 @@ struct ModPack {
         if vehicles.isEmpty {vehicles=fragments} // replacement pack: engine already owns model metadata
         guard !vehicles.isEmpty || !peds.isEmpty else {throw ModError("DLC không chứa model có thể nạp.")}
         guard vehicles.isSubset(of:fragments) else {throw ModError("DLC khai báo xe nhưng thiếu YFT: \(vehicles.subtracting(fragments).sorted().joined(separator:", "))")}
-        vehicleModels=vehicles.sorted();models=vehicles.union(peds).sorted()
+        audioPolicies=audio.filter { vehicles.contains($0.model) }; vehicleModels=vehicles.sorted();models=vehicles.union(peds).sorted()
     }
 }

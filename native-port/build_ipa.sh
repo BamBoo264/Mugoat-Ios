@@ -51,6 +51,7 @@ grep -E 'BUILD SUCCEEDED' Build/xcodebuild.log
 APP=Build/Release/Build/Products/Release-iphoneos/PlayGTA5Native.app
 ROOT_DIR="$(cd .. && pwd)"
 printf '%s\n' "${GITHUB_SHA:-local}" > "$APP/iosvn-build-revision.txt"
+printf '%s\n' 'f4847c2aac8cb91388398e88a4760375784f29e1' > "$APP/iosvn-pipeline-revision.txt"
 cp Resources/manifest.json "$APP/manifest.json"
 test -s "$APP/manifest.json"
 

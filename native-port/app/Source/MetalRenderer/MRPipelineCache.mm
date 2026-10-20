@@ -70,7 +70,7 @@ void PipelineCache::initialize(id<MTLDevice> device){
  static std::once_flag once;std::call_once(once,[device]{
   gpu=device;recipes=[NSMutableDictionary dictionary];states=[NSMutableDictionary dictionary];
   worker=dispatch_queue_create("mugoat.pipeline-cache-v3",dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL,QOS_CLASS_UTILITY,0));
-  NSURL *revisionURL=[NSBundle.mainBundle URLForResource:@"iosvn-build-revision" withExtension:@"txt"];
+  NSURL *revisionURL=[NSBundle.mainBundle URLForResource:@"iosvn-pipeline-revision" withExtension:@"txt"];
   NSString *revision=revisionURL?[NSString stringWithContentsOfURL:revisionURL encoding:NSUTF8StringEncoding error:nil]:@"local";
   NSString *identity=[NSString stringWithFormat:@"%@|%@|%@|schema3",gpu.name,NSProcessInfo.processInfo.operatingSystemVersionString,revision];
   uint64_t hash=1469598103934665603ull;for(NSUInteger i=0;i<identity.length;i++){hash^=[identity characterAtIndex:i];hash*=1099511628211ull;}

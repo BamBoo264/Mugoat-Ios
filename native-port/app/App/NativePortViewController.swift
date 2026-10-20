@@ -619,6 +619,9 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
                     )
                     effectiveManifest = overlayManifestURL.path
                     ModRuntime.activeCatalog = catalog
+                    for pack in catalog.packs { for p in pack.audioPolicies {
+                        PGRegisterVehicleAudioPolicy(p.model,p.profile,p.kind)
+                    }}
                     if !catalog.packs.isEmpty {
                         PGSetManagedOpenRPFEnabled(true)
                         appendLog("ModRuntime: Đã nạp \(catalog.packs.count) gói DLC mod (\(catalog.vehicleModels.count) xe: \(catalog.vehicleModels.joined(separator: ", "))).")

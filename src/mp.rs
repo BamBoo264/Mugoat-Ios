@@ -63,6 +63,8 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("SetScenarioPedDensityMultiplierThisFrame", "ped_commands::CommandSetScenarioPedDensityMultiplierThisFrame(float, float)"),
     ("CreateVehicle", "vehicle_commands::CommandCreateVehicle(int, rage::scrVector const&, float, bool, bool, bool)"),
     ("DeleteVehicle", "vehicle_commands::CommandDeleteVehicle(int&)"),
+    ("ForceVehicleEngineAudio", "audio_commands::CommandForceVehicleGameObject(int, char const*)"),
+    ("AudioProfilePtr", "rage::audMetadataManager::GetObject_Verify(unsigned int, unsigned int) const"),
     ("SetVehicleEngineOn", "vehicle_commands::CommandSetVehicleEngineOn(int, bool, bool, bool)"),
     ("GetPedInVehicleSeat", "vehicle_commands::CommandGetPedInVehicleSeat(int, int, bool)"),
     ("IsVehicleSeatFree", "vehicle_commands::CommandIsVehicleSeatFree(int, int, bool)"),

@@ -1,4 +1,5 @@
 #include "EngineHost.h"
+#include "NativeVehicleAudio.h"
 #include "MugoatOnline.h"
 #include "NativeAssetPreload.h"
 

@@ -20,6 +20,7 @@
 #include "NativeEngineMemory.h"
 #include "NativeMemoryBudget.h"
 #include "MugoatOnline.h"
+#include "NativeVehicleAudio.h"
 
 static struct w2c_env env;
 static struct w2c_wasi__snapshot__preview1 wasi = { .env = &env };
@@ -1098,6 +1099,39 @@ int PGSpawnVehicleStatus(void) {
   return atomic_load(&pg_spawn_status);
 }
 
+// Same pinned metadata manager and verified-profile policy as PC V10.
+static bool pg_audio_profile_exists(const char *name,void *context){
+ w2c_game *instance=context;
+ MugoatValue args[]={mg_u64(15584440),mg_u32(pg_joaat(name)),mg_u32(3)};
+ return mg_call_u64(instance,"mp:AudioProfilePtr",args,3)!=0;
+}
+static void pg_bind_vehicle_audio(w2c_game *instance,uint32_t vehicle){
+ if(MugoatOnlineEnabled()||!vehicle)return;
+ MugoatValue entity[]={mg_u32(vehicle)};
+ uint32_t model=mg_call_u32(instance,"mp:GetEntityModel",entity,1);
+ const PGVehicleAudioPolicy *p=PGFindVehicleAudioPolicy(model);if(!p)return;
+ const char *profile=PGChooseVehicleAudio(p,pg_audio_profile_exists,instance);
+ if(!profile){pg_log("[vehicle-audio] no available compatible profile; original audio retained");return;}
+ static uint64_t nameBuffer;if(!nameBuffer)nameBuffer=w2c_game_f100(instance,64);
+ snprintf(pg_pointer(&env,nameBuffer,64),64,"%s",profile);
+ MugoatValue args[]={mg_u32(vehicle),mg_u64(nameBuffer)};
+ mg_call_void(instance,"mp:ForceVehicleEngineAudio",args,2);
+ char line[160];snprintf(line,sizeof line,"[vehicle-audio] model %08x -> verified profile %s",model,profile);pg_log(line);
+}
+static void pg_player_vehicle_audio(w2c_game *instance){
+ if(MugoatOnlineEnabled()||!PGManagedOpenRPFEnabled())return;
+ static double last;struct timespec t;clock_gettime(CLOCK_MONOTONIC,&t);double now=t.tv_sec+t.tv_nsec/1e9;
+ if(now-last<0.25)return;last=now;
+ uint64_t previous=pg_enter_script(instance,true);
+ uint32_t ped=mg_call_u32(instance,"mp:PlayerPedId",NULL,0);
+ MugoatValue args[]={mg_u32(ped),mg_u32(0)};
+ uint32_t vehicle=ped?mg_call_u32(instance,"mp:GetVehiclePedIsIn",args,2):0;
+ static uint32_t lastVehicle,lastModel;
+ uint32_t model=0;if(vehicle){MugoatValue a[]={mg_u32(vehicle)};model=mg_call_u32(instance,"mp:GetEntityModel",a,1);}
+ if(vehicle&&(vehicle!=lastVehicle||model!=lastModel))pg_bind_vehicle_audio(instance,vehicle);
+ lastVehicle=vehicle;lastModel=model;
+ pg_test_leave_script(instance,previous);
+}
 static void pg_process_vehicle_spawn(w2c_game *instance) {
   if (atomic_load(&pg_spawn_status) != 1) return;
   pthread_mutex_lock(&pg_spawn_lock);
@@ -1167,6 +1201,7 @@ static void pg_process_vehicle_spawn(w2c_game *instance) {
     MugoatValue sitArgs[3] = { mg_u32(ped), mg_u32(vehicle), mg_u32((uint32_t)-1) };
     mg_call_void(instance, "mp:SetPedIntoVehicle", sitArgs, 3);
 
+    pg_bind_vehicle_audio(instance,vehicle);
     // Turn engine on immediately
     MugoatValue engArgs[4] = { mg_u32(vehicle), mg_u32(1), mg_u32(1), mg_u32(0) };
     mg_call_void(instance, "mp:SetVehicleEngineOn", engArgs, 4);
@@ -1594,6 +1629,7 @@ void pg_virtual_pad_apply(w2c_game *instance, uint64_t pad) {
     pg_apply_targeting_mode(instance);
     pg_keep_on_test_map(instance);
     pg_process_vehicle_spawn(instance);
+    pg_player_vehicle_audio(instance);
     pg_process_vehicle_exit(instance);
     pg_process_force_skip_scene(instance);
     pg_process_player_respawn(instance);

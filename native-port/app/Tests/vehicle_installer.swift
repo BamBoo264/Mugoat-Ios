@@ -16,6 +16,8 @@ import Foundation
    try! Data(xml.utf8).write(to:folder.appendingPathComponent("vehicles.meta"));return folder
   }
   let mods=root.appendingPathComponent("mods");try fm.createDirectory(at:mods,withIntermediateDirectories:true)
+  let parsed=try ModXML.read(Data("<Root><InitDatas><Item><modelName>bike</modelName><audioNameHash/><vehicleClass>VC_MOTORCYCLE</vehicleClass></Item><Item><modelName>car</modelName><audioNameHash>ADDER</audioNameHash><vehicleClass>VC_SUPER</vehicleClass></Item></InitDatas></Root>".utf8))
+  precondition(parsed.audioPolicies.count==2 && parsed.audioPolicies[0].profile=="bike" && parsed.audioPolicies[1].profile=="adder" && parsed.audioPolicies[0].kind=="vc_motorcycle")
   let a=loose("testbike"),b=loose("otherbike")
   _ = try VehicleInstaller.install(a,into:mods,baseModels:[])
   _ = try VehicleInstaller.install(b,into:mods,baseModels:[])
