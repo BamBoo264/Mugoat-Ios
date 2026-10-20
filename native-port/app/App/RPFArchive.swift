@@ -142,6 +142,7 @@ struct ModPack {
     let vehicleModels: [String]
     let audioPolicies: [(model:String,profile:String,kind:String)]
     let audioProfiles:[String]
+    let containsAudioMetadata:Bool
     let archive: RPFArchive
     static func validName(_ name: String) -> Bool {
         !name.isEmpty && name.utf8.count<=63 && name.utf8.allSatisfy{(97...122).contains($0)||(48...57).contains($0)||$0==95}
@@ -154,10 +155,11 @@ struct ModPack {
         name=String(device.dropFirst(4));self.url=url;self.archive=archive
         var audio: [(model:String,profile:String,kind:String)] = []
         var vehicles=Set<String>(),peds=Set<String>(),fragments=Set<String>(),total=0
-        var profiles=Set<String>(),waveBanks=0
+        var profiles=Set<String>(),waveBanks=0,hasAudio=false
         func scan(_ rpf:RPFArchive,_ depth:Int) throws {
             guard depth<=4 else {throw ModError("DLC lồng archive quá sâu.")}
             for e in rpf.entries {
+                if [".dat151.rel",".dat54.rel",".dat10.rel"].contains(where:{e.path.hasSuffix($0)}) {hasAudio=true}
                 if e.path.hasSuffix(".dat151.rel") {
                     profiles.formUnion(try ModAudio.profiles(rpf.binary(e),filename:e.path))
                 } else if e.path.hasSuffix(".awc") {waveBanks+=1
@@ -179,6 +181,7 @@ struct ModPack {
         if vehicles.isEmpty {vehicles=fragments} // replacement pack: engine already owns model metadata
         guard !vehicles.isEmpty || !peds.isEmpty || (!profiles.isEmpty && waveBanks>0) else {throw ModError("DLC không chứa model có thể nạp.")}
         guard vehicles.isSubset(of:fragments) else {throw ModError("DLC khai báo xe nhưng thiếu YFT: \(vehicles.subtracting(fragments).sorted().joined(separator:", "))")}
+        containsAudioMetadata=hasAudio
         audioProfiles=profiles.sorted()
         audioPolicies=audio.filter { vehicles.contains($0.model) }; vehicleModels=vehicles.sorted();models=vehicles.union(peds).sorted()
     }
@@ -187,6 +190,30 @@ struct ModPack {
 /// Minimal bounded REL151 index reader; only verified type-3 vehicle settings names
 /// are offered. Format reference: CodeWalker RelFile.Load / RelIndexHash.
 enum ModAudio {
+    /// The native engine requests .dat151/.dat54/.dat10, whereas PC mods
+    /// usually supply only the .rel name. Add aliases only if plain data is absent.
+    /// Original files and any author-supplied plain versions remain untouched.
+    static func nativeAliases(_ r:RPFArchive,_ depth:Int=0) throws -> Data? {
+        guard depth<=4 else {throw ModError("Audio RPF lồng quá sâu.")}
+        let paths=Set(r.entries.map(\.path))
+        var replacements:[String:Data]=[:]
+        for e in r.entries {
+            if e.path.hasSuffix(".rpf") {
+                if let nested=try? r.nested(e),let patched=try nativeAliases(nested,depth+1) {replacements[e.path]=patched}
+            } else if [".dat151.rel",".dat54.rel",".dat10.rel"].contains(where:{e.path.hasSuffix($0)}) {
+                let plain=String(e.path.dropLast(4))
+                if !paths.contains(plain) {replacements[plain]=try r.binary(e)}
+            }
+        }
+        guard !replacements.isEmpty else {return nil}
+        var files=replacements
+        for e in r.entries where files[e.path]==nil {
+            if e.resourceVersion != nil || (e.path.hasSuffix(".rpf") && !e.compressed && !e.encrypted) {
+                files[e.path]=r.bytes.subdata(in:e.offset..<(e.offset+e.size))
+            } else {files[e.path]=try r.binary(e)}
+        }
+        return try VehicleInstaller.pack(files)
+    }
     static func hash(_ name:String)->UInt32 {
         var h:UInt32=0;for c in name.lowercased().utf8 {h=h &+ UInt32(c);h=h &+ (h<<10);h ^= h>>6};h=h &+ (h<<3);h ^= h>>11;return h &+ (h<<15)
     }

@@ -188,7 +188,10 @@ enum VehicleInstaller {
             items+="<Item><filename>\(mounted)</filename><fileType>\(type)</fileType><locked value=\"false\"/><disabled value=\"true\"/><persistent value=\"true\"/><overlay value=\"false\"/></Item>"
             enable+="<Item>\(mounted)</Item>"
         }
-        for (path,data) in audio {root[path]=data}
+        for (path,data) in audio {
+            root[path]=data
+            if path.hasSuffix(".rel") {root[String(path.dropLast(4))]=data}
+        }
         root["setup2.xml"]=Data(setup.utf8)
         root["content.xml"]=Data("<?xml version=\"1.0\"?><CDataFileMgr__ContentsOfDataFileXml><disabledFiles/><includedXmlFiles/><includedDataFiles/><dataFiles>\(items)</dataFiles><contentChangeSets><Item><changeSetName>\(change)</changeSetName><filesToEnable>\(enable)</filesToEnable></Item></contentChangeSets><patchFiles/></CDataFileMgr__ContentsOfDataFileXml>".utf8)
         let file=output.appendingPathComponent("dlc.rpf");try pack(root).write(to:file,options:.atomic);return file

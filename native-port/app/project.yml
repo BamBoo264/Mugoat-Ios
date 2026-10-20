@@ -93,7 +93,7 @@ targets:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: Mugoat Rebuild
-        CFBundleShortVersionString: "2.6"
+        CFBundleShortVersionString: "2.7"
         # Your game-file server may be a plain-http address on your tailnet.
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
@@ -103,7 +103,7 @@ targets:
         # The app folder (logs) is visible in the Files app.
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
-        CFBundleVersion: "26"
+        CFBundleVersion: "27"
         UILaunchScreen: {}
         UIRequiresFullScreen: true
         # Lets the game present above 60 FPS on ProMotion iPhones when the frame rate is unlocked.

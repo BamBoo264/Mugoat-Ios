@@ -1,5 +1,6 @@
 import Foundation
 @main struct VehicleInstallerTests {
+ static func tryNoAliases(_ r:RPFArchive)->Bool {try! ModAudio.nativeAliases(r)==nil}
  static func tryProfiles(_ b:Data,_ file:String)->[String] {try! ModAudio.profiles(b,filename:file)}
  static func main() throws {
   for name in ["ta103ninjah2r","brabus850","gt3flat6","w211"] {
@@ -80,6 +81,22 @@ import Foundation
   precondition(mountXML.contains("AUDIO_GAMEDATA") && mountXML.contains("AUDIO_WAVEPACK") && mountXML.contains("/audioconfig/custom_game.dat</filename>"))
   precondition(looseAudio.entries.contains{$0.path=="sfx/dlc_custom/custom.awc"})
   try fm.removeItem(at:a.appendingPathComponent("sfx"));try fm.removeItem(at:a.appendingPathComponent("custom_game.dat151.rel"))
+  // Reproduce the actual v26 failure: the guest opens .dat151, not .dat151.rel.
+  let realGame=try Data(contentsOf:URL(fileURLWithPath:"Tests/Fixtures/vehicle_audio/ta103ninjah2r_game.dat151.rel"))
+  let old=try RPFArchive(bytes:VehicleInstaller.pack(["audioconfig/ta103ninjah2r_game.dat151.rel":realGame,"audioconfig/test_sounds.dat54.rel":Data([54,0,0,0]),"audioconfig/test_amp.dat10.rel":Data([10,0,0,0])]))
+  let fixed=try RPFArchive(bytes:ModAudio.nativeAliases(old)!)
+  for path in ["audioconfig/ta103ninjah2r_game.dat151","audioconfig/test_sounds.dat54","audioconfig/test_amp.dat10"] {
+   let plain=fixed.entries.first{$0.path==path}!,release=fixed.entries.first{$0.path==path+".rel"}!
+   let left=try fixed.binary(plain),right=try fixed.binary(release);precondition(left==right)
+  }
+  precondition(tryNoAliases(fixed))
+  let authorPlain=Data([54,0,0,0,9,8,7]),release=Data([54,0,0,0,1,2,3])
+  let both=try RPFArchive(bytes:VehicleInstaller.pack(["audio/s.dat54":authorPlain,"audio/s.dat54.rel":release]))
+  precondition(tryNoAliases(both),"Do not replace an author's existing native/plain data with its different release data")
+  let nestedOnly=try RPFArchive(bytes:VehicleInstaller.pack(["audio.rpf":VehicleInstaller.pack(["game.dat151.rel":realGame])]))
+  let fixedNested=try RPFArchive(bytes:ModAudio.nativeAliases(nestedOnly)!)
+  let child=try fixedNested.nested(fixedNested.entries[0]);precondition(child.entries.contains{$0.path=="game.dat151"})
+  print("PASS: native audio .dat151/.dat54/.dat10 lookups resolve; aliases byte identical; existing plain data preserved; nested archives; idempotent")
   let standalone=root.appendingPathComponent("standalone-sound"),soundOut=root.appendingPathComponent("sound-out")
   try fm.createDirectory(at:standalone.appendingPathComponent("sfx/dlc_custom"),withIntermediateDirectories:true)
   try fm.createDirectory(at:soundOut,withIntermediateDirectories:true)
@@ -87,6 +104,7 @@ import Foundation
   let standaloneRPF=try VehicleInstaller.loose(VehicleInstaller.files(in:standalone),output:soundOut,baseModels:[])
   let sound=try ModPack(url:standaloneRPF)
   precondition(sound.models.isEmpty && sound.audioProfiles==["custom"])
+  precondition(sound.archive.entries.contains{$0.path=="audioconfig/custom_game.dat151"})
   do {_ = try ModAudio.profiles(Data([151,0,0,0]),filename:"bad_game.dat151.rel");fatalError("Truncated REL accepted")}catch is ModError {}
   let extractedOut=root.appendingPathComponent("extracted-sound");try fm.createDirectory(at:extractedOut,withIntermediateDirectories:true)
   let extractedSound=try ModPack(url:VehicleInstaller.soundPack(standaloneRPF,output:extractedOut))
@@ -104,6 +122,20 @@ import Foundation
   let manifest=root.appendingPathComponent("manifest.json"),runtime=root.appendingPathComponent("runtime")
   let originalManifest=try JSONSerialization.data(withJSONObject:["files":[["common/data/dlcList.xml",123,0],["x64/unchanged.rpf",456,0]]])
   try originalManifest.write(to:manifest)
+  let legacySoundURL=root.appendingPathComponent("legacy-sound.rpf")
+  var legacyFiles:[String:Data]=[:]
+  for e in sound.archive.entries where !e.path.hasSuffix(".dat151") {legacyFiles[e.path]=try sound.archive.binary(e)}
+  try VehicleInstaller.pack(legacyFiles).write(to:legacySoundURL)
+  let legacyBefore=try Data(contentsOf:legacySoundURL),legacyMods=root.appendingPathComponent("legacy-mods")
+  let installedLegacy=try ModRuntime.importPack(legacySoundURL,into:legacyMods)
+  let (migratedManifest,_)=try ModRuntime.prepare(baseManifest:manifest,mods:legacyMods,runtime:root.appendingPathComponent("legacy-runtime"),dlcList:Data("<SMandatoryPacksData><Paths/></SMandatoryPacksData>".replacingOccurrences(of:"<Paths/>",with:"<Paths></Paths>").utf8))
+  let migratedDocument=try JSONSerialization.jsonObject(with:Data(contentsOf:migratedManifest)) as! [String:Any]
+  let migratedRoutes=migratedDocument["_mugoatOverrides"] as! [String:String]
+  let migratedPath=migratedRoutes["x64/dlcPacks/"+installedLegacy.name+"/dlc.rpf"]!
+  let migratedArchive=try RPFArchive(url:URL(fileURLWithPath:migratedPath))
+  precondition(migratedArchive.entries.contains{$0.path=="audioconfig/custom_game.dat151"})
+  let untouched=try Data(contentsOf:installedLegacy.url);precondition(untouched==legacyBefore)
+  print("PASS: v26 sound pack repaired in runtime overlay without reinstall or changing original mod bytes")
   let (overlay, mounted)=try ModRuntime.prepare(baseManifest:manifest,mods:mods,runtime:runtime,dlcList:Data("<SMandatoryPacksData><Paths><Item>platform:\\dlcPacks\\original\\</Item></Paths></SMandatoryPacksData>".utf8))
   let document=try JSONSerialization.jsonObject(with:Data(contentsOf:overlay)) as! [String:Any]
   let routes=document["_mugoatOverrides"] as! [String:String],rows=document["files"] as! [[Any]]

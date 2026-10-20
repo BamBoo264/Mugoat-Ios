@@ -56,7 +56,12 @@ enum ModRuntime {
         }
         for pack in catalog.packs {
             let prefix = "x64/dlcPacks/" + pack.name + "/"
-            try add(prefix + "dlc.rpf", file: pack.url)
+            var archiveURL=pack.url
+            if pack.containsAudioMetadata,let repaired=try ModAudio.nativeAliases(pack.archive) {
+                archiveURL=runtime.appendingPathComponent(pack.name+"-native-audio.rpf")
+                try repaired.write(to:archiveURL,options:.atomic)
+            }
+            try add(prefix + "dlc.rpf", file: archiveURL)
             for name in ["setup2.xml", "content.xml"] {
                 guard let entry = pack.archive.entries.first(where: { $0.path == name }) else { throw ModError("DLC thiếu \(name)") }
                 let target = runtime.appendingPathComponent(pack.name + "-" + name)
