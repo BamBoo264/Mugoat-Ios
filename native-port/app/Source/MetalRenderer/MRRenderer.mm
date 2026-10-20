@@ -12,7 +12,6 @@
 #include "MetalRenderer.h"
 #include "MRFrameReports.h"
 #include "BCTextureDecoder.h"
-#include "BC1ToASTC.h"
 #include "NativeFrameRate.h"
 #import <UIKit/UIKit.h>
 #if __has_include(<MetalFX/MetalFX.h>) && !TARGET_OS_SIMULATOR		// iPhone SDK only
@@ -503,7 +502,7 @@ static void createTexture(const uint32_t *p) {
 	t->format = m.format; t->dxgi = dxgi; t->bind = bind; t->dim = dim; t->width = w; t->height = dim == 1 ? 1 : h;
 	t->depthOrLayers = dim == 3 ? d : arraySize; t->mips = mips; t->samples = samples;
 	t->isDepth = isDepthFormat(m.format); t->hasStencil = hasStencil(m.format);
-	t->bcKind = m.bc; t->bcSrgb = m.srgb; t->bcNative = m.bcNative; t->astc = m.astc;
+	t->bcKind = m.bc; t->bcSrgb = m.srgb; t->bcNative = m.bcNative;
 	t->floatNoFilter = isFloat32(m.format) && !R->float32Filtering;
 	// Lite: only plain sampled 2D textures the game loads (shader resource only, so no render targets,
 	// staging or dynamic textures, which have one mip) with mips to spare. Small ones (lookup tables,
@@ -554,7 +553,6 @@ static void createTexture(const uint32_t *p) {
 				blocks += (mw + 3) / 4 * ((mh + 3) / 4) * bcBlockBytes(m.bc) * md;
 			}
 			if (t->bcNative) t->gpuBytes = blocks;
-			else if (t->astc) t->gpuBytes = blocks * 2;		// 16-byte blocks for BC1's 8
 			else for (uint32_t mip = t->skip; mip < mips; mip++)
 				t->gpuBytes += (uint64_t)std::max(1u, w >> mip) * std::max(1u, t->height >> mip) * (dim == 3 ? std::max(1u, d >> mip) : arraySize) * samples * bytesPerTexel(m.format);
 		}
@@ -662,15 +660,6 @@ static void uploadTextureInner(const uint32_t *p) {
 		if (!w || !h) return;
 		storeCompressed(t, mip, slice, x, y, z, w, h, d, bpr, rpi, data, size);
 		size_t outSize = 0;
-		if (t->astc) {		// rewritten block by block, then uploaded as blocks (rows count block rows)
-			uint32_t astcBpr = 0, astcRpi = 0;
-			void *blocks = PGTranscodeBC1ToASTC(w, h, d, bpr, rpi, data, size, &outSize, &astcBpr, &astcRpi);
-			if (!blocks) { gTextureStats.decodeFailures++; logOnce("astcfail", "Metal renderer: BC1 upload smaller than its region"); return; }
-			uploadBlocks(t, level, slice, x, y, z, w, h, d, astcBpr, astcBpr * astcRpi, (const uint8_t *)blocks);
-			free(blocks);
-			t->proxyDirty = true;
-			return;
-		}
 		decoded = PGDecodeBC(t->bcKind, w, h, d, bpr, rpi, data, size, &outSize);
 		if (!decoded) { gTextureStats.decodeFailures++; logOnce("bcfail", "Metal renderer: BC decode failed"); return; }
 		if (t->format == MTLPixelFormatA1BGR5Unorm) {		// RGBA8 to A1BGR5 in place: Metal names components from the lowest bit (A bit 0, B 1-5, G 6-10, R 11-15)
@@ -1676,7 +1665,7 @@ static void dispatch(uint32_t x, uint32_t y, uint32_t z) {
 // Blocks the GPU wrote into an uncompressed texture, copied into a compressed one (D3D allows it when a
 // texel has a block's size: an RGBA16 texel is a BC1 block). The game compresses the pause menu's
 // player headshot this way. Metal can't copy between those formats, so the texels go to a buffer,
-// and once the GPU is done they are uploaded like any BC upload (native, ASTC or decoded) from the
+// and once the GPU is done they are uploaded like any BC upload (native or decoded) from the
 // render thread at the next present.
 struct BlockUpload { uint32_t tex, width, height; std::vector<uint32_t> packet; };
 static std::mutex gBlockUploadsLock;
@@ -1777,13 +1766,7 @@ static void copyRegion(const uint32_t *p) {
 		[blitEncoder() copyFromTexture:s->tex sourceSlice:three ? 0 : sLayer sourceLevel:sLevel sourceOrigin:MTLOriginMake(sx, sy, three ? sz : 0)
 		                    sourceSize:MTLSizeMake(w, h, three ? std::max(1u, dep) : 1) toTexture:target destinationSlice:d->dim == 3 ? 0 : dLayer
 		              destinationLevel:dLevel destinationOrigin:MTLOriginMake(dx, dy, d->dim == 3 ? dz : 0)];
-	} else if (s->astc && d->astc) {		// sRGB and linear ASTC twins: through a view, as for BC above
-		id<MTLTexture> target = [d->tex newTextureViewWithPixelFormat:s->format];
-		if (!target) { logOnce("copyastcview", "Metal renderer: copy between ASTC formats not supported"); return; }
-		[blitEncoder() copyFromTexture:s->tex sourceSlice:three ? 0 : sLayer sourceLevel:sLevel sourceOrigin:MTLOriginMake(sx, sy, three ? sz : 0)
-		                    sourceSize:MTLSizeMake(w, h, three ? std::max(1u, dep) : 1) toTexture:target destinationSlice:d->dim == 3 ? 0 : dLayer
-		              destinationLevel:dLevel destinationOrigin:MTLOriginMake(dx, dy, d->dim == 3 ? dz : 0)];
-	} else if (!s->bcNative && !d->bcNative && !s->astc && !d->astc && bytesPerTexel(s->format) == bytesPerTexel(d->format) && !s->isDepth && !d->isDepth && s->samples == 1 && d->samples == 1) {
+	} else if (!s->bcNative && !d->bcNative && bytesPerTexel(s->format) == bytesPerTexel(d->format) && !s->isDepth && !d->isDepth && s->samples == 1 && d->samples == 1) {
 		uint32_t bpp = bytesPerTexel(s->format), bpr = w * bpp;
 		// Different formats of one size are copied as raw bytes; if their channel layouts differ
 		// the colours come out wrong (suspected for short-lived magenta terrain patches).
@@ -2505,9 +2488,6 @@ static bool setup() {
 #if !TARGET_OS_SIMULATOR
 	gPackedBC1 = !gNativeBC && !getenv("PG_NO_PACKED_BC1") && [R->device supportsFamily:MTLGPUFamilyApple3];
 #endif
-	// Enforce ASTC BC1 support on Apple A-series devices (A14) to eliminate 650MB+ texture bloat and prevent memory pressure freezes
-	gASTCBC1 = !gNativeBC && [R->device supportsFamily:MTLGPUFamilyApple2];
-	if (gASTCBC1) gPackedBC1 = false;
 	PipelineCache::shared().initialize(R->device);
 	// Lite build (the app sets PG_LITE from its Info.plist); PG_LITE_TEXTURES=0 keeps textures whole there.
 	gSkipTopMip = getenv("PG_LITE") && strcmp(getenv("PG_LITE"), "0") && !(getenv("PG_LITE_TEXTURES") && !strcmp(getenv("PG_LITE_TEXTURES"), "0"));
@@ -2559,7 +2539,7 @@ static bool setup() {
 	if (!R->blitPipe) { logf("Metal renderer: present pipeline failed: %s", error.localizedDescription.UTF8String); return false; }
 	frameReportsInstall(R->device);
 	logf("Metal renderer: %s, 32-bit float filtering %s, border colours %s, BC textures %s.", R->device.name.UTF8String, R->float32Filtering ? "yes" : "no (nearest fallback)",
-	     R->borderColors ? "yes" : "no", gNativeBC ? "native" : gASTCBC1 ? "decoded on the CPU (BC1 as ASTC)" : gPackedBC1 ? "decoded on the CPU (BC1 as 16-bit)" : "decoded on the CPU");
+	     R->borderColors ? "yes" : "no", gNativeBC ? "native" : gPackedBC1 ? "decoded on the CPU (BC1 as 16-bit)" : "decoded on the CPU");
 	if (gSkipTopMip) logf("Metal renderer: Lite: the game's textures go to the GPU without their largest level.");
 	else if (gSkipBigTopMip) logf("Metal renderer: textures of %llu texels or more go to the GPU without their largest level (PG_BIG_MIP_SKIP).", (unsigned long long)gSkipBigTopMip);
 	return true;
