@@ -104,7 +104,7 @@ final class ModXML: NSObject, XMLParserDelegate {
     private(set) var audioPolicies: [(model:String,profile:String,kind:String)] = []
     private(set) var values: [String: [String]] = [:]
     static func read(_ data: Data) throws -> ModXML {
-        let delegate = ModXML(), parser = XMLParser(data: data)
+        let delegate = ModXML(), parser = XMLParser(data: try VehicleInstaller.cleanXML(data))
         parser.shouldResolveExternalEntities = false; parser.delegate = delegate
         guard parser.parse() else { throw ModError("XML của mod không hợp lệ.") }
         return delegate

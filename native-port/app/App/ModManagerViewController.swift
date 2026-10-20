@@ -236,10 +236,10 @@ final class ModManagerViewController: UITableViewController, UIDocumentPickerDel
                     if ["yft","ytd","meta"].contains(u.pathExtension.lowercased()) {
                         try fm.createDirectory(at:group,withIntermediateDirectories:true)
                         try fm.copyItem(at:u,to:group.appendingPathComponent(u.lastPathComponent));loose=true
-                    } else {reports += try VehicleInstaller.install(u,into:dest,baseModels:base)}
+                    } else {reports += try VehicleInstaller.install(u,into:dest,baseModels:base,gameData:game)}
                 } catch {errors.append(u.lastPathComponent+": "+error.localizedDescription)}
             }
-            if loose {do {reports += try VehicleInstaller.install(group,into:dest,baseModels:base)} catch {errors.append(error.localizedDescription)}}
+            if loose {do {reports += try VehicleInstaller.install(group,into:dest,baseModels:base,gameData:game)} catch {errors.append(error.localizedDescription)}}
             DispatchQueue.main.async {[weak self] in
                 guard let self else{return};progress.removeFromSuperview();self.view.isUserInteractionEnabled=true;self.scanMods()
                 self.showAlert("Kết quả cài xe",([reports.isEmpty ? "": "Đã cài:\n"+reports.joined(separator:"\n"),errors.isEmpty ? "":"Không cài được:\n"+errors.joined(separator:"\n"),"Khởi động game sau khi cài. Tệp gốc không bị thay đổi."].filter{!$0.isEmpty}).joined(separator:"\n\n"))

@@ -5,6 +5,54 @@ import Foundation
 enum VehicleInstaller {
     static let metadataTypes = ["vehicles.meta":"VEHICLE_METADATA_FILE", "handling.meta":"HANDLING_FILE",
         "carcols.meta":"CARCOLS_FILE", "carvariations.meta":"VEHICLE_VARIATION_FILE", "vehiclelayouts.meta":"VEHICLE_LAYOUTS_FILE"]
+    static func cleanXML(_ data: Data) throws -> Data {
+        guard let text=String(data:data,encoding:.utf8) else {throw ModError("Metadata không phải UTF-8.")}
+        return Data(text.replacingOccurrences(of:"<!--[\\s\\S]*?-->",with:"",options:.regularExpression).utf8)
+    }
+    // Same vehicle-only adaptation as PC: original geometry/texture bytes are unchanged.
+    static func compatible(_ source:URL, output:URL, gameData:URL?) throws -> URL {
+        let original=try RPFArchive(url:source)
+        var payload:[String:Data]=[:],total=0
+        func unpack(_ r:RPFArchive,_ depth:Int) throws {
+            guard depth<=4 else {throw ModError("RPF lồng quá sâu.")}
+            for e in r.entries {
+                let name=(e.path as NSString).lastPathComponent
+                if name.hasSuffix(".rpf") {try unpack(r.nested(e),depth+1)}
+                else if name.hasSuffix(".yft") || name.hasSuffix(".ytd") || metadataTypes[name] != nil || name=="setup2.xml" {
+                    guard payload[name]==nil else {throw ModError("Trùng asset/metadata: \(name)")}
+                    let data=e.resourceVersion == nil ? try cleanXML(r.metadata(e)):r.bytes.subdata(in:e.offset..<(e.offset+e.size))
+                    total+=data.count;guard total<=512*1024*1024 else {throw ModError("Mod giải nén vượt 512 MiB.")};payload[name]=data
+                }
+            }
+        }
+        try unpack(original,0)
+        guard let vehicles=payload["vehicles.meta"] else {return source}
+        let baseURL=gameData?.appendingPathComponent("common/data/levels/gta5/vehicles.meta")
+        guard let baseURL,let baseData=try? Data(contentsOf:baseURL) else {throw ModError("Chọn thư mục dữ liệu game trước khi nhập DLC xe để kiểm tra tương thích.")}
+        let base=try ModXML.read(baseData)
+        var known=Set((base.values["parent"] ?? [])+(base.values["residentTxd"] ?? [])+(base.values["txdName"] ?? []));known.insert("vehshare")
+        known.formUnion(payload.keys.filter{$0.hasSuffix(".ytd")}.map{String($0.dropLast(4))})
+        var xml=String(data:vehicles,encoding:.utf8)!
+        let re=try NSRegularExpression(pattern:"<parent>\\s*([^<]+)\\s*</parent>")
+        for m in re.matches(in:xml,range:NSRange(xml.startIndex...,in:xml)).reversed() {
+            let parent=(xml as NSString).substring(with:m.range(at:1)).trimmingCharacters(in:.whitespacesAndNewlines)
+            if !known.contains(parent) {xml=(xml as NSString).replacingCharacters(in:m.range,with:"<parent>vehshare</parent>")}
+        }
+        payload["vehicles.meta"]=Data(xml.utf8)
+        // Stock layout definitions shipped by PC DLCs must not override the port's layout table.
+        if payload["vehiclelayouts.meta"] != nil {
+            let layouts=try String(contentsOf:gameData!.appendingPathComponent("common/data/ai/vehiclelayouts.meta"),encoding:.utf8).lowercased()
+            for name in try ModXML.read(vehicles).values["layout"] ?? [] {guard layouts.contains(">"+name.lowercased()+"<") else {throw ModError("Layout tùy chỉnh chưa hỗ trợ: \(name)")}}
+            payload.removeValue(forKey:"vehiclelayouts.meta")
+        }
+        let setup=try payload["setup2.xml"].map{try ModXML.read($0)}
+        let name=setup?.values["deviceName"]?.first.map{String($0.lowercased().dropFirst(4))}
+        guard let name,ModPack.validName(name),setup?.values["deviceName"]?.first?.lowercased().hasPrefix("dlc_")==true else {throw ModError("DLC thiếu tên thiết bị hợp lệ.")}
+        let looseFolder=output.appendingPathComponent("loose-"+UUID().uuidString)
+        try FileManager.default.createDirectory(at:looseFolder,withIntermediateDirectories:true)
+        for (n,b) in payload where n != "setup2.xml" {try b.write(to:looseFolder.appendingPathComponent(n))}
+        return try loose(try files(in:looseFolder),output:output,baseModels:[],packName:name)
+    }
     static func word(_ b: Data, _ p: Int) -> UInt32 { b[p..<(p+4)].enumerated().reduce(0) { $0 | UInt32($1.element) << (8*$1.offset) } }
     static func pack(_ files: [String:Data]) throws -> Data {
         guard !files.isEmpty, files.count < 1024 else { throw ModError("Gói xe có quá nhiều tệp.") }
@@ -47,7 +95,7 @@ enum VehicleInstaller {
         }
         return result
     }
-    static func loose(_ files: [URL], output: URL, baseModels: Set<String>) throws -> URL {
+    static func loose(_ files: [URL], output: URL, baseModels: Set<String>, packName:String? = nil) throws -> URL {
         var assets:[String:Data]=[:],meta:[String:Data]=[:]
         for u in files {
             let n=u.lastPathComponent.lowercased(),ext=u.pathExtension.lowercased()
@@ -59,10 +107,13 @@ enum VehicleInstaller {
                 assets[n]=b
             } else if metadataTypes[n] != nil {
                 guard meta[n]==nil else {throw ModError("Trùng metadata \(n); chọn một phiên bản.")}
-                let b=try Data(contentsOf:u);_ = try ModXML.read(b);meta[n]=b
+                let b=try cleanXML(Data(contentsOf:u));_ = try ModXML.read(b);meta[n]=b
             }
         }
-        let models=Set(assets.keys.filter{$0.hasSuffix(".yft") && !$0.hasSuffix("_hi.yft")}.map{String($0.dropLast(4))})
+        let fragments=Set(assets.keys.filter{$0.hasSuffix(".yft") && !$0.hasSuffix("_hi.yft")}.map{String($0.dropLast(4))})
+        let models: Set<String>
+        if let v=meta["vehicles.meta"] {models=Set(try ModXML.read(v).values["modelName"] ?? []);guard models.isSubset(of:fragments) else {throw ModError("Thiếu YFT cho model khai báo.")}}
+        else {models=fragments}
         guard !models.isEmpty else {throw ModError("Không có DLC RPF hoặc cặp YFT/YTD xe Legacy trong thư mục.")}
         for m in models {guard assets[m+".ytd"] != nil else {throw ModError("Thiếu \(m).ytd")}}
         if let vehicles=meta["vehicles.meta"] {
@@ -73,7 +124,7 @@ enum VehicleInstaller {
         }
         let joined=models.sorted().joined(separator:"_");var hash:UInt64=1469598103934665603
         for b in joined.utf8 {hash=(hash ^ UInt64(b)) &* 1099511628211}
-        let id="mugoat_"+String(hash,radix:16),device="dlc_"+id,change=id+"_AUTOGEN"
+        let id=packName ?? ("mugoat_"+String(hash,radix:16)),device="dlc_"+id,change=id+"_AUTOGEN"
         var root=meta;root["vehicles.rpf"]=try pack(assets)
         let setup="<?xml version=\"1.0\"?><SSetupData><deviceName>\(device)</deviceName><datFile>content.xml</datFile><timeStamp>01/01/2020 12:00:00 PM</timeStamp><nameHash>\(id)</nameHash><contentChangeSetGroups><Item><NameHash>GROUP_STARTUP</NameHash><ContentChangeSets><Item>\(change)</Item></ContentChangeSets></Item></contentChangeSetGroups><type>EXTRACONTENT_COMPAT_PACK</type><order value=\"1001\"/></SSetupData>"
         var items="",enable=""
@@ -83,7 +134,7 @@ enum VehicleInstaller {
         root["content.xml"]=Data("<?xml version=\"1.0\"?><CDataFileMgr__ContentsOfDataFileXml><disabledFiles/><includedXmlFiles/><includedDataFiles/><dataFiles>\(items)</dataFiles><contentChangeSets><Item><changeSetName>\(change)</changeSetName><filesToEnable>\(enable)</filesToEnable></Item></contentChangeSets><patchFiles/></CDataFileMgr__ContentsOfDataFileXml>".utf8)
         let file=output.appendingPathComponent("dlc.rpf");try pack(root).write(to:file,options:.atomic);return file
     }
-    static func install(_ source: URL, into mods: URL, baseModels: Set<String>) throws -> [String] {
+    static func install(_ source: URL, into mods: URL, baseModels: Set<String>, gameData:URL? = nil) throws -> [String] {
         let fm=FileManager.default, stage=fm.temporaryDirectory.appendingPathComponent("vehicle-import-"+UUID().uuidString)
         try fm.createDirectory(at:stage,withIntermediateDirectories:true);defer{try? fm.removeItem(at:stage)}
         var isDir:ObjCBool=false;guard fm.fileExists(atPath:source.path,isDirectory:&isDir) else {throw ModError("Không tìm thấy nguồn mod.")}
@@ -100,7 +151,11 @@ enum VehicleInstaller {
             let all=try files(in:folder);candidates=all.filter{$0.lastPathComponent.lowercased()=="dlc.rpf"}
             if candidates.isEmpty {candidates=[try loose(all,output:stage,baseModels:baseModels)]}
         }
-        let packs=try candidates.map{try ModPack(url:$0)}
+        let packs=try candidates.map { candidate -> ModPack in
+            let converted=stage.appendingPathComponent(UUID().uuidString)
+            try fm.createDirectory(at:converted,withIntermediateDirectories:true)
+            return try ModPack(url:gameData == nil ? candidate:compatible(candidate,output:converted,gameData:gameData))
+        }
         var names=Set<String>(),models=Set<String>();let updating=Set(packs.map(\.name))
         for p in ModRuntime.catalog(mods).packs where !updating.contains(p.name) {models.formUnion(p.models)}
         for p in packs {
