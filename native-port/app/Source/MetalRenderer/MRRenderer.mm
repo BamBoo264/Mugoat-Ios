@@ -26,6 +26,10 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdarg>
+#include <map>
+#include <vector>
+#include <string>
+#include <atomic>
 
 namespace mr {
 

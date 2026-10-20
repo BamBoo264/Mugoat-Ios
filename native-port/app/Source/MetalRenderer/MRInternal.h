@@ -13,6 +13,7 @@
 #include <unordered_map>
 #include <memory>
 #include <atomic>
+#include <map>
 
 extern "C" void pg_log(const char *);
 extern "C" uint32_t PGGraphicsNotify(uint64_t);
@@ -49,7 +50,6 @@ struct ResBinding {
 };
 struct ShaderInfo {
 	std::string hash, label;
-	bool water = false;
 	uint8_t stage = 0;		// 0 vs, 1 ps, 2 cs
 	std::vector<ResBinding> res;
 	std::vector<uint32_t> inputs, outputs;
@@ -80,6 +80,9 @@ struct Texture : Object {
 	int bcKind = 0;			// 1..7: block-compressed source (decoded on the CPU unless bcNative)
 	bool bcNative = false;		// stored as a Metal BC format: uploads, copies and readbacks use the blocks as they are
 	bool bcSrgb = false;
+	// Lite build (gSkipTopMip): GPU levels dropped from the top. The GPU texture is that many times half
+	// the size and has that many fewer levels; width/height/mips stay the game's, so GPU level = mip - skip.
+	uint32_t skip = 0;
 	uint64_t lastUse = 0;		// command buffer serial that last referenced it
 	std::unordered_map<uint64_t, id<MTLTexture>> views;
 	uint64_t gpuBytes = 0, bcGameBytes = 0;		// GPU allocation, and the compressed size the game budgets (for the report)
@@ -102,6 +105,12 @@ struct Buffer : Object {
 	uint32_t cbCap = 0, cbPad = 0;
 	uint32_t version = 0;
 	id<MTLBuffer> counter = nil;		// UAV append/consume counter
+	uint64_t counted = 0;		// bytes added to the buffer statistics (report)
+	// A small mesh buffer lives in a shared slab (GTA-34): its bytes start at `base` in `buf`. Every use of
+	// buf adds base. slab is the slab's index, or -1 for a buffer of its own.
+	NSUInteger base = 0;
+	int32_t slab = -1;
+	~Buffer() override;
 };
 
 struct Shader : Object {
@@ -159,6 +168,12 @@ extern bool gNativeBC;
 // Decoded BC1 (non-sRGB) stored as 16-bit A1BGR5 instead of RGBA8: BC1 has only 1-bit alpha and
 // 5:6:5 colours, so this halves the largest share of decoded texture memory on iPhones.
 extern bool gPackedBC1;
+// Lite build: the game's loaded textures go to the GPU without their largest mip level (a quarter
+// of the memory; at phone render resolutions that level is rarely sampled), as consoles shipped them.
+extern bool gSkipTopMip;
+// The same for big textures only (GTA-122): at least this many texels (512×512 by default; PG_BIG_MIP_SKIP=N, 0 = off),
+// on GPUs that decode BC, where those textures take the most memory. 0 = off.
+extern uint64_t gSkipBigTopMip;
 FormatInfo mapFormat(uint32_t dxgi, uint32_t bind);
 MTLPixelFormat viewFormat(uint32_t dxgi, MTLPixelFormat textureFormat);
 bool isDepthFormat(MTLPixelFormat f);
