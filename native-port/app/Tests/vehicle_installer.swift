@@ -44,6 +44,31 @@ import Foundation
   let entry=nested.entries.first{$0.path=="testbike.yft"}!
   precondition(entry.size==180001 && entry.resourceVersion==162)
   precondition(nested.bytes.subdata(in:entry.offset..<(entry.offset+entry.size)) == resource(162,180001))
+  let audioSource=root.appendingPathComponent("audio-source");try fm.createDirectory(at:audioSource,withIntermediateDirectories:true)
+  var audioRoot:[String:Data]=[:]
+  for e in pack.archive.entries {audioRoot[e.path]=e.resourceVersion==nil ? try pack.archive.binary(e):pack.archive.bytes.subdata(in:e.offset..<(e.offset+e.size))}
+  let awc=Data("ADATtest-bank-payload".utf8),rel=Data([151,0,0,0,1,2,3,4])
+  audioRoot["x64/audio/sfx/dlc_test/custom.awc"]=awc
+  audioRoot["x64/audio/custom_game.dat151.rel"]=rel
+  let audioDLC=audioSource.appendingPathComponent("dlc.rpf");try VehicleInstaller.pack(audioRoot).write(to:audioDLC)
+  let audioOutput=root.appendingPathComponent("audio-output");try fm.createDirectory(at:audioOutput,withIntermediateDirectories:true)
+  let converted=try VehicleInstaller.compatible(audioDLC,output:audioOutput,gameData:fakeGame)
+  let retained=try RPFArchive(url:converted)
+  for (path,data) in [("x64/audio/sfx/dlc_test/custom.awc",awc),("x64/audio/custom_game.dat151.rel",rel),("content.xml",audioRoot["content.xml"]!)] {
+   let entry=retained.entries.first{$0.path==path}!;let actual=try retained.binary(entry);precondition(actual==data,"Audio and mount declarations must survive conversion")
+  }
+  do {_ = try VehicleInstaller.pack(["a":Data([1]),"a/b":Data([2])]);fatalError("File/directory collision accepted")}catch is ModError {}
+  let audioFolder=a.appendingPathComponent("sfx/dlc_custom")
+  try fm.createDirectory(at:audioFolder,withIntermediateDirectories:true)
+  try awc.write(to:audioFolder.appendingPathComponent("custom.awc"))
+  try rel.write(to:a.appendingPathComponent("custom_game.dat151.rel"))
+  let looseAudioOut=root.appendingPathComponent("loose-audio");try fm.createDirectory(at:looseAudioOut,withIntermediateDirectories:true)
+  let looseAudio=try RPFArchive(url:VehicleInstaller.loose(VehicleInstaller.files(in:a),output:looseAudioOut,baseModels:[]))
+  let mountXML=String(data:try looseAudio.metadata(looseAudio.entries.first{$0.path=="content.xml"}!),encoding:.utf8)!
+  precondition(mountXML.contains("AUDIO_GAMEDATA") && mountXML.contains("AUDIO_WAVEPACK") && mountXML.contains("/audioconfig/custom_game.dat</filename>"))
+  precondition(looseAudio.entries.contains{$0.path=="sfx/dlc_custom/custom.awc"})
+  try fm.removeItem(at:a.appendingPathComponent("sfx"));try fm.removeItem(at:a.appendingPathComponent("custom_game.dat151.rel"))
+  print("PASS: RPF audio payloads/mount paths preserved; loose REL/AWC mounted; path collisions rejected")
   let original=try Data(contentsOf:pack.url)
   _ = try VehicleInstaller.install(a,into:mods,baseModels:[])
   let reimported=try Data(contentsOf:pack.url)

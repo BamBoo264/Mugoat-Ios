@@ -212,14 +212,15 @@ final class ModManagerViewController: UITableViewController, UIDocumentPickerDel
         let model=dlcCatalog.vehicleModels[indexPath.row-1]
         let policy=dlcCatalog.packs.flatMap(\.audioPolicies).first{$0.model==model}
         let key="vehicleSound."+model
-        let sheet=UIAlertController(title:"Tiếng động cơ · "+model,message:"Chọn tiếng xe gốc thay thế. Tiếng Ducati đúng mẫu cần bộ audio tương thích; đổi tên model không tạo được âm thanh mới. Áp dụng cho xe đang lái hoặc lần gọi xe tiếp theo.",preferredStyle:.actionSheet)
+        let sheet=UIAlertController(title:"Tiếng động cơ · "+model,message:"Chọn tiếng xe gốc thay thế. Tiếng Ducati đúng mẫu cần bộ audio tương thích; đổi tên model không tạo được âm thanh mới. Áp dụng sau khi tắt hẳn app rồi mở lại. Không đổi audio của xe đang chạy.",preferredStyle:.actionSheet)
         let profiles:[(String,String)]=[("Tự động / theo mod",""),("Mô tô thể thao · Bati 801","bati"),("Mô tô thể thao · Akuma","akuma"),("Mô tô thể thao · Double-T","double"),("Cruiser · Daemon","daemon"),("Cào cào · Sanchez","sanchez"),("Tay ga · Faggio","faggio2"),("Siêu xe · Turismo R","turismor"),("Siêu xe · Adder","adder")]
-        for (label,profile) in profiles {
+        let bike=(policy?.kind ?? "").hasPrefix("vc_motorcycle")
+        for (label,profile) in profiles where profile.isEmpty || (policy != nil && (bike ? ["bati","akuma","double","daemon","sanchez","faggio2"].contains(profile):["turismor","adder"].contains(profile))) {
             let selected=(UserDefaults.standard.string(forKey:key) ?? "")==profile
             sheet.addAction(UIAlertAction(title:(selected ? "✓ ":"")+label,style:.default){_ in
                 guard !MugoatOnlineEnabled() else{return}
                 if profile.isEmpty {UserDefaults.standard.removeObject(forKey:key)} else {UserDefaults.standard.set(profile,forKey:key)}
-                PGRegisterVehicleAudioPolicy(model,profile.isEmpty ? (policy?.profile ?? model):profile,policy?.kind ?? "")
+                // Persist only: changing a live audio object can invalidate its running sound graph.
             })
         }
         sheet.addAction(UIAlertAction(title:"Đóng",style:.cancel));sheet.popoverPresentationController?.sourceView=tableView.cellForRow(at:indexPath) ?? view

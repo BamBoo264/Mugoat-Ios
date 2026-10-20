@@ -79,6 +79,15 @@ struct RPFArchive {
         entries = output
     }
 
+    func binary(_ entry:Entry) throws -> Data {
+        guard entry.resourceVersion==nil,!entry.encrypted,entry.unpacked>0,entry.unpacked<=64*1024*1024 else {throw ModError("Audio/binary mã hóa hoặc vượt 64 MiB: \(entry.path)")}
+        let data=bytes.subdata(in:entry.offset..<(entry.offset+entry.size))
+        if !entry.compressed {return data}
+        var out=Data(count:entry.unpacked)
+        let valid=out.withUnsafeMutableBytes{o in data.withUnsafeBytes{i in gi_inflate_raw(i.baseAddress,UInt32(data.count),o.baseAddress,UInt32(entry.unpacked))}}
+        guard valid==1 else {throw ModError("Binary nén bị hỏng: \(entry.path)")};return out
+    }
+
     func metadata(_ entry: Entry) throws -> Data {
         guard entry.resourceVersion == nil, !entry.encrypted, entry.unpacked > 0,
               entry.unpacked <= 8 * 1024 * 1024 else { throw ModError("Metadata mod mã hóa hoặc quá lớn: \(entry.path)") }

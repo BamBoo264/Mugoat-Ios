@@ -12,11 +12,12 @@ enum VehicleInstaller {
     // Same vehicle-only adaptation as PC: original geometry/texture bytes are unchanged.
     static func compatible(_ source:URL, output:URL, gameData:URL?) throws -> URL {
         let original=try RPFArchive(url:source)
-        var payload:[String:Data]=[:],total=0
+        var payload:[String:Data]=[:],total=0,hasAudio=false
         func unpack(_ r:RPFArchive,_ depth:Int) throws {
             guard depth<=4 else {throw ModError("RPF lồng quá sâu.")}
             for e in r.entries {
                 let name=(e.path as NSString).lastPathComponent
+                if name.hasSuffix(".awc") || name.hasSuffix(".rel") {hasAudio=true}
                 if name.hasSuffix(".rpf") {try unpack(r.nested(e),depth+1)}
                 else if name.hasSuffix(".yft") || name.hasSuffix(".ytd") || metadataTypes[name] != nil || name=="setup2.xml" {
                     guard payload[name]==nil else {throw ModError("Trùng asset/metadata: \(name)")}
@@ -45,6 +46,24 @@ enum VehicleInstaller {
             for name in try ModXML.read(vehicles).values["layout"] ?? [] {guard layouts.contains(">"+name.lowercased()+"<") else {throw ModError("Layout tùy chỉnh chưa hỗ trợ: \(name)")}}
             payload.removeValue(forKey:"vehiclelayouts.meta")
         }
+        if hasAudio {
+            // Rebuild the original directory/mount layout, rather than flattening away
+            // audio banks, REL metadata and their content.xml mount declarations.
+            func rebuild(_ r:RPFArchive,_ depth:Int) throws -> Data {
+                guard depth<=4 else {throw ModError("RPF lồng quá sâu.")}
+                var files:[String:Data]=[:]
+                for e in r.entries {
+                    if e.path.hasSuffix(".rpf") {files[e.path]=try rebuild(r.nested(e),depth+1)}
+                    else if (e.path as NSString).lastPathComponent=="vehicles.meta" {files[e.path]=payload["vehicles.meta"]}
+                    else if e.resourceVersion != nil {files[e.path]=r.bytes.subdata(in:e.offset..<(e.offset+e.size))}
+                    else {files[e.path]=try r.binary(e)}
+                }
+                return try pack(files)
+            }
+            let file=output.appendingPathComponent("dlc.rpf")
+            try rebuild(original,0).write(to:file,options:.atomic)
+            return file
+        }
         let setup=try payload["setup2.xml"].map{try ModXML.read($0)}
         let name=setup?.values["deviceName"]?.first.map{String($0.lowercased().dropFirst(4))}
         guard let name,ModPack.validName(name),setup?.values["deviceName"]?.first?.lowercased().hasPrefix("dlc_")==true else {throw ModError("DLC thiếu tên thiết bị hợp lệ.")}
@@ -55,25 +74,41 @@ enum VehicleInstaller {
     }
     static func word(_ b: Data, _ p: Int) -> UInt32 { b[p..<(p+4)].enumerated().reduce(0) { $0 | UInt32($1.element) << (8*$1.offset) } }
     static func pack(_ files: [String:Data]) throws -> Data {
-        guard !files.isEmpty, files.count < 1024 else { throw ModError("Gói xe có quá nhiều tệp.") }
-        var names=Data([0]), entries:[(String,Int,Data)]=[]
-        for name in files.keys.sorted() {
-            guard name.utf8.allSatisfy({ (97...122).contains($0)||(48...57).contains($0)||$0==95||$0==46 }) else { throw ModError("Tên asset không hợp lệ: \(name)") }
-            let offset=names.count; names.append(Data(name.utf8));names.append(0);entries.append((name,offset,files[name]!))
+        guard !files.isEmpty, files.count < 1024, files.keys.allSatisfy({!$0.hasPrefix("/") && !$0.hasSuffix("/") && !$0.contains("//") && !$0.split(separator:"/").contains(where:{$0=="." || $0==".."})}) else { throw ModError("Gói xe có quá nhiều tệp.") }
+        for path in files.keys {var parent=(path as NSString).deletingLastPathComponent;while !parent.isEmpty {guard files[parent]==nil else {throw ModError("File/thư mục trùng đường dẫn.")};parent=(parent as NSString).deletingLastPathComponent}}
+        // Breadth-first table: each directory owns a contiguous range of children.
+        var paths=[""], childRanges:[Int:Range<Int>]=[:]
+        var cursor=0
+        while cursor<paths.count {
+            let parent=paths[cursor],prefix=parent.isEmpty ? "":parent+"/"
+            if files[parent]==nil {
+                let children=Set(files.keys.filter{$0.hasPrefix(prefix)}.map{String($0.dropFirst(prefix.count).split(separator:"/")[0])}).sorted()
+                let start=paths.count
+                paths += children.map{prefix+$0};childRanges[cursor]=start..<paths.count
+            }
+            cursor+=1
+        }
+        guard paths.count<8192 else {throw ModError("Quá nhiều mục RPF.")}
+        var names=Data(),offsets:[Int]=[]
+        for path in paths {
+            let name=path.isEmpty ? "":(path as NSString).lastPathComponent
+            guard name.utf8.allSatisfy({(97...122).contains($0)||(48...57).contains($0)||$0==95||$0==46||$0==45}),name != ".",name != ".." else {throw ModError("Tên asset không hợp lệ: \(name)")}
+            offsets.append(names.count);names.append(Data(name.utf8));names.append(0)
         }
         while names.count%16 != 0 {names.append(0)}
         guard names.count<65536 else {throw ModError("Bảng tên RPF quá lớn.")}
-        let count=files.count+1, start=(16+16*count+names.count+511)/512*512
+        let count=paths.count,start=(16+16*count+names.count+511)/512*512
         var out=Data(count:start)
         func put(_ p:Int,_ v:UInt32){for i in 0..<4 {out[p+i]=UInt8(truncatingIfNeeded:v >> (i*8))}}
         put(0,0x52504637);put(4,UInt32(count));put(8,UInt32(names.count));put(12,0x4e45504f)
-        put(20,0x7fffff00);put(24,1);put(28,UInt32(files.count))
         out.replaceSubrange((16+count*16)..<(16+count*16+names.count),with:names)
-        for (i,e) in entries.enumerated() {
-            let data=e.2, at=32+i*16, block=out.count/512, resource=data.starts(with:Data("RSC7".utf8))
-            guard !resource || (data.count>=16 && data.count<0xffffff) else {throw ModError("Asset \(e.0) vượt 16 MiB hoặc RSC7 không hợp lệ; cần tối ưu asset.")}
-            put(at,UInt32(e.1) | (resource ? UInt32(data.count&0xffff)<<16 : 0))
-            put(at+4,UInt32(block)<<8 | (resource ? 0x80000000|UInt32((data.count>>16)&0xff) : 0))
+        for (i,path) in paths.enumerated() {
+            let at=16+i*16
+            if let range=childRanges[i] {put(at,UInt32(offsets[i]));put(at+4,0x7fffff00);put(at+8,UInt32(range.lowerBound));put(at+12,UInt32(range.count));continue}
+            let data=files[path]!,block=out.count/512,resource=data.starts(with:Data("RSC7".utf8))
+            guard !resource || (data.count>=16 && data.count<0xffffff) else {throw ModError("Asset vượt 16 MiB hoặc RSC7 không hợp lệ: \(path)")}
+            put(at,UInt32(offsets[i]) | (resource ? UInt32(data.count&0xffff)<<16:0))
+            put(at+4,UInt32(block)<<8 | (resource ? 0x80000000|UInt32((data.count>>16)&0xff):0))
             put(at+8,resource ? word(data,8):UInt32(data.count));put(at+12,resource ? word(data,12):0)
             out.append(data);while out.count%512 != 0 {out.append(0)}
         }
@@ -96,7 +131,8 @@ enum VehicleInstaller {
         return result
     }
     static func loose(_ files: [URL], output: URL, baseModels: Set<String>, packName:String? = nil) throws -> URL {
-        var assets:[String:Data]=[:],meta:[String:Data]=[:]
+        var assets:[String:Data]=[:],meta:[String:Data]=[:],audio:[String:Data]=[:]
+        var audioMounts:[String:String]=[:]
         for u in files {
             let n=u.lastPathComponent.lowercased(),ext=u.pathExtension.lowercased()
             if ext=="yft" || ext=="ytd" {
@@ -105,6 +141,23 @@ enum VehicleInstaller {
                 guard b.count>=16,b.count<0xffffff,b.starts(with:Data("RSC7".utf8)),word(b,4)==(ext=="yft" ? 162:13) else {throw ModError("\(n) không phải Legacy RSC7 hỗ trợ hoặc vượt 16 MiB.")}
                 guard (((word(b,8)>>28)<<4)|(word(b,12)>>28))==word(b,4) else {throw ModError("Header/flags asset không khớp: \(n)")}
                 assets[n]=b
+            } else if ext=="rel" || ext=="awc" {
+                let data=try Data(contentsOf:u,options:.mappedIfSafe)
+                guard data.count>=8,data.count<=64*1024*1024 else {throw ModError("Audio bị cắt hoặc vượt 64 MiB: \(n)")}
+                let path:String
+                if ext=="awc" {
+                    guard data.starts(with:Data("ADAT".utf8)) else {throw ModError("AWC không phải Legacy PC hỗ trợ: \(n)")}
+                    let bank=u.deletingLastPathComponent().lastPathComponent.lowercased()
+                    guard bank.hasPrefix("dlc_"),ModPack.validName(bank) else {throw ModError("Giữ AWC trong thư mục sfx/dlc_tên_gốc của tác giả, hoặc nhập DLC RPF chứa audio.")}
+                    path="sfx/"+bank+"/"+n;audioMounts["sfx/"+bank]="AUDIO_WAVEPACK"
+                } else {
+                    let types:[String:(UInt32,String)]=[".dat151.rel":(151,"AUDIO_GAMEDATA"),".dat54.rel":(54,"AUDIO_SOUNDDATA"),".dat10.rel":(10,"AUDIO_SYNTHDATA")]
+                    guard let suffix=types.keys.first(where:{n.hasSuffix($0)}),let type=types[suffix],word(data,0)==type.0 else {throw ModError("REL chưa hỗ trợ hoặc header không khớp: \(n)")}
+                    path="audioconfig/"+n
+                    let mounted="audioconfig/"+String(n.dropLast(suffix.count))+".dat"
+                    audioMounts[mounted]=type.1
+                }
+                guard audio[path]==nil else {throw ModError("Trùng audio: \(path)")};audio[path]=data
             } else if metadataTypes[n] != nil {
                 guard meta[n]==nil else {throw ModError("Trùng metadata \(n); chọn một phiên bản.")}
                 let b=try cleanXML(Data(contentsOf:u));_ = try ModXML.read(b);meta[n]=b
@@ -130,6 +183,12 @@ enum VehicleInstaller {
         var items="",enable=""
         for n in root.keys.sorted() {let type=n=="vehicles.rpf" ? "RPF_FILE":metadataTypes[n]!
             let path="\(device):/\(n)";items+="<Item><filename>\(path)</filename><fileType>\(type)</fileType><locked value=\"false\"/><disabled value=\"true\"/><persistent value=\"true\"/><overlay value=\"true\"/></Item>";enable+="<Item>\(path)</Item>"}
+        for (path,type) in audioMounts.sorted(by:{$0.key<$1.key}) {
+            let mounted="\(device):/\(path)"
+            items+="<Item><filename>\(mounted)</filename><fileType>\(type)</fileType><locked value=\"false\"/><disabled value=\"true\"/><persistent value=\"true\"/><overlay value=\"false\"/></Item>"
+            enable+="<Item>\(mounted)</Item>"
+        }
+        for (path,data) in audio {root[path]=data}
         root["setup2.xml"]=Data(setup.utf8)
         root["content.xml"]=Data("<?xml version=\"1.0\"?><CDataFileMgr__ContentsOfDataFileXml><disabledFiles/><includedXmlFiles/><includedDataFiles/><dataFiles>\(items)</dataFiles><contentChangeSets><Item><changeSetName>\(change)</changeSetName><filesToEnable>\(enable)</filesToEnable></Item></contentChangeSets><patchFiles/></CDataFileMgr__ContentsOfDataFileXml>".utf8)
         let file=output.appendingPathComponent("dlc.rpf");try pack(root).write(to:file,options:.atomic);return file

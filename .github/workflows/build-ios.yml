@@ -104,7 +104,7 @@ jobs:
           shasum -a 256 Mugoat-Cert-Paid.ipa > SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: Mugoat-iOS-v5-Performance-Paid-Cert
+          name: Mugoat-iOS-v6-Audio-Stability-Paid-Cert
           path: |
             native-port/Mugoat-Cert-Paid.ipa
             native-port/validation-*.json

@@ -580,7 +580,12 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
                     effectiveManifest = overlayManifestURL.path
                     ModRuntime.activeCatalog = catalog
                     for pack in catalog.packs { for p in pack.audioPolicies {
-                        PGRegisterVehicleAudioPolicy(p.model,UserDefaults.standard.string(forKey:"vehicleSound."+p.model) ?? p.profile,p.kind)
+                        let selected=UserDefaults.standard.string(forKey:"vehicleSound."+p.model)
+                        let bike=p.kind.hasPrefix("vc_motorcycle")
+                        let allowed=bike ? ["bati","akuma","double","daemon","sanchez","faggio2"]:["turismor","adder"]
+                        let profile=selected.flatMap{allowed.contains($0) ? $0:nil} ?? p.profile
+                        if selected==profile {PGRegisterVehicleAudioOverride(p.model,profile,p.kind)}
+                        else {PGRegisterVehicleAudioPolicy(p.model,profile,p.kind)}
                     }
                         for model in pack.vehicleModels where !pack.audioPolicies.contains(where:{$0.model==model}) {
                             if let sound=UserDefaults.standard.string(forKey:"vehicleSound."+model) {PGRegisterVehicleAudioPolicy(model,sound,"")}
@@ -1322,15 +1327,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         let elapsed = lastControllerPoll.map { now - $0 } ?? (1.0 / 60.0)
         lastControllerPoll = now
         let gameStatus = PGGameStatus()
-        if bootPerformanceMode.automatic,bootFrameCap==60,let ready=worldReadyAt,now-ready>15,now-adaptiveSampleTime>=2 {
-            adaptiveSampleTime=now
-            let playing=presentedViewController==nil && gameStatus & (1|4|8|16)==0
-            if let height=adaptiveResolution.sample(now:now,fps:PGRenderedFramesPerSecond(),thermal:ProcessInfo.processInfo.thermalState.rawValue,active:playing) {
-                let (w,h)=GraphicsConfiguration.size(for:bootedPreset,renderHeight:height,screen:view.bounds.size,matchScreenShape:GameSettings.shared.matchScreenShape)
-                PGSetBackBufferSize(Int32(w),Int32(h))
-                appendLog("[adaptive] \(w)×\(h); sustained FPS/thermal load, 15-second resize cooldown")
-            }
-        }
+        // Fixed boot resolution: avoid resetting the guest swapchain during gameplay.
         if gameStatus != lastGameStatus {
             lastGameStatus = gameStatus
             appendLog("Game state: control \(gameStatus & 1 != 0 ? "off" : "on")\(gameStatus & 2 != 0 ? ", phone out" : "")\(gameStatus & 4 != 0 ? ", cutscene" : "")\(gameStatus & 8 != 0 ? ", warning screen" : "")\(gameStatus & 16 != 0 ? ", no player" : "")")
