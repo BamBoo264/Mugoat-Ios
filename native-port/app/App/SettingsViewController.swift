@@ -88,7 +88,7 @@ final class SettingsViewController: UITableViewController {
         switch Section(rawValue: section)! {
         case .cheat: return isOnline ? 1 : 2
         case .mode: return GameMode.allCases.count
-        case .graphics: return settings.tier.allowed.count + 3
+        case .graphics: return settings.tier.allowed.count + 4
         case .controls: return 12
         case .gyro: return (settings.gyroAim == .off ? 1 : 3) + (settings.tiltSteer == .off ? 1 : 2)
         case .files: return fileRows.count
@@ -193,7 +193,7 @@ final class SettingsViewController: UITableViewController {
                     cell.accessoryView = toggle(settings.matchScreenShape, label: L10n.text("Fill the screen")) { [weak self] in
                         self?.settings.matchScreenShape = $0; self?.resolutionChanged?(); self?.tableView.reloadData()
                     }
-                } else {
+                } else if row == 2 {
                     content.text = L10n.text("Frame rate")
                     content.secondaryText = L10n.text("Higher uses more power and heat; 30 FPS is steadiest. Unlocked goes up to 120 on ProMotion iPhones.")
                     let button = UIButton(type: .system)
@@ -202,11 +202,23 @@ final class SettingsViewController: UITableViewController {
                     button.accessibilityLabel = L10n.text("Frame rate")
                     button.menu = UIMenu(children: [30, 60, 0].map { cap in
                         UIAction(title: GameSettings.frameRateTitle(cap), state: cap == settings.frameRateCap ? .on : .off) { [weak self] _ in
+                            if cap != 60 {self?.settings.performanceMode = .custom}
                             self?.settings.frameRateCap = cap; self?.reloadFooters(); self?.tableView.reloadData()
                         }
                     })
                     button.sizeToFit()
                     cell.accessoryView = button
+                } else {
+                    content.text="Chế độ hiệu năng"
+                    content.secondaryText="Mượt 60: 540p tự giảm khi tải nặng. Potato: 432p, texture thấp. Áp dụng đầy đủ sau mở lại app."
+                    let button=UIButton(type:.system);button.setTitle(settings.performanceMode.title+" ▾",for:.normal)
+                    button.showsMenuAsPrimaryAction=true
+                    button.menu=UIMenu(children:PerformanceMode.allCases.map { mode in
+                        UIAction(title:mode.title,state:mode==settings.performanceMode ? .on:.off) {[weak self] _ in
+                            guard let self else{return};self.settings.selectPerformanceMode(mode)
+                            self.resolutionChanged?();self.tableView.reloadData()
+                        }
+                    });button.sizeToFit();cell.accessoryView=button
                 }
             }
         case .controls:
@@ -388,6 +400,7 @@ final class SettingsViewController: UITableViewController {
         if indexPath.section == Section.files.rawValue { selectFileRow(fileRows[indexPath.row]); return }
         let presets = settings.tier.allowed
         guard indexPath.section == Section.graphics.rawValue, indexPath.row < presets.count else { return }
+        settings.performanceMode = .custom
         settings.graphicsPreset = presets[indexPath.row]
         resolutionChanged?()
         UIView.performWithoutAnimation { tableView.reloadSections([Section.graphics.rawValue], with: .none) }

@@ -18,6 +18,8 @@ import Foundation
   let mods=root.appendingPathComponent("mods");try fm.createDirectory(at:mods,withIntermediateDirectories:true)
   let parsed=try ModXML.read(Data("<Root><InitDatas><Item><modelName>bike</modelName><audioNameHash/><vehicleClass>VC_MOTORCYCLE</vehicleClass></Item><Item><modelName>car</modelName><audioNameHash>ADDER</audioNameHash><vehicleClass>VC_SUPER</vehicleClass></Item></InitDatas></Root>".utf8))
   precondition(parsed.audioPolicies.count==2 && parsed.audioPolicies[0].profile=="bike" && parsed.audioPolicies[1].profile=="adder" && parsed.audioPolicies[0].kind=="vc_motorcycle")
+  let scooter=try ModXML.read(Data("<r><InitDatas><Item><modelName>test</modelName><vehicleClass>VC_MOTORCYCLE</vehicleClass><layout>LAYOUT_BIKE_SCOOTER</layout></Item></InitDatas></r>".utf8))
+  precondition(scooter.audioPolicies.first?.kind=="vc_motorcycle_scooter")
   let a=loose("testbike"),b=loose("otherbike")
   let legacy=try ModXML.read(Data("<r><!-- invalid -- legacy comment --><modelName>sh150</modelName></r>".utf8))
   precondition(legacy.values["modelName"]==["sh150"])

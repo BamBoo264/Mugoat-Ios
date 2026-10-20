@@ -1126,9 +1126,11 @@ static void pg_player_vehicle_audio(w2c_game *instance){
  uint32_t ped=mg_call_u32(instance,"mp:PlayerPedId",NULL,0);
  MugoatValue args[]={mg_u32(ped),mg_u32(0)};
  uint32_t vehicle=ped?mg_call_u32(instance,"mp:GetVehiclePedIsIn",args,2):0;
- static uint32_t lastVehicle,lastModel;
+ static uint32_t lastVehicle,lastModel,lastAudioRevision;
  uint32_t model=0;if(vehicle){MugoatValue a[]={mg_u32(vehicle)};model=mg_call_u32(instance,"mp:GetEntityModel",a,1);}
- if(vehicle&&(vehicle!=lastVehicle||model!=lastModel))pg_bind_vehicle_audio(instance,vehicle);
+ uint32_t audioRevision=PGVehicleAudioRevision();
+ if(vehicle&&(vehicle!=lastVehicle||model!=lastModel||audioRevision!=lastAudioRevision))pg_bind_vehicle_audio(instance,vehicle);
+ lastAudioRevision=audioRevision;
  lastVehicle=vehicle;lastModel=model;
  pg_test_leave_script(instance,previous);
 }

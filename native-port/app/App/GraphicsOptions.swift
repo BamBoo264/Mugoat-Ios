@@ -93,7 +93,7 @@ enum GraphicsConfiguration {
     }
     /// Resolutions offered in Settings, besides "Auto" (the detail preset's own).
     static var resolutionChoices: [Int] {
-        let standard = [540, 720, 900, 1080, 1290, 1440, 1620, 2160]
+        let standard = [360, 432, 486, 540, 720, 900, 1080, 1290, 1440, 1620, 2160]
         var list = standard
         if !list.contains(nativeHeight) && nativeHeight >= 540 {
             list.append(nativeHeight)
@@ -116,7 +116,10 @@ enum GraphicsConfiguration {
     static func apply(_ settings: GameSettings, screen: CGSize) -> String {
         let preset = settings.graphicsPreset
         let (width, height) = size(for: preset, renderHeight: settings.renderHeight, screen: screen, matchScreenShape: settings.matchScreenShape)
-        let options = preset.engineOptions
+        let mode=settings.performanceMode
+        let options = mode.options(preset.engineOptions)
+        if mode == .potato {setenv("PG_LITE","1",1)} else {unsetenv("PG_LITE")}
+        setenv("PG_PIPELINE_WAIT_MS",mode.automatic ? "0.5":"2",1)
         var pointers = options.map { strdup($0) }
         defer { pointers.forEach { free($0) } }
         pointers.withUnsafeMutableBufferPointer { buffer in

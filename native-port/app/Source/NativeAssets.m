@@ -1,3 +1,4 @@
+#include "NativeLocalReader.h"
 #import <Foundation/Foundation.h>
 #include <TargetConditionals.h>
 #include "HostInternal.h"
@@ -284,12 +285,9 @@ static int64_t readLocalAsset(uint32_t id,uint64_t offset,uint8_t *destination,u
   length=(uint32_t)MIN((uint64_t)length,size-offset);
   NSString *overridePath=assetOverrides[entry[0]];
   NSString *file=overridePath?:[localDataRoot stringByAppendingPathComponent:entry[0]];
-  int descriptor=open(file.fileSystemRepresentation,O_RDONLY);
-  if(descriptor<0){NSString *message=[@"Game file missing from your folder: " stringByAppendingString:entry[0]];pg_log(message.UTF8String);return -1;}
-  uint64_t done=0;
-  while(done<length){ssize_t n=pread(descriptor,destination+done,length-done,(off_t)(offset+done));if(n<=0)break;done+=(uint64_t)n;}
-  close(descriptor);assetReadSource=4;
-  return (int64_t)done;
+  int64_t result=pg_local_read(file.fileSystemRepresentation,offset,destination,length);
+  if(result<0){NSString *message=[@"Game file read failed: " stringByAppendingString:entry[0]];pg_log(message.UTF8String);}
+  assetReadSource=4;return result;
 }
 static int64_t readAssetImpl(uint32_t id,uint64_t offset,uint8_t *destination,uint32_t length) {
   if(id>=assetFiles.count)return -1;
@@ -298,12 +296,9 @@ static int64_t readAssetImpl(uint32_t id,uint64_t offset,uint8_t *destination,ui
     uint64_t size=[assetFiles[id][1] unsignedLongLongValue];
     if(!length||offset>=size)return 0;
     length=(uint32_t)MIN((uint64_t)length,size-offset);
-    int descriptor=open(overridePath.fileSystemRepresentation,O_RDONLY);
-    if(descriptor<0){NSString *message=[@"Mod file missing: " stringByAppendingString:overridePath];pg_log(message.UTF8String);return -1;}
-    uint64_t done=0;
-    while(done<length){ssize_t n=pread(descriptor,destination+done,length-done,(off_t)(offset+done));if(n<=0)break;done+=(uint64_t)n;}
-    close(descriptor);assetReadSource=4;
-    return (int64_t)done;
+    int64_t result=pg_local_read(overridePath.fileSystemRepresentation,offset,destination,length);
+    if(result<0){NSString *message=[@"Mod file read failed: " stringByAppendingString:overridePath];pg_log(message.UTF8String);}
+    assetReadSource=4;return result;
   }
   if(localDataRoot)return readLocalAsset(id,offset,destination,length);
   if(assetTraceFD>=0&&length){char record[96];int n=snprintf(record,sizeof record,"%u,%llu,%u\n",id,offset,length);if(n>0&&n<sizeof record)write(assetTraceFD,record,(size_t)n);}

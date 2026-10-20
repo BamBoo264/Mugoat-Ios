@@ -76,7 +76,10 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     private var engineFailed = false
     private var bootedPreset = GameSettings.shared.graphicsPreset
     /// Render height multiplier while the phone is hot (1 = the chosen resolution).
-    private var thermalScale = 1.0
+    private var adaptiveResolution = AdaptiveResolution()
+    private var bootPerformanceMode = PerformanceMode.custom
+    private var bootFrameCap = 60
+    private var adaptiveSampleTime = 0.0
     private var bootedMode: GameMode?
     private var stableTimer: Timer?
     private var healthTimer: Timer?
@@ -276,6 +279,10 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         if GameSettings.shared.frameRateCap == 0 {
             let top = Float(UIScreen.main.maximumFramesPerSecond)
             displayLink?.preferredFrameRateRange = CAFrameRateRange(minimum: min(60, top), maximum: top, preferred: top)
+        }
+        if GameSettings.shared.frameRateCap>0 {
+            let cap=Float(GameSettings.shared.frameRateCap)
+            displayLink?.preferredFrameRateRange=CAFrameRateRange(minimum:cap,maximum:cap,preferred:cap)
         }
         displayLink?.add(to: .main, forMode: .common)
         NotificationCenter.default.addObserver(self, selector: #selector(handleAudioEngineConfigurationChange), name: .AVAudioEngineConfigurationChange, object: audioEngine)
@@ -494,6 +501,9 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         PGSetStartMode(testMap ? 3 : Int32(mode.rawValue))
         appendLog("Game mode: \(mode.title)\(mode == .sandbox ? " on " + GameSettings.sandboxMapTitles[GameSettings.shared.sandboxMap] : "")")
         bootedPreset = GameSettings.shared.graphicsPreset
+        bootPerformanceMode = GameSettings.shared.performanceMode
+        bootFrameCap = GameSettings.shared.frameRateCap
+        adaptiveResolution.reset(maximum:GameSettings.shared.renderHeight>0 ? GameSettings.shared.renderHeight:bootedPreset.height)
         appendLog("Graphics: " + GraphicsConfiguration.apply(GameSettings.shared, screen: view.bounds.size))
         appendLog("Device: " + GameSettings.shared.tier.summary)
         GameSettings.shared.markBootStarted()
@@ -505,59 +515,9 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         // The game's own settings.xml only holds graphics and display options. Some choices in the
         // game's pause menu or auto-detection (MSAA, TXAA, tessellation, shader quality 2) crash Metal
         // or trigger out-of-memory. Overwrite with a sanitized safe baseline before each launch.
-        let safeSettingsXml = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <Settings>
-          <version value="27" />
-          <configSource>SMC_AUTO</configSource>
-          <graphics>
-            <TextureQuality value="0" />
-            <ShaderQuality value="1" />
-            <ShadowQuality value="1" />
-            <ReflectionQuality value="1" />
-            <ReflectionMSAA value="0" />
-            <SSAO value="0" />
-            <AnisotropicFiltering value="0" />
-            <MSAA value="0" />
-            <MSAAFragments value="0" />
-            <MSAAPostProcess value="0" />
-            <WaterQuality value="0" />
-            <ParticleQuality value="0" />
-            <GrassQuality value="0" />
-            <DeepSurfaceQuality value="0" />
-            <PedLodBias value="0.200000" />
-            <VehicleLodBias value="0.000000" />
-            <Shadow_Distance value="1.000000" />
-            <Shadow_SoftShadows value="0" />
-            <Shadow_ParticleShadows value="false" />
-            <Shadow_SplitZStart value="0.930000" />
-            <Shadow_SplitZEnd value="0.890000" />
-            <Shadow_aircraftExpBloom value="0.300000" />
-            <Shadow_DisableScreenSizeCheck value="false" />
-            <Reflection_MipBlur value="true" />
-            <FXAA value="true" />
-            <TXAA value="false" />
-            <Lighting_FogVolumes value="false" />
-            <Shader_SSA value="false" />
-            <DX_Version value="2" />
-            <CityDensity value="0.000000" />
-            <PedVarietyMultiplier value="0.000000" />
-            <VehicleVarietyMultiplier value="0.000000" />
-            <PostFX value="0" />
-            <DoF value="false" />
-            <HdStreamingInFlight value="false" />
-            <MaxLodScale value="0.000000" />
-            <MotionBlurStrength value="0.000000" />
-          </graphics>
-          <system>
-            <Windowed value="2" />
-          </system>
-          <video>
-            <Windowed value="2" />
-            <VSync value="1" />
-          </video>
-        </Settings>
-        """
+        let safeSettingsXml = SafeGraphicsSettings.xml(
+            options:GameSettings.shared.performanceMode.options(bootedPreset.engineOptions),
+            lean:GameSettings.shared.performanceMode.automatic || bootedPreset.rawValue<=GraphicsPreset.performance.rawValue)
         for mode in ["userdata", "sandbox"] {
             let dir = "\(root)/\(mode)/Documents/Rockstar Games/GTA V"
             let settingsPath = "\(dir)/settings.xml"
@@ -620,8 +580,12 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
                     effectiveManifest = overlayManifestURL.path
                     ModRuntime.activeCatalog = catalog
                     for pack in catalog.packs { for p in pack.audioPolicies {
-                        PGRegisterVehicleAudioPolicy(p.model,p.profile,p.kind)
-                    }}
+                        PGRegisterVehicleAudioPolicy(p.model,UserDefaults.standard.string(forKey:"vehicleSound."+p.model) ?? p.profile,p.kind)
+                    }
+                        for model in pack.vehicleModels where !pack.audioPolicies.contains(where:{$0.model==model}) {
+                            if let sound=UserDefaults.standard.string(forKey:"vehicleSound."+model) {PGRegisterVehicleAudioPolicy(model,sound,"")}
+                        }
+                    }
                     if !catalog.packs.isEmpty {
                         PGSetManagedOpenRPFEnabled(true)
                         appendLog("ModRuntime: Đã nạp \(catalog.packs.count) gói DLC mod (\(catalog.vehicleModels.count) xe: \(catalog.vehicleModels.joined(separator: ", "))).")
@@ -1305,6 +1269,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         let settings = GameSettings.shared
         let renderHeight = settings.renderHeight > 0 ? settings.renderHeight : bootedPreset.height
         let (width, height) = GraphicsConfiguration.size(for: bootedPreset, renderHeight: renderHeight, screen: view.bounds.size, matchScreenShape: settings.matchScreenShape)
+        adaptiveResolution.reset(maximum:height)
         PGSetBackBufferSize(Int32(width), Int32(height))
         appendLog("Graphics: live resize to \(width)×\(height)")
     }
@@ -1351,12 +1316,21 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         if now - lastFPSLabelUpdate >= 0.25 {
             let fps = PGRenderedFramesPerSecond()
             let frames = fps > 0 ? String(format: "%.0f FPS", fps) : "— FPS"
-            fpsLabel.text = frames
+            fpsLabel.text = bootPerformanceMode.automatic && engineStarted ? frames+" · \(adaptiveResolution.currentHeight)p":frames
             lastFPSLabelUpdate = now
         }
         let elapsed = lastControllerPoll.map { now - $0 } ?? (1.0 / 60.0)
         lastControllerPoll = now
         let gameStatus = PGGameStatus()
+        if bootPerformanceMode.automatic,bootFrameCap==60,let ready=worldReadyAt,now-ready>15,now-adaptiveSampleTime>=2 {
+            adaptiveSampleTime=now
+            let playing=presentedViewController==nil && gameStatus & (1|4|8|16)==0
+            if let height=adaptiveResolution.sample(now:now,fps:PGRenderedFramesPerSecond(),thermal:ProcessInfo.processInfo.thermalState.rawValue,active:playing) {
+                let (w,h)=GraphicsConfiguration.size(for:bootedPreset,renderHeight:height,screen:view.bounds.size,matchScreenShape:GameSettings.shared.matchScreenShape)
+                PGSetBackBufferSize(Int32(w),Int32(h))
+                appendLog("[adaptive] \(w)×\(h); sustained FPS/thermal load, 15-second resize cooldown")
+            }
+        }
         if gameStatus != lastGameStatus {
             lastGameStatus = gameStatus
             appendLog("Game state: control \(gameStatus & 1 != 0 ? "off" : "on")\(gameStatus & 2 != 0 ? ", phone out" : "")\(gameStatus & 4 != 0 ? ", cutscene" : "")\(gameStatus & 8 != 0 ? ", warning screen" : "")\(gameStatus & 16 != 0 ? ", no player" : "")")

@@ -255,6 +255,7 @@ struct Renderer {
 	// statistics
 	uint64_t commitReasons[4] = {}, skipReasons[8] = {};
 	uint64_t draws = 0, skipped = 0, pendingSkips = 0, clamped = 0, presents = 0, commits = 0;
+	double pipeWaitBudgetMs = 2;
 	double pipeWaitMs = 0;		// time spent this frame waiting for pipelines to finish compiling
 	double statT = 0, busyMs = 0, lastCommitMs = 0, lastPresentMs = 0;
 	// stutter: presents more than 50 ms apart since the last report, and the longest gap
@@ -314,6 +315,7 @@ static id<MTLBlitCommandEncoder> blitEncoder() {
 static void storeResult(uint64_t addr, uint64_t value, uint32_t seq);
 enum CommitReason { CPresent, CFence, CReadback, CIdle, CReasons };
 static const char *kCommitNames[CReasons] = {"present", "fence", "readback", "idle queries"};
+static std::atomic<double> gPresentInterval{0};
 static void commit(CommitReason reason, id<CAMetalDrawable> drawable = nil) {
 	endEncoders();
 	if (!R->pendingQueries.empty()) {
@@ -333,7 +335,11 @@ static void commit(CommitReason reason, id<CAMetalDrawable> drawable = nil) {
 		if (R->visNext > OCCLUSION_SLOTS - 1024 && !R->activeOcclusion) R->visNext = 0;
 	}
 	id<MTLCommandBuffer> cb = commandBuffer();
-	if (drawable) [cb presentDrawable:drawable];
+	if (drawable) {
+        double interval=gPresentInterval.load(std::memory_order_relaxed);
+        if(interval>0) [cb presentDrawable:drawable afterMinimumDuration:interval];
+        else [cb presentDrawable:drawable];
+    }
 	uint64_t serial = R->serial++;
 	auto *callbacks = new std::vector<std::function<void()>>();
 	callbacks->swap(R->onComplete);
@@ -1539,8 +1545,8 @@ static void drawInner(const uint32_t *p) {
 		R->pipeDirty = false;
 	}
 	// One bounded wait budget for the entire frame, never 16 ms per draw.
-	if (!pipe->ready.load(std::memory_order_acquire) && R->pipeWaitMs < 2.0) {
-		double start = nowMs(), budget = 2.0 - R->pipeWaitMs;
+	if (!pipe->ready.load(std::memory_order_acquire) && R->pipeWaitMs < R->pipeWaitBudgetMs) {
+		double start = nowMs(), budget = R->pipeWaitBudgetMs - R->pipeWaitMs;
 		while (!pipe->ready.load(std::memory_order_acquire) && nowMs() - start < budget) usleep(50);
 		double elapsed = nowMs() - start; R->pipeWaitMs += elapsed; R->work.pipeline += elapsed;
 	}
@@ -2005,7 +2011,7 @@ static void capture(Texture *t, const std::string &name, id<MTLRenderPipelineSta
 // brings it to the screen's own resolution (up to 3 times the render size) with edge-aware sharpening.
 static std::atomic<bool> gUpscale{false};
 extern "C" void PGMetalRendererSetUpscaling(int on) { gUpscale.store(on != 0); }
-extern "C" void PGMetalRendererSetPresentInterval(double) {}
+extern "C" void PGMetalRendererSetPresentInterval(double seconds) { gPresentInterval.store(std::isfinite(seconds) ? std::clamp(seconds,0.0,1.0/15.0):0.0); }
 #if PG_METALFX
 static struct { id<MTLFXSpatialScaler> scaler; id<MTLTexture> out; uint32_t inW, inH, outW, outH; MTLPixelFormat format; bool unsupported; } FX;
 static id<MTLTexture> upscaled(Texture *t) {
@@ -2456,6 +2462,7 @@ fragment D pg_depth_copy(V in [[stage_in]], texture2d<float> t [[texture(0)]]) {
 )";
 
 static bool setup() {
+    if(const char *v=getenv("PG_PIPELINE_WAIT_MS")) {double n=atof(v);if(std::isfinite(n))R->pipeWaitBudgetMs=std::clamp(n,0.0,2.0);}
 	R->device = R->layer.device ?: MTLCreateSystemDefaultDevice();
 	if (!R->device) return false;
 	R->layer.device = R->device;

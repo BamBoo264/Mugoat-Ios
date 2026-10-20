@@ -153,10 +153,10 @@ final class ModManagerViewController: UITableViewController, UIDocumentPickerDel
             } else if indexPath.row <= dlcCatalog.vehicleModels.count {
                 let model = dlcCatalog.vehicleModels[indexPath.row - 1]
                 cell.textLabel?.text = "Xe Mod: \(model.uppercased())"
-                cell.detailTextLabel?.text = L10n.text("Phương tiện từ gói DLC Add-on đã cài. Bấm để triệu hồi ngay.")
+                cell.detailTextLabel?.text = "Bấm để gọi xe · ⓘ chọn tiếng động cơ"
                 cell.imageView?.image = UIImage(systemName: "star.fill")
                 cell.imageView?.tintColor = .systemYellow
-                cell.accessoryType = .disclosureIndicator
+                cell.accessoryType = .detailButton
             } else {
                 let index = indexPath.row - 1 - dlcCatalog.vehicleModels.count
                 if index < defaultVehicles.count {
@@ -206,6 +206,25 @@ final class ModManagerViewController: UITableViewController, UIDocumentPickerDel
     }
 
     // MARK: - Mod File Actions
+
+    override func tableView(_ tableView:UITableView,accessoryButtonTappedForRowWith indexPath:IndexPath) {
+        guard indexPath.section==2,indexPath.row>0,indexPath.row<=dlcCatalog.vehicleModels.count else {return}
+        let model=dlcCatalog.vehicleModels[indexPath.row-1]
+        let policy=dlcCatalog.packs.flatMap(\.audioPolicies).first{$0.model==model}
+        let key="vehicleSound."+model
+        let sheet=UIAlertController(title:"Tiếng động cơ · "+model,message:"Chọn tiếng xe gốc thay thế. Tiếng Ducati đúng mẫu cần bộ audio tương thích; đổi tên model không tạo được âm thanh mới. Áp dụng cho xe đang lái hoặc lần gọi xe tiếp theo.",preferredStyle:.actionSheet)
+        let profiles:[(String,String)]=[("Tự động / theo mod",""),("Mô tô thể thao · Bati 801","bati"),("Mô tô thể thao · Akuma","akuma"),("Mô tô thể thao · Double-T","double"),("Cruiser · Daemon","daemon"),("Cào cào · Sanchez","sanchez"),("Tay ga · Faggio","faggio2"),("Siêu xe · Turismo R","turismor"),("Siêu xe · Adder","adder")]
+        for (label,profile) in profiles {
+            let selected=(UserDefaults.standard.string(forKey:key) ?? "")==profile
+            sheet.addAction(UIAlertAction(title:(selected ? "✓ ":"")+label,style:.default){_ in
+                guard !MugoatOnlineEnabled() else{return}
+                if profile.isEmpty {UserDefaults.standard.removeObject(forKey:key)} else {UserDefaults.standard.set(profile,forKey:key)}
+                PGRegisterVehicleAudioPolicy(model,profile.isEmpty ? (policy?.profile ?? model):profile,policy?.kind ?? "")
+            })
+        }
+        sheet.addAction(UIAlertAction(title:"Đóng",style:.cancel));sheet.popoverPresentationController?.sourceView=tableView.cellForRow(at:indexPath) ?? view
+        present(sheet,animated:true)
+    }
 
     private func pickModFile() {
         guard !engineRunning else { showAlert("Cần khởi động lại", "Thoát game về launcher trước khi cài hoặc đổi mod."); return }

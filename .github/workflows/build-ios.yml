@@ -57,10 +57,14 @@ jobs:
           cp Resources/Localizations.json "$RUNNER_TEMP/Localizations.json"
           swiftc App/Localization.swift App/SaveStore.swift Tests/save_store.swift -o "$RUNNER_TEMP/save-store"
           "$RUNNER_TEMP/save-store"
+          swiftc App/PerformanceTuning.swift Tests/performance_tuning.swift -o "$RUNNER_TEMP/performance-tuning"
+          "$RUNNER_TEMP/performance-tuning"
           clang -std=c11 -I Source Source/ManagedOpenRPF.c Tests/managed_open_rpf.c -o "$RUNNER_TEMP/open-rpf"
           "$RUNNER_TEMP/open-rpf"
           clang -std=c11 -I Source Source/NativeVehicleAudio.c Tests/vehicle_audio.c -o "$RUNNER_TEMP/vehicle-audio"
           "$RUNNER_TEMP/vehicle-audio"
+          clang -std=c11 -I Source Source/NativeLocalReader.c Tests/local_reader.c -o "$RUNNER_TEMP/local-reader" -lpthread
+          "$RUNNER_TEMP/local-reader"
           clang -c -I App/GameInstaller Source/NativeRPFInflate.c -o "$RUNNER_TEMP/rpf-inflate.o"
           clang -c -I Vendor/libarchive.xcframework/macos-arm64/Headers -I App/GameInstaller App/GameInstaller/GameInstallerShim.c -o "$RUNNER_TEMP/archive-shim.o"
           swiftc -import-objc-header App/GameInstaller/GameInstallerShim.h App/ModFiles.swift App/RPFArchive.swift App/ModRuntime.swift App/VehicleInstaller.swift Tests/vehicle_installer.swift "$RUNNER_TEMP/rpf-inflate.o" "$RUNNER_TEMP/archive-shim.o" Vendor/libarchive.xcframework/macos-arm64/libarchive.a -lz -lbz2 -o "$RUNNER_TEMP/vehicle-installer"
@@ -100,7 +104,7 @@ jobs:
           shasum -a 256 Mugoat-Cert-Paid.ipa > SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: Mugoat-iOS-v3-Paid-Cert
+          name: Mugoat-iOS-v5-Performance-Paid-Cert
           path: |
             native-port/Mugoat-Cert-Paid.ipa
             native-port/validation-*.json

@@ -19,6 +19,22 @@ enum GameMode: Int, CaseIterable {
 final class GameSettings {
     static let shared = GameSettings()
     private let defaults = UserDefaults.standard
+    private init() {
+        // One-time migration to the requested performance-first defaults; presets stay selectable.
+        if !defaults.bool(forKey:"performanceDefaultsV5") {
+            defaults.set("stable60",forKey:"performanceMode")
+            defaults.set(1,forKey:"graphicsPreset"); defaults.set(540,forKey:"renderHeight")
+            defaults.set(60,forKey:"frameRateCap"); defaults.set(true,forKey:"performanceDefaultsV5")
+        }
+    }
+    var performanceMode: PerformanceMode {
+        get { PerformanceMode(rawValue:defaults.string(forKey:"performanceMode") ?? "stable60") ?? .stable60 }
+        set {defaults.set(newValue.rawValue,forKey:"performanceMode")}
+    }
+    func selectPerformanceMode(_ mode:PerformanceMode) {
+        performanceMode=mode
+        if mode.automatic {graphicsPreset=mode == .potato ? .battery:.performance;renderHeight=mode.height;frameRateCap=60}
+    }
 
     var gyroAim: GyroAimMode {
         get { GyroAimMode(rawValue: defaults.integer(forKey: "gyroAim")) ?? .off }

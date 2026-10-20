@@ -118,7 +118,9 @@ final class ModXML: NSObject, XMLParserDelegate {
         if stack.count == 4 && stack[1] == "InitDatas" && stack[2] == "Item" { row[name] = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
         if stack.count == 3 && stack[1] == "InitDatas" && name == "Item", let model = row["modelName"], !model.isEmpty {
             let profile = row["audioNameHash"] ?? ""
-            audioPolicies.append((model,profile.isEmpty ? model : profile,row["vehicleClass"] ?? ""))
+            let kind=row["vehicleClass"] ?? ""
+            let category=kind=="vc_motorcycle" && (row["layout"] ?? "").contains("scooter") ? "vc_motorcycle_scooter":kind
+            audioPolicies.append((model,profile.isEmpty ? model : profile,category))
         }
         stack.removeLast(); current = ""; text = ""
     }
