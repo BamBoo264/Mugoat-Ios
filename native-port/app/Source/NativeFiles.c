@@ -39,8 +39,31 @@ void pg_files_init(const char *root) {
 }
 static int nativeFD(u32 fd) { if(fd>=PG_FDS||descriptors[fd].native<0){errno=EBADF;return -1;}return descriptors[fd].native; }
 
-extern const char *pg_mods_folder_path(void);
-extern const char *pg_local_data_root_path(void);
+__attribute__((weak)) const char *pg_mods_folder_path(void) {
+  static char path[PATH_MAX];
+  if (!path[0]) {
+    const char *env = getenv("PG_MODS_FOLDER");
+    if (env && *env) snprintf(path, sizeof path, "%s", env);
+    else {
+      const char *home = getenv("HOME");
+      if (home && *home) snprintf(path, sizeof path, "%s/Documents/Mods", home);
+    }
+  }
+  return path[0] ? path : NULL;
+}
+
+__attribute__((weak)) const char *pg_local_data_root_path(void) {
+  static char path[PATH_MAX];
+  if (!path[0]) {
+    const char *env = getenv("PG_LOCAL_DATA_ROOT");
+    if (env && *env) snprintf(path, sizeof path, "%s", env);
+    else {
+      const char *home = getenv("HOME");
+      if (home && *home) snprintf(path, sizeof path, "%s/Documents", home);
+    }
+  }
+  return path[0] ? path : NULL;
+}
 
 static bool tryDirectCandidate(const char *candidate, char *physical, char *virtualPath, const char *vPath) {
   if (!candidate || !*candidate) return false;

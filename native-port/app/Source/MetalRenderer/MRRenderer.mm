@@ -2027,19 +2027,21 @@ static void capture(Texture *t, const std::string &name, id<MTLRenderPipelineSta
 // brings it to the screen's own resolution (up to 3 times the render size) with edge-aware sharpening.
 static std::atomic<bool> gUpscale{false};
 extern "C" void PGMetalRendererSetUpscaling(int on) { gUpscale.store(on != 0); }
+extern "C" void PGMetalRendererSetPresentInterval(double) {}
 #if PG_METALFX
 static struct { id<MTLFXSpatialScaler> scaler; id<MTLTexture> out; uint32_t inW, inH, outW, outH; MTLPixelFormat format; bool unsupported; } FX;
 static id<MTLTexture> upscaled(Texture *t) {
 	if (!gUpscale.load() || FX.unsupported || !R->layer) return nil;
-	if (![MTLFXSpatialScalerDescriptor supportsDevice:R->device]) { FX.unsupported = true; pg_log("Sharper upscaling: MetalFX isn't available on this device."); return nil; }
+	Class scalerDescClass = NSClassFromString(@"MTLFXSpatialScalerDescriptor");
+	if (!scalerDescClass || ![scalerDescClass supportsDevice:R->device]) { FX.unsupported = true; pg_log("Sharper upscaling: MetalFX isn't available on this device."); return nil; }
 	CGSize screen = R->layer.bounds.size; CGFloat scale = R->layer.contentsScale;
 	uint32_t outW = (uint32_t)std::min<double>(screen.width * scale, t->width * 3.0), outH = (uint32_t)std::min<double>(screen.height * scale, t->height * 3.0);
 	if (outW < t->width * 1.05 || outH < t->height * 1.05) return nil;		// the picture is already about screen size
 	if (!FX.scaler || FX.inW != t->width || FX.inH != t->height || FX.outW != outW || FX.outH != outH || FX.format != t->tex.pixelFormat) {
-		MTLFXSpatialScalerDescriptor *d = [MTLFXSpatialScalerDescriptor new];
-		d.inputWidth = t->width; d.inputHeight = t->height; d.outputWidth = outW; d.outputHeight = outH;
-		d.colorTextureFormat = t->tex.pixelFormat; d.outputTextureFormat = t->tex.pixelFormat;
-		d.colorProcessingMode = MTLFXSpatialScalerColorProcessingModePerceptual;
+		id d = [scalerDescClass new];
+		[d setInputWidth:t->width]; [d setInputHeight:t->height]; [d setOutputWidth:outW]; [d setOutputHeight:outH];
+		[d setColorTextureFormat:t->tex.pixelFormat]; [d setOutputTextureFormat:t->tex.pixelFormat];
+		[d setColorProcessingMode:MTLFXSpatialScalerColorProcessingModePerceptual];
 		FX.scaler = [d newSpatialScalerWithDevice:R->device];
 		MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:t->tex.pixelFormat width:outW height:outH mipmapped:NO];
 		td.storageMode = MTLStorageModePrivate;
