@@ -3,6 +3,17 @@ import Metal
 import UIKit
 import os
 
+private enum AppLanguage {
+    static func choose(_ text: String) -> String { text }
+    static func interpolate(_ format: String, _ args: [String]) -> String {
+        var result = format
+        for (i, arg) in args.enumerated() {
+            result = result.replacingOccurrences(of: "{arg\(i)}", with: arg)
+        }
+        return result
+    }
+}
+
 /// Graphics presets. The engine reads quality settings once at boot; only the
 /// resolution can change while it runs.
 /// Ultra Performance (the Lite mode) sits below Battery (raw value -1, so the saved values of the
@@ -82,6 +93,7 @@ struct DeviceTier {
     let physicalMemoryMB: Int
     let model: String
     let supportsBCTextures: Bool
+    var processAllowanceMB: Int { memoryLimitMB }
 
     /// BC textures sampled as they are; the property exists from iOS 16.4 (before that: decoded).
     static func readsBC(_ device: MTLDevice?) -> Bool {
