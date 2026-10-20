@@ -14,9 +14,7 @@ typedef simde_v128_t v128;
 static inline v128 v128_load_shared(uint8_t *base, uint64_t size,
                                     wasm_rt_shared_memory_t *memory, uint64_t at) {
   if (at > memory->size || memory->size - at < 16) wasm_rt_trap(WASM_RT_TRAP_OOB);
-#if PG_PLAIN_SHARED
-  return simde_wasm_v128_load((const void *)(uintptr_t)(memory->data + at));
-#elif defined(PG_HAS_ARM64_SHARED_VECTORS) && !defined(PG_SHARED_SIMD_BYTEWISE)
+#if defined(PG_HAS_ARM64_SHARED_VECTORS) && !defined(PG_SHARED_SIMD_BYTEWISE)
   return pg_arm64_load128(memory->data+at);
 #else
   uint8_t bytes[16];
@@ -27,9 +25,7 @@ static inline v128 v128_load_shared(uint8_t *base, uint64_t size,
 static inline void v128_store_shared(uint8_t *base, uint64_t size,
                                      wasm_rt_shared_memory_t *memory, uint64_t at, v128 value) {
   if (at > memory->size || memory->size - at < 16) wasm_rt_trap(WASM_RT_TRAP_OOB);
-#if PG_PLAIN_SHARED
-  simde_wasm_v128_store((void *)(uintptr_t)(memory->data + at), value);
-#elif defined(PG_HAS_ARM64_SHARED_VECTORS) && !defined(PG_SHARED_SIMD_BYTEWISE)
+#if defined(PG_HAS_ARM64_SHARED_VECTORS) && !defined(PG_SHARED_SIMD_BYTEWISE)
   pg_arm64_store128(memory->data+at,value);
 #else
   uint8_t bytes[16];

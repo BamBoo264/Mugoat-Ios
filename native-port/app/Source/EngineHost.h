@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 typedef void (*PGLogCallback)(const char *, void *);
 typedef struct {
@@ -23,9 +24,6 @@ void PGConfigureEngine(const char *const *quality, unsigned count, int width, in
 void PGSetFrameLimit(int frameLimit);
 // Settings › Memory cap in MB (0 automatic); call before the engine starts.
 void PGSetMemoryCap(int mb);
-// RAM the game may reserve, in MB (Settings › Graphics › RAM for the game). 0: the device's full RAM.
-// Clamped to the engine's 3072..16384 MB. Call before PGStartEngine.
-void PGSetEngineMemoryMB(int mb);
 // Before PGStartEngine: 1 Story Mode (the release startup: continues the
 // newest save in /userdata/Documents, else a new game from the Prologue),
 // 2 Sandbox Mode (free roam on the GTA V map; its files go to
@@ -38,13 +36,29 @@ void PGSetAssetServer(const char *url);
 // Before PGStartEngine: a folder on this device that contains the game's data/
 // files (the app holds security-scoped access to it); NULL streams from the server.
 void PGSetLocalGameFolder(const char *dataPath);
+// The minimap's place (GTA-131, NativeAssets.m): offsets in the game's HUD units and a size factor; before the engine starts.
+void PGSetMinimapLayout(double dx, double dy, double scale);
 bool PGUsingLocalGameFolder(void);
 void PGStartEngine(const char *manifestPath, const char *filesRoot, PGLogCallback, void *context);
 void PGUpdateController(PGControllerState state, double elapsedSeconds);
 // Player context: 0 on foot, otherwise the vehicle type + 1 (see NativeTouchContext.h).
 uint32_t PGCurrentTouchContext(void);
-// Game state for the touch layout: 1 control off, 2 phone out, 4 cutscene, 8 warning screen, 16 no player.
+// Game state for the touch layout: 1 control off, 2 phone out, 4 cutscene, 8 warning screen, 16 no player, 32 game paused.
 uint32_t PGGameStatus(void);
+// Friend Request's Lifeinvader presentation on the TV: how far it is (ms) and how long; false when not on.
+bool PGTVPresentation(int32_t *playMs, int32_t *durationMs);
+// A mod file the game can't read (made for GTA V Enhanced): true, with the reason (NativeAssets.m).
+bool PGModFileProblem(const char *path, char *why, size_t n);
+// Script mods (.asi): press or release a Windows virtual-key code for them; which keys they poll.
+void PGAsiSetKey(int virtualKey, bool down);
+bool PGAsiModKeys(uint8_t keys[256]);
+// What the Mod keys pad shows: see PGAsiKeyInfo in NativeASI.h.
+#include "NativeASI.h"
+void PGAsiGetKeyInfo(PGAsiKeyInfo *info);
+// A script mod asks for typed text: true once per request, with its title, default text and length limit.
+bool PGAsiTextRequest(char *title, size_t titleSize, char *text, size_t textSize, int *maxLength);
+// The typed text for that request, or NULL when cancelled.
+void PGAsiTextFinish(const char *text);
 // What the touch controls need to know to show a button only when it applies (all memory reads).
 typedef struct {
   bool specialShown;   // the character has a usable special ability here
@@ -52,25 +66,80 @@ typedef struct {
   bool specialActive;  // running now
   float specialFill;   // meter, 0...1
   bool canDetonate;    // the player has sticky bombs placed
+  bool helpDetonate;   // a help message asks for INPUT_DETONATE (explosives a mission planted)
   bool helpShown;      // a help message is on screen
   bool helpContext;    // ...and it asks for the context input (D-pad right)
+  uint32_t helpInputs; // ...and the script inputs it names: bit n is input 218 + n (sticks 218-221, buttons 222-231, D-pad 232-235)
   bool radioWheelOpen; // the radio wheel is up
   uint32_t vehicleModel; // model name hash (joaat) of the vehicle the player is in, 0 on foot
+  uint32_t pedModel;     // model name hash (joaat) of the player ped (a_c_chop while playing as Chop)
+  bool trailerAttached;  // the player's vehicle pulls a trailer (the touch controls show Detach trailer)
   bool passenger;        // in a vehicle, not in the driver's seat (taxi rides)
   bool taxiMenu;         // the taxi ride script (taxiservice) is running
+  bool phoneBrowser;     // the phone's internet app (appinternet) is open
 } PGControlHints;
 PGControlHints PGReadControlHints(uint32_t touchContext);
+// For player logs: the story mission running ("docks_setup (DH1)", empty when none), the player's position and
+// the replay controller's state (1: the Mission failed screen). False before the engine runs.
+bool PGStoryContext(char *mission, size_t size, float position[3], int32_t *replayState);
+// Simulator only (Source/NativeDebugChannel.inc): runs one test-harness command and writes its JSON reply.
+void PGDebugCommand(const char *command, char *reply, size_t size);
 // The next weapon of the aircraft the player flies (applied on the game thread).
 void PGNextAircraftWeapon(void);
+/// Story cheat "Set money": the playing character's cash becomes `amount` at the next engine frame.
+void PGSetPlayerCash(int32_t amount);
+// Settings › Cheats (Source/NativeVehicleSpawn.inc, Source/NativeCheats.inc). The app only queues
+// requests and reads copies here; the game commands run on the game thread during the "main"
+// script's turn, never from UIKit or the controller thread.
+// One vehicle the game knows: its model name hash, class (0 compacts ... 20 commercial; trains are
+// left out), model name ("adder") and the name the game shows for it, in the game's language ("Adder";
+// empty when the game files have no text for it).
+typedef struct {
+  uint32_t model, vehicleClass;
+  char name[64], label[64];
+} PGVehicleEntry;
+void PGRequestVehicleCatalog(void);
+// -1 while reading (or before the first request), -2 on failure, otherwise entry count.
+int32_t PGVehicleCatalogCount(void);
+bool PGVehicleCatalogEntryAt(uint32_t index, PGVehicleEntry *entry);
+typedef enum {
+  PGVehicleSpawnIdle, PGVehicleSpawnWaiting, PGVehicleSpawnLoading,
+  PGVehicleSpawnSucceeded, PGVehicleSpawnUnavailable, PGVehicleSpawnTimedOut,
+  PGVehicleSpawnNotReady, PGVehicleSpawnFailed,
+  PGVehicleSpawnLowMemory, PGVehicleSpawnVehicleLimit
+} PGVehicleSpawnStatus;
+// Spawns the vehicle in front of the player once the game runs; false while another spawn is pending.
+bool PGSpawnVehicle(uint32_t model, bool enterVehicle);
+PGVehicleSpawnStatus PGGetVehicleSpawnStatus(void);
+// One-off actions. Time takes the hour (0-23); weather takes 0 clear, 1 extra sunny, 2 clouds,
+// 3 overcast, 4 rain, 5 thunder, 6 fog.
+typedef enum {
+  PGCheatRepairVehicle, PGCheatCleanVehicle, PGCheatSetTime,
+  PGCheatSetWeather, PGCheatNaturalWeather
+} PGCheatCommand;
+typedef enum {
+  PGCheatIdle, PGCheatWaiting, PGCheatSucceeded, PGCheatNoVehicle, PGCheatNotReady
+} PGCheatStatus;
+// Queues one action (one at a time); false while another is pending or for a bad value.
+bool PGQueueCheat(PGCheatCommand command, int32_t value);
+PGCheatStatus PGGetCheatStatus(void);
+// Switches that stay on until turned off (or the app closes), through respawns and character
+// switches. Flipping one works while Settings has the game paused; it takes effect once play resumes.
+typedef enum { PGCheatGodMode, PGCheatNeverWanted } PGCheatSwitch;
+// The switch as the player last set it.
+bool PGCheatEnabled(PGCheatSwitch cheat);
+bool PGSetPersistentCheatEnabled(PGCheatSwitch cheat, bool enabled);
+/// Seconds the engine has been in a load scene (respawn, warp, story transition), 0 when none.
+int PGLoadSceneSeconds(void);
+/// Whether a script asked for input `action` (the engine's input id) in the last `ms` milliseconds.
+int PGInputPolledWithin(int action, double ms);
+/// Whether a script read input `action` in any way in the last `ms` milliseconds (for diagnostics; GTA-129).
+int PGInputReadWithin(int action, double ms);
+/// Presses Start (opens the pause menu, or closes it when open): held for the next three engine frames.
+void PGRequestPauseMenu(void);
 // Keyboard and mouse, through the game's own PC input (the block the browser build wrote): key
 // state bytes indexed by Windows virtual-key code, and mouse words after them.
 void PGSetKey(uint8_t virtualKey, bool down);
-void PGSendChar(uint16_t ch);
-void PGSendKeyAndChar(uint8_t virtualKey, bool down, uint16_t ch);
-void PGApplyCheat(const char *code);
-void PGApplyCheatConsole(const char *code);
-void PGApplyCheatGamepad(const char *code);
-bool PGIsCheatInProgress(void);
 // The radio wheel's direction (stick-style, up positive). Its two inputs have no controller binding
 // in this build, so the value is written into them directly while the wheel is held.
 void PGSetRadioWheelDirection(float x, float y, bool active);
@@ -80,8 +149,6 @@ void PGMouseInput(int32_t dx, int32_t dy, int32_t buttons);
 void PGMouseWheel(int32_t notches);
 // The window has focus / the pointer is captured for looking around.
 void PGSetMouseFocus(bool focused, bool locked);
-void PGSetMousePosition(int32_t x, int32_t y, int32_t buttons);
-void PGGetRenderSize(int32_t *width, int32_t *height);
 bool PGDebugReadMemory(uint64_t address, void *out, uint64_t length);
 // Virtual controller fed into the engine's own pad 0 (see
 // Scripts/prepare_virtual_pad.py). Buttons use the engine's pad bits:
@@ -93,9 +160,6 @@ typedef struct {
   float leftX, leftY, rightX, rightY, leftTrigger, rightTrigger;
 } PGPadState;
 void PGUpdateVirtualPad(PGPadState state);
-// Relative touch motion, queued until the engine consumes its pad input.
-void PGTouchCameraDrag(double x, double y);
-void PGTouchCameraEnabled(bool enabled);
 // Existing controller-swipe impulse bridge, consumed on engine input sampling.
 void PGQueueCameraSwipe(float x, float y);
 void PGClearCameraSwipe(void);
@@ -112,9 +176,11 @@ void PGFillAudio(float *left, float *right, uint32_t count);
 // Health counters for the periodic log line.
 uint64_t PGMemoryBudgetQueries(void);
 uint64_t PGMemoryBudgetClamps(void);
+/// Memory the renderer's textures hold on the GPU (estimated in the simulator, where it isn't in the footprint).
+uint64_t PGGPUTextureBytes(void);
+/// Logs how much of each engine memory pool iOS really holds (diagnostics, every minute).
+void PGLogMemoryPools(void);
 uint64_t PGMemoryBudgetEvictions(void);
 void PGAssetHealth(uint64_t out[6]);
-bool PGSpawnVehicle(const char *modelName);
-int PGSpawnVehicleStatus(void);
-void PGEmergencyExitVehicle(int mode);
-void PGForceSkipScene(void);
+void PGStreamingHealth(uint64_t out[6]);		// NativeStreamingHealth.c (GTA-116)
+double PGGPUFrameMilliseconds(void);		// MRRenderer.mm

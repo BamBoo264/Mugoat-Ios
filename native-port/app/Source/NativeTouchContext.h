@@ -28,5 +28,5 @@ static inline uint32_t pg_touch_context(const uint8_t *memory,uint64_t size){
  if(!(atomic_load_explicit((const _Atomic uint8_t *)(memory+ped+5291),memory_order_relaxed)&64))return 0;
  // 0 on foot, otherwise the engine's vehicle type + 1 (car 1, plane 2, heli 9,
  // blimp 10, bike 12, bicycle 13, boat 14, submarine 16, ...).
- return kind + 1;
+ return kind+1;
 }

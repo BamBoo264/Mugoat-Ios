@@ -1,8 +1,8 @@
 import UIKit
-import SwiftUI
 import MetalKit
 import GameController
 import AVFAudio
+import AVFoundation
 import UniformTypeIdentifiers
 import os
 
@@ -12,10 +12,10 @@ private func engineLog(_ message: UnsafePointer<CChar>?, _ context: UnsafeMutabl
     LogWriter.shared.engine(String(cString: message), to: controller)
 }
 
-/// The log file and the engine's lines (from GTA V Port 1.3.3). The engine can print thousands of
-/// lines a second; one main-thread hop per line, each opening the file and calling NSLog, starved the
-/// UI: the app lagged, frames dropped and touch releases arrived late (buttons acted held). Each line
-/// is written at once through one open file handle on the thread that logs it (a crash's last lines
+/// The log file and the engine's lines. The engine can print thousands of lines a second (a player's
+/// log had 3 million in one session); one main-thread hop per line, each opening the file, starved
+/// the UI: the whole app lagged and touch releases arrived late, so buttons acted held. Each line is
+/// written at once through one open file handle on the thread that logs it (a crash's last lines
 /// must reach the file), and the UI gets the lines in batches at most every 50 ms.
 final class LogWriter {
     static let shared = LogWriter()
@@ -52,6 +52,18 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     private var queue: MTLCommandQueue?
     private let output = UITextView()
     private let fpsLabel = UILabel()
+    // Top left, or bottom left while the minimap sits at the top (GTA-131).
+    private lazy var fpsAtTop = fpsLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8)
+    private lazy var fpsAtBottom = fpsLabel.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -8)
+    private func placeFPSLabel() {
+        let bottom = GameSettings.shared.minimapAtTop
+        fpsAtTop.isActive = !bottom
+        fpsAtBottom.isActive = bottom
+    }
+    private let inputTestLabel = UILabel()
+    private var wasMouseSwipeActive = false
+    private var lastDeviceDiagnostic = ""
+    private var lastDeviceLogAt: CFTimeInterval = 0
     private var lastFPSLabelUpdate: CFTimeInterval = 0
     /// The start screen; it hides once the game's world is up.
     private lazy var home = HomeView(modes: GameMode.allCases.map { ($0.title, $0 == .story ? "book.fill" : "map.fill") }, log: output)
@@ -61,27 +73,86 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     private var diagnosticsOverlay: UIView? { home }
     private let audioEngine = AVAudioEngine()
     private var audioSource: AVAudioSourceNode?
-    /// Mic toggles and audio configuration changes touch the same session and engine: one at a time.
-    private let audioQueue = DispatchQueue(label: "mugoat.audio", qos: .userInitiated)
-    private var isMicTapInstalled = false
+    private lazy var loadingPill: UILabel = {
+        let label = PaddedLabel()
+        label.text = AppLanguage.choose("Loading…")
+        label.font = Theme.body(14, .semibold)
+        label.textColor = .white
+        label.backgroundColor = UIColor.black.withAlphaComponent(0.55)
+        label.layer.cornerRadius = 14
+        label.layer.masksToBounds = true
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.isHidden = true
+        label.isUserInteractionEnabled = false
+        return label
+    }()
+    /// Friend Request (GTA-73): how far the Lifeinvader presentation is, while the TV shows nothing.
+    private lazy var presentationPill: UILabel = {
+        let label = PaddedLabel()
+        label.font = Theme.body(13, .semibold)
+        label.textColor = .white
+        label.backgroundColor = UIColor.black.withAlphaComponent(0.6)
+        label.numberOfLines = 0
+        label.textAlignment = .center
+        label.layer.cornerRadius = 14
+        label.layer.masksToBounds = true
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.isHidden = true
+        label.isUserInteractionEnabled = false
+        return label
+    }()
+    private var presentationSecond = -1
+    /// The boot stopped and the audio was shut down on purpose (not restarted when the app is active again).
+    private var audioShutDown = false
+    private var audioRetry: DispatchWorkItem?
     private var displayLink: CADisplayLink?
     private var lastControllerPoll: CFTimeInterval?
     private var lines: [String] = []
     private var metrics: [String: String] = [:]
     private var logFile: URL?
     private let touchControls = TouchControlsView(frame: .zero)
+    private let modKeys = ModKeysView(frame: .zero)
     private let gyro = GyroInput()
     private var engineStarted = false
-    /// The engine stopped with an error: it can only start again in a new app process.
-    private var engineFailed = false
     private var bootedPreset = GameSettings.shared.graphicsPreset
-    /// Render height multiplier while the phone is hot (1 = the chosen resolution).
-    private var thermalScale = 1.0
     private var bootedMode: GameMode?
     private var stableTimer: Timer?
     private var healthTimer: Timer?
-    private var lastHealth: [UInt64] = [0, 0, 0, 0, 0, 0, 0]
+    private var introView: IntroVideoView?
+    private var lastCPU: (cpu: Double, wall: Double)?
+    private var thermalFrameLimit: Int32 = -1
+
+    /// A hot phone runs slower (iOS lowers the chip's speed), so uncapped frame rates swing between
+    /// 60 and 15 within minutes; a player's log went "serious" 30 s in. With "Steady frame rate when
+    /// hot" (off by default) the cap steps down while the phone is hot (fair: at most 60, serious: 30)
+    /// and back to the player's choice when it cools; switching it off restores the choice.
+    @objc private func thermalChanged() {
+        // Benchmarks keep their own frame limit.
+        if ProcessInfo.processInfo.environment["PG_BENCHMARK"] != nil { return }
+        DispatchQueue.main.async { [self] in
+            let cap = GameSettings.shared.frameRateCap
+            let chosen: Int32 = cap == 0 ? 0 : cap == 60 ? 1 : 2
+            let state = ProcessInfo.processInfo.thermalState
+            var limit = chosen
+            if GameSettings.shared.steadyWhenHot {
+                if state == .fair, chosen == 0 { limit = 1 }
+                if state == .serious || state == .critical { limit = 2 }
+            }
+            guard limit != thermalFrameLimit else { return }
+            if thermalFrameLimit >= 0 || limit != chosen {
+                appendLog("Thermal state \(["nominal", "fair", "serious", "critical"][min(3, state.rawValue)]): frame limit \(limit == 0 ? "off" : limit == 1 ? "60 FPS" : "30 FPS").")
+                PGSetFrameLimit(limit)
+            }
+            thermalFrameLimit = limit
+        }
+    }
+    private var lastHealth: [UInt64] = [0, 0, 0, 0, 0, 0, 0, 0]
     private var padProof: PGPadState?
+    /// Bumps when a new story-cheat sequence starts, so an older one stops writing the pad.
+    private var storyCheatToken = 0
+    /// Cheats › Spawn vehicle and the cheat actions: the note at the top while the game carries one out.
+    private var vehicleSpawnTimer: Timer?
+    private var vehicleSpawnNotice: UIView?
     private var lastGameStatus: UInt32 = 999
     private var worldReadyAt: CFTimeInterval?
     private var tiltNeutral: Double?
@@ -93,7 +164,13 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     private var proofController: GCController?
     private var proofInputSamples = 0
     private var proofInputActive = false
-    private var hardwareKeys = Set<UIKeyboardHIDUsage>()
+    #if targetEnvironment(simulator)
+    private var simulatorKeys = Set<UIKeyboardHIDUsage>()
+    /// The debug channel (DebugChannel.swift): its controller input, held until a time; the last pad sample sent.
+    private var debugPad = PGPadState(), debugPadUntil: CFTimeInterval = 0
+    private(set) var debugLastPad = PGPadState()
+    var debugTouchControls: TouchControlsView { touchControls }
+    func debugHold(_ pad: PGPadState, for seconds: Double) { debugPad = pad; debugPadUntil = CACurrentMediaTime() + seconds }
     override var canBecomeFirstResponder: Bool { true }
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
@@ -101,18 +178,19 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     }
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
         // With keyboard and mouse on, keys reach the game as PC keys instead (KeyboardMouse).
-        let pcKeys = KeyboardMouse.shared.isPCMode
-        for press in presses { if let key = press.key, !pcKeys { hardwareKeys.insert(key.keyCode) } }
+        let pcKeys = GameSettings.shared.keyboardMouse && KeyboardMouse.shared.hasKeyboard
+        for press in presses { if let key = press.key, !pcKeys { simulatorKeys.insert(key.keyCode) } }
         super.pressesBegan(presses, with: event)
     }
     override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        for press in presses { if let key = press.key { hardwareKeys.remove(key.keyCode) } }
+        for press in presses { if let key = press.key { simulatorKeys.remove(key.keyCode) } }
         super.pressesEnded(presses, with: event)
     }
     override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        hardwareKeys.removeAll()
+        simulatorKeys.removeAll()
         super.pressesCancelled(presses, with: event)
     }
+    #endif
 
     override var prefersStatusBarHidden: Bool { true }
     /// While playing with a mouse (iPad), the pointer is captured so moving it looks around.
@@ -130,37 +208,29 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         metalView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(metalView)
 
-        controllerLabel.text = L10n.text("Điều khiển: cảm ứng")
+        controllerLabel.text = AppLanguage.choose("Controller: none connected")
         // Progress text (preparing assets, loading) shows on the disabled Play button.
         let playStyle = launchButton.configurationUpdateHandler
         launchButton.configurationUpdateHandler = { [weak self] button in
             playStyle?(button)
-            // Loading progress replaces Play only after the engine starts.
-            let title = button.isEnabled || !(self?.engineStarted ?? false) ? L10n.text("Vào game") : button.title(for: .disabled) ?? L10n.text("Đang tải…")
+            // Before Play is pressed a disabled button still says Play (files or mode missing).
+            let title = button.isEnabled || !(self?.engineStarted ?? false) ? AppLanguage.choose("Play") : button.title(for: .disabled) ?? AppLanguage.choose("Loading…")
             var text = AttributedString(title)
             text.font = Theme.display(20, .heavy)
-            text.foregroundColor = button.isEnabled ? UIColor(red: 0.02, green: 0.13, blue: 0.15, alpha: 1) : UIColor(white: 1, alpha: 0.7)
+            text.foregroundColor = button.isEnabled ? UIColor(red: 0.16, green: 0.07, blue: 0.02, alpha: 1) : UIColor(white: 1, alpha: 0.7)
             button.configuration?.attributedTitle = text
-            button.configuration?.image = title == L10n.text("Vào game") ? UIImage(systemName: "play.fill", withConfiguration: UIImage.SymbolConfiguration(weight: .heavy)) : nil
+            button.configuration?.image = title == AppLanguage.choose("Play") ? UIImage(systemName: "play.fill", withConfiguration: UIImage.SymbolConfiguration(weight: .heavy)) : nil
         }
         launchButton.addTarget(self, action: #selector(startEngine), for: .touchUpInside)
-        home.onlineButton.addAction(UIAction { [weak self] _ in self?.showOnline() }, for: .touchUpInside)
         output.isEditable = false
         output.isHidden = !ProcessInfo.processInfo.arguments.contains("--show-log")
         output.backgroundColor = UIColor.black.withAlphaComponent(0.65)
         output.textColor = .white
         output.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
         output.layer.cornerRadius = 12
-        home.modButton.addAction(UIAction { [weak self] _ in self?.showModManager() }, for: .touchUpInside)
-        home.cheatButton.addAction(UIAction { [weak self] _ in self?.showCheatMenu() }, for: .touchUpInside)
+        NotificationCenter.default.addObserver(self, selector: #selector(languageChanged), name: AppLanguage.changed, object: nil)
         home.settingsButton.addAction(UIAction { [weak self] _ in self?.showSettings() }, for: .touchUpInside)
         home.layoutButton.addAction(UIAction { [weak self] _ in self?.showLayoutEditor() }, for: .touchUpInside)
-        home.saveButton.addAction(UIAction { [weak self] _ in self?.showSaves() }, for: .touchUpInside)
-        home.languageButton.configuration?.title = L10n.language.uppercased()
-        home.languageButton.addAction(UIAction { [weak self] _ in
-            guard let self else { return }
-            LocalizedUI.chooseLanguage(from: self) { [weak self] in self?.refreshLanguage() }
-        }, for: .touchUpInside)
         home.onFiles = { [weak self] in self?.showGameFiles() }
         home.onMap = { [weak self] index in
             guard let self, !self.engineStarted else { return }
@@ -173,6 +243,8 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             self.refreshModeChoice()
         }
         updateServerStatus()
+        // Automation: --forget-game-folder starts with no game folder chosen (download and Continue tests, GTA-93).
+        if ProcessInfo.processInfo.arguments.contains("--forget-game-folder") { GameFolder.clear() }
         // Debug/automation: --local-game-folder /path (a folder the app can already read) skips the picker.
         if let index = ProcessInfo.processInfo.arguments.firstIndex(of: "--local-game-folder"), index + 1 < ProcessInfo.processInfo.arguments.count {
             let folder = URL(fileURLWithPath: ProcessInfo.processInfo.arguments[index + 1])
@@ -197,37 +269,59 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         fpsLabel.layer.cornerRadius = 6
         fpsLabel.clipsToBounds = true
         fpsLabel.isUserInteractionEnabled = false
-        fpsLabel.accessibilityLabel = "Game frame rate"
+        fpsLabel.accessibilityLabel = AppLanguage.choose("Game frame rate")
         fpsLabel.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(fpsLabel)
+        inputTestLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .semibold)
+        inputTestLabel.textColor = .white
+        inputTestLabel.backgroundColor = UIColor.black.withAlphaComponent(0.6)
+        inputTestLabel.layer.cornerRadius = 6
+        inputTestLabel.clipsToBounds = true
+        inputTestLabel.textAlignment = .center
+        inputTestLabel.isUserInteractionEnabled = false
+        inputTestLabel.isHidden = true
+        inputTestLabel.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(inputTestLabel)
         touchControls.translatesAutoresizingMaskIntoConstraints = false
         touchControls.isHidden = true
         touchControls.inputChanged = { [weak self] in self?.pollController() }
         touchControls.openSettings = { [weak self] in self?.showSettings() }
-        touchControls.openCheat = { [weak self] in self?.showCheatMenu() }
         touchControls.hintsChanged = { [weak self] line in self?.appendLog(line) }
-        touchControls.onVoiceMicChanged = { [weak self] enabled in self?.handleVoiceMicChanged(enabled) }
-        let tap3 = UITapGestureRecognizer(target: self, action: #selector(handleThreeFingerTap(_:)))
-        tap3.numberOfTouchesRequired = 3
-        tap3.cancelsTouchesInView = false
-        view.addGestureRecognizer(tap3)
         KeyboardMouse.shared.start()
-        KeyboardMouse.shared.onControllerKey = { [weak self] usage, pressed in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                if pressed {
-                    self.hardwareKeys.insert(usage)
-                } else {
-                    self.hardwareKeys.remove(usage)
-                }
-            }
-        }
         KeyboardMouse.shared.changed = { [weak self] in
             guard let self else { return }
             self.appendLog("Keyboard: \(KeyboardMouse.shared.hasKeyboard ? "connected" : "none"), mouse: \(KeyboardMouse.shared.hasMouse ? "connected" : "none")")
             self.setNeedsUpdateOfPrefersPointerLocked()
         }
         view.addSubview(touchControls)
+        // Script mods asking for typed text (a car to spawn by name, a search) get the iPhone keyboard.
+        Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in self?.checkModTextRequest() }
+        // Script mods' keys (shows itself only while a script mod runs), above the touch controls.
+        modKeys.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(modKeys)
+        // The 🧩 Mods control lives in the touch controls (it is placed and moved like the others); the
+        // tray it opens, the D-pad and the keyboard are ModKeysView.
+        modKeys.activeChanged = { [weak self] active in self?.touchControls.modsActive = active }
+        modKeys.anchor = { [weak self] in
+            guard let self, let frame = self.touchControls.modsButtonFrame else { return nil }
+            return self.touchControls.convert(frame, to: self.modKeys)
+        }
+        touchControls.openMods = { [weak self] in self?.modKeys.toggleTray() }
+        #if targetEnvironment(simulator)
+        // Test: PG_TEST_MODS_TRAY=<seconds> opens the mod tray that long after launch (screenshots).
+        if let after = ProcessInfo.processInfo.environment["PG_TEST_MODS_TRAY"].flatMap(Double.init) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + after) { [weak self] in self?.modKeys.toggleTray(); self?.appendLog("TEST: mod tray opened") }
+        }
+        #endif
+        NSLayoutConstraint.activate([
+            modKeys.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            modKeys.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            modKeys.topAnchor.constraint(equalTo: view.topAnchor),
+            modKeys.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+        // Diagnostics overlay sits over the transparent gesture surface but
+        // cannot intercept touches (isUserInteractionEnabled=false).
+        view.bringSubviewToFront(inputTestLabel)
         NSLayoutConstraint.activate([
             touchControls.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             touchControls.trailingAnchor.constraint(equalTo: view.trailingAnchor),
@@ -236,15 +330,21 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         ])
         NSLayoutConstraint.activate([
             fpsLabel.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 12),
-            fpsLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
+            fpsAtTop,
             fpsLabel.widthAnchor.constraint(equalToConstant: 68),
-            fpsLabel.heightAnchor.constraint(equalToConstant: 24)
+            fpsLabel.heightAnchor.constraint(equalToConstant: 24),
+            inputTestLabel.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 12),
+            inputTestLabel.topAnchor.constraint(equalTo: fpsLabel.bottomAnchor, constant: 5),
+            inputTestLabel.widthAnchor.constraint(equalToConstant: 210),
+            inputTestLabel.heightAnchor.constraint(equalToConstant: 23)
         ])
-        NSLayoutConstraint.activate([
+        phoneGameConstraints = [
             metalView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             metalView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             metalView.topAnchor.constraint(equalTo: view.topAnchor),
-            metalView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            metalView.bottomAnchor.constraint(equalTo: view.bottomAnchor)]
+        NSLayoutConstraint.activate(phoneGameConstraints)
+        NSLayoutConstraint.activate([
             home.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             home.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             home.topAnchor.constraint(equalTo: view.topAnchor),
@@ -263,28 +363,39 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         }
         try? Data().write(to: logFile!)
         LogWriter.shared.open(logFile!)
-        appendLog("Mugoat \(Theme.appVersion) on iOS \(UIDevice.current.systemVersion)")
+        appendLog("GTA V Port \(Theme.appVersion) on iOS \(UIDevice.current.systemVersion)")
         appendLog("Native UIKit + Metal host. Engine compiled into the app; no WebView or JIT.")
         appendLog("Metal device: \(device?.name ?? "unavailable")")
         GameFolder.log = { [weak self] line in self?.appendLog(line) }
-        // A game folder moved into Files › On My iPhone › Mugoat is found without any picking.
+        // A game folder moved into Files › On My iPhone › GTA V Port is found without any picking.
         lookForGameFiles()
         NotificationCenter.default.addObserver(self, selector: #selector(lookForGameFiles), name: UIApplication.didBecomeActiveNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(installChanged), name: .gameInstallChanged, object: nil)
         displayLink = CADisplayLink(target: self, selector: #selector(pollController))
-        // ProMotion screens only run above 60 Hz when the app asks: L10n.text("Unlocked") asks for up to 120.
+        // ProMotion screens only run above 60 Hz when the app asks: "Unlocked" asks for up to 120.
         if GameSettings.shared.frameRateCap == 0 {
             let top = Float(UIScreen.main.maximumFramesPerSecond)
             displayLink?.preferredFrameRateRange = CAFrameRateRange(minimum: min(60, top), maximum: top, preferred: top)
         }
         displayLink?.add(to: .main, forMode: .common)
-        NotificationCenter.default.addObserver(self, selector: #selector(handleAudioEngineConfigurationChange), name: .AVAudioEngineConfigurationChange, object: audioEngine)
-        NotificationCenter.default.addObserver(self, selector: #selector(handleAudioRouteChange), name: AVAudioSession.routeChangeNotification, object: nil)
+        #if targetEnvironment(simulator)
+        DebugChannel.shared.start(self)
+        #endif
+        observeExternalDisplays()
         NotificationCenter.default.addObserver(self, selector: #selector(controllerChanged), name: .GCControllerDidDisconnect, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(controllerChanged), name: .GCControllerDidConnect, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(releaseTouchControls), name: UIApplication.willResignActiveNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(leftApp), name: UIApplication.didEnterBackgroundNotification, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(thermalStateChanged), name: ProcessInfo.thermalStateDidChangeNotification, object: nil)
+        // The log says when the app was in the background, so measurements and stalls can be told apart.
+        for (name, label) in [(UIApplication.willResignActiveNotification, "inactive"), (UIApplication.didEnterBackgroundNotification, "in the background"),
+                              (UIApplication.willEnterForegroundNotification, "back in the foreground"), (UIApplication.didBecomeActiveNotification, "active")] {
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in self?.appendLog("App \(label).") }
+        }
+        // A newer release on GitHub: say so once per version, pointing to the Telegram group.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            guard let self else { return }
+            UpdateCheck.run(from: self) { [weak self] line in DispatchQueue.main.async { self?.appendLog(line) } }
+        }
         if let recovery = GameSettings.shared.recoverFromFailedBoot() {
             appendLog("Previous launch on \(recovery.failed.title) did not finish; lowered to \(recovery.fallback.title)\(recovery.resetHeight.map { ", resolution \($0)p back to Auto" } ?? "").")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { self.explainRecovery(recovery) }
@@ -292,11 +403,11 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         if ProcessInfo.processInfo.arguments.contains("--touch-controls-preview") {
             diagnosticsOverlay?.isHidden = true
             touchControlsAvailable = true
-            fpsLabel.isHidden = false
+            fpsLabel.isHidden = !GameSettings.shared.showFPS
             touchControls.isHidden = false
         }
         NotificationCenter.default.addObserver(self, selector: #selector(preloadChanged), name: .assetPreloadChanged, object: nil)
-        // Continue an unfinished L10n.text("Download all game files") after a relaunch.
+        // Continue an unfinished "Download all game files" after a relaunch.
         AssetPreloader.shared.resumeIfNeeded()
         if ProcessInfo.processInfo.arguments.contains("--preload-autostart") {
             // Debug: start the download without tapping (simulator checks).
@@ -345,10 +456,10 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             let parts = line.split(separator: " ")
             if parts.count >= 3 {
                 let size = Double(parts[2]).map { String(format: "%.1f GB", $0 * 1048576 / 1_000_000_000) } ?? ""
-                launchButton.setTitle("Preparing assets… \(parts[1])% · \(size)", for: .disabled); launchButton.setNeedsUpdateConfiguration()
+                launchButton.setTitle(AppLanguage.interpolate(AppLanguage.choose("Preparing assets… {arg0}% · {arg1}"), [String(parts[1]), size]), for: .disabled); launchButton.setNeedsUpdateConfiguration()
             }
         }
-        if line == "ASSET_WARM_COMPLETE" { launchButton.setTitle(L10n.text("Đang tải…"), for: .disabled); launchButton.setNeedsUpdateConfiguration() }
+        if line == "ASSET_WARM_COMPLETE" { launchButton.setTitle(AppLanguage.choose("Loading…"), for: .disabled); launchButton.setNeedsUpdateConfiguration() }
         if line == "WORLD_READY", ProcessInfo.processInfo.arguments.contains("--capture-world") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 35) { PGCaptureNativeFrame("optimized-world") }
         }
@@ -365,36 +476,56 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 30) { self.verifyMovement() }
         }
         if line == "WORLD_READY" { PGSetTargetingMode(Int32(GameSettings.shared.targetingMode)); if worldReadyAt == nil { worldReadyAt = CACurrentMediaTime() } }
+        // Debug: --open-settings-in-game opens Settings 10 s into the world.
+        if line == "WORLD_READY", ProcessInfo.processInfo.arguments.contains("--open-settings-in-game") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10) { self.showSettings() }
+        }
         if line == "WORLD_READY", healthTimer == nil {
-            // Every 10 s: physical RAM, process usage, OS headroom and game-file reads.
+            // Every 10 s: memory, how often the memory guard held streaming back, and game-file reads.
             healthTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in self?.logHealth() }
+            NotificationCenter.default.addObserver(self, selector: #selector(thermalChanged), name: ProcessInfo.thermalStateDidChangeNotification, object: nil)
+            thermalChanged()
         }
         if line == "WORLD_READY", stableTimer == nil {
             // Three minutes in the world counts as a launch that fits in memory.
             stableTimer = Timer.scheduledTimer(withTimeInterval: 180, repeats: false) { _ in GameSettings.shared.markBootStable() }
-        }
-        if line == "WORLD_READY" || line.contains("\"label\":\"First frame\"") || line.contains("\"world\":true") {
-            diagnosticsOverlay?.isHidden = true
-            UIView.animate(withDuration: 0.35) {
-                self.home.alpha = 0
-            } completion: { _ in
-                self.home.isHidden = true
+            #if targetEnvironment(simulator)
+            // Automation: --test-pause-resize <s> opens the pause menu that long into play, then resizes live
+            // 3 s later, as Settings does when the resolution changes while the game is paused.
+            let testArguments = ProcessInfo.processInfo.arguments
+            if let i = testArguments.firstIndex(of: "--test-pause-resize"), i + 1 < testArguments.count, let seconds = Double(testArguments[i + 1]) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in
+                    if !testArguments.contains("--test-no-pause") { self?.appendLog("Test: opening the pause menu."); PGRequestPauseMenu() }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+                        self?.appendLog("Test: live resize while paused."); PGSetBackBufferSize(960, 444)
+                    }
+                }
             }
-            touchControlsAvailable = true
-            fpsLabel.isHidden = false
+            #endif
         }
-        if line.hasPrefix("Native boot stopped:") || line == "iOS could not reserve the engine memory." || line.hasPrefix("Native trap") {
+        if line == "WORLD_READY" || line.contains("\"label\":\"First frame\"") {
+            diagnosticsOverlay?.isHidden = true
+            touchControlsAvailable = true
+            fpsLabel.isHidden = !GameSettings.shared.showFPS
+        }
+        if line.hasPrefix("Native boot stopped:") || line == "iOS could not reserve the engine memory." {
+            audioShutDown = true
             audioEngine.stop()
             try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
             metalView.isPaused = true
-            engineFailed = true
-            launchButton.isEnabled = false
-            launchButton.setTitle(L10n.text("Tắt hẳn app rồi mở lại"), for: .disabled); launchButton.setNeedsUpdateConfiguration()
-            home.isHidden = false
-            home.alpha = 1.0
-            home.settingsButton.isHidden = false
-            home.layoutButton.isHidden = false
-            showWhenFree(title: L10n.text("Không thể vào game"), message: line + "\n\n" + L10n.text("Hãy tắt hẳn ứng dụng (vuốt lên khỏi đa nhiệm) rồi mở lại. Nếu lỗi lặp lại, gửi file native-port-previous.log trong thư mục Mugoat."))
+        }
+        // The engine couldn't get its memory at all (iPhone 8, 8 Plus and X on a free Apple ID): say so,
+        // instead of a frozen picture that drops back to the home screen.
+        if line == "iOS could not reserve the engine memory." {
+            showEngineStopped(title: AppLanguage.choose("Not enough memory on this iPhone"),
+                              message: AppLanguage.choose("iOS can't give the game the memory it needs on this iPhone. iPhone 8, 8 Plus and X usually can't run it with a free Apple ID; a paid developer account or TrollStore may help. Send the log if your iPhone is newer."))
+        }
+        // The engine stopped during play (a trap on one of its threads, or an unported function):
+        // the picture freezes or goes black and the pause menu never opens. The touch Settings button
+        // may be hidden (it is with a controller), so a panel offers Send log and Settings (GTA-21).
+        if engineStarted, line.hasPrefix("Native game thread stopped:") || line.hasPrefix("Native boot stopped:")
+            || line.hasPrefix("Engine stopped at unported host function:") {
+            showEngineStopped()
         }
         if !written { LogWriter.shared.write(line) }
         for key in ["[wgpu] fps:", "[wgpu] draw costs", "Native frame costs:", "Phone memory:", "WORLD_READY"] where line.hasPrefix(key) {
@@ -415,59 +546,48 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         if !output.text.isEmpty { output.scrollRangeToVisible(NSRange(location: output.text.utf16.count - 1, length: 1)) }
     }
 
+    /// The game's intro (Resources/intro.mp4) plays over the boot screen while the engine loads
+    /// behind it; it fades out when it ends or on a tap, onto whatever the game shows by then.
+    private func playIntro() {
+        let arguments = ProcessInfo.processInfo.arguments
+        let forced = ProcessInfo.processInfo.environment["PG_TEST_INTRO"] != nil // automated launches skip it unless asked
+        guard introView == nil, forced || !arguments.contains("--boot-engine"), ProcessInfo.processInfo.environment["PG_BENCHMARK"] == nil,
+              let url = Bundle.main.url(forResource: "intro", withExtension: "mp4") else { return }
+        let intro = IntroVideoView(frame: view.bounds, url: url, muted: arguments.contains("--mute"))
+        intro.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        intro.finished = { [weak self, weak intro] in
+            introPlaying = false
+            UIView.animate(withDuration: 0.4, animations: { intro?.alpha = 0 }) { _ in intro?.removeFromSuperview(); self?.introView = nil }
+        }
+        view.addSubview(intro)
+        introView = intro
+        introPlaying = true
+        intro.play()
+        // Overlays added while it plays (touch controls, the FPS label) stay underneath it.
+        Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self, weak intro] timer in
+            guard let self, let intro, intro.superview != nil else { timer.invalidate(); return }
+            self.view.bringSubviewToFront(intro)
+        }
+        appendLog("Intro video playing.")
+    }
+
     /// The launch screen asks for a mode once; after that it remembers it.
     private func refreshModeChoice() {
         let choice = GameSettings.shared.gameModeChoice
-        home.setMode(choice.flatMap { GameMode.allCases.firstIndex(of: $0) }, detail: choice?.detail ?? L10n.text("Choose Story mode or Sandbox to play."), enabled: !engineStarted)
-        home.setMap(GameSettings.shared.sandboxMap, visible: choice == .sandbox, enabled: !engineStarted)
+        home.setMode(choice.flatMap { GameMode.allCases.firstIndex(of: $0) }, detail: choice?.detail ?? AppLanguage.choose("Choose Story mode or Sandbox to play."), enabled: !engineStarted)
+        let testMap = GameFolder.isChosen && GameFolder.testMapAvailable
+        if !testMap && GameSettings.shared.sandboxMap == 1 { GameSettings.shared.sandboxMap = 0 }
+        home.setMap(GameSettings.shared.sandboxMap, visible: choice == .sandbox, enabled: !engineStarted, testMapAvailable: testMap)
         updatePlayEnabled()
     }
 
     @objc private func startEngine() {
-        guard !engineStarted, presentedViewController == nil else { return }
-        // Keep Play responsive: missing requirements lead to their setup screen.
-        if GameInstallManager.shared.isRunning { showGameFiles(); return }
-        if lookingForGameFiles {
-            if ProcessInfo.processInfo.arguments.contains("--boot-engine") { launchAfterFileScan = true; return }
-            showWhenFree(title: L10n.text("Dữ liệu game"), message: L10n.text("Đang kiểm tra dữ liệu game. Vui lòng đợi kiểm tra xong rồi bấm Vào game."))
-            return
-        }
-        if !GameFolder.isChosen && !Self.isServerAddress(GameSettings.shared.assetServer) { showGameFiles(); return }
-        if OnlineSettings.enabled && OnlineSettings.server.isEmpty { showOnline(); return }
-        if GameSettings.shared.gameModeChoice == nil && !ProcessInfo.processInfo.arguments.contains("--boot-engine") {
-            let alert = UIAlertController(title: L10n.text("Chọn chế độ chơi"), message: L10n.text("Choose Story mode or Sandbox to play."), preferredStyle: .alert)
-            for mode in GameMode.allCases {
-                alert.addAction(UIAlertAction(title: mode.title, style: .default) { [weak self] _ in
-                    GameSettings.shared.gameMode = mode
-                    self?.refreshModeChoice()
-                    self?.dismiss(animated: true) { self?.startEngine() }
-                })
-            }
-            alert.addAction(UIAlertAction(title: L10n.text("Hủy"), style: .cancel))
-            present(alert, animated: true)
-            return
+        if GameSettings.shared.gameModeChoice == nil {
+            // Automated launches without a choice keep the old sandbox start.
+            guard ProcessInfo.processInfo.arguments.contains("--boot-engine") else { return }
         }
         guard let path = EnginePaths.manifest else {
             appendLog("Asset manifest is missing from the app bundle.")
-            showWhenFree(title: L10n.text("Không thể vào game"), message: L10n.text("Ứng dụng thiếu danh sách dữ liệu game. Vui lòng cài lại bản IPA đầy đủ."))
-            return
-        }
-        let localData: URL?
-        if GameFolder.isChosen {
-            guard let data = GameFolder.open() else {
-                appendLog("The game folder on this iPhone can't be opened any more. Choose it again.")
-                GameFolder.clear()
-                updateServerStatus()
-                showGameFiles()
-                return
-            }
-            localData = data
-        } else {
-            localData = nil
-        }
-        let mode = GameSettings.shared.gameMode
-        guard OnlineSettings.configure(mode: mode) else {
-            showWhenFree(title: L10n.text("Máy chủ online"), message: L10n.text("Máy chủ không hợp lệ"))
             return
         }
         metalView.isPaused = true
@@ -475,160 +595,55 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         // Dawn owns the drawable size from here; MTKView must not reset it on layout.
         metalView.autoResizeDrawable = false
         PGAttachMetalLayer(Unmanaged.passUnretained(metalView.layer).toOpaque())
+        DispatchQueue.main.async { [weak self] in self?.updateExternalDisplay(resize: false) }
         launchButton.isEnabled = false
         home.settingsButton.isHidden = true
         home.layoutButton.isHidden = true
         engineStarted = true
         refreshModeChoice()
+        let mode = GameSettings.shared.gameMode
         bootedMode = mode
         let testMap = mode == .sandbox && GameSettings.shared.sandboxMap == 1
         PGSetStartMode(testMap ? 3 : Int32(mode.rawValue))
+        let minimap = GameSettings.shared.minimapLayout
+        PGSetMinimapLayout(minimap.dx, minimap.dy, minimap.scale)
+        TouchControlsView.minimapLayout = minimap
+        placeFPSLabel()
         appendLog("Game mode: \(mode.title)\(mode == .sandbox ? " on " + GameSettings.sandboxMapTitles[GameSettings.shared.sandboxMap] : "")")
         bootedPreset = GameSettings.shared.graphicsPreset
-        appendLog("Graphics: " + GraphicsConfiguration.apply(GameSettings.shared, screen: view.bounds.size))
+        // A TV already connected gets the picture from the start, in its own shape.
+        let tvScreen = ProcessInfo.processInfo.arguments.contains("--no-tv") ? nil : UIScreen.screens.first(where: { $0 != UIScreen.main })
+        appendLog("Graphics: " + GraphicsConfiguration.apply(GameSettings.shared, screen: tvScreen?.bounds.size ?? view.bounds.size, tv: tvScreen != nil))
         appendLog("Device: " + GameSettings.shared.tier.summary)
         GameSettings.shared.markBootStarted()
-        launchButton.setTitle(L10n.text("Đang tải…"), for: .disabled); launchButton.setNeedsUpdateConfiguration()
+        playIntro()
+        launchButton.setTitle(AppLanguage.choose("Loading…"), for: .disabled); launchButton.setNeedsUpdateConfiguration()
         appendLog("Native touch controls support held buttons, sprint and weapon selection.")
+        installModsForTest()
+        noticeMods()
         startAudio()
         let (root, rootNote) = EnginePaths.filesRoot()
         if let rootNote { appendLog(rootNote) }
-        // The game's own settings.xml only holds graphics and display options. Some choices in the
-        // game's pause menu or auto-detection (MSAA, TXAA, tessellation, shader quality 2) crash Metal
-        // or trigger out-of-memory. Overwrite with a sanitized safe baseline before each launch.
-        let safeSettingsXml = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <Settings>
-          <version value="27" />
-          <configSource>SMC_AUTO</configSource>
-          <graphics>
-            <TextureQuality value="0" />
-            <ShaderQuality value="1" />
-            <ShadowQuality value="1" />
-            <ReflectionQuality value="1" />
-            <ReflectionMSAA value="0" />
-            <SSAO value="0" />
-            <AnisotropicFiltering value="0" />
-            <MSAA value="0" />
-            <MSAAFragments value="0" />
-            <MSAAPostProcess value="0" />
-            <WaterQuality value="0" />
-            <ParticleQuality value="0" />
-            <GrassQuality value="0" />
-            <DeepSurfaceQuality value="0" />
-            <PedLodBias value="0.200000" />
-            <VehicleLodBias value="0.000000" />
-            <Shadow_Distance value="1.000000" />
-            <Shadow_SoftShadows value="0" />
-            <Shadow_ParticleShadows value="false" />
-            <Shadow_SplitZStart value="0.930000" />
-            <Shadow_SplitZEnd value="0.890000" />
-            <Shadow_aircraftExpBloom value="0.300000" />
-            <Shadow_DisableScreenSizeCheck value="false" />
-            <Reflection_MipBlur value="true" />
-            <FXAA value="true" />
-            <TXAA value="false" />
-            <Lighting_FogVolumes value="false" />
-            <Shader_SSA value="false" />
-            <DX_Version value="2" />
-            <CityDensity value="0.000000" />
-            <PedVarietyMultiplier value="0.000000" />
-            <VehicleVarietyMultiplier value="0.000000" />
-            <PostFX value="0" />
-            <DoF value="false" />
-            <HdStreamingInFlight value="false" />
-            <MaxLodScale value="0.000000" />
-            <MotionBlurStrength value="0.000000" />
-          </graphics>
-          <system>
-            <Windowed value="2" />
-          </system>
-          <video>
-            <Windowed value="2" />
-            <VSync value="1" />
-          </video>
-        </Settings>
-        """
+        // The game's own settings.xml only holds graphics and display options, which the app sets on
+        // every launch. Some choices in the game's pause menu (MSAA, DirectX version, resolution)
+        // stopped it from starting at all, so the file is reset before each launch.
         for mode in ["userdata", "sandbox"] {
-            let dir = "\(root)/\(mode)/Documents/Rockstar Games/GTA V"
-            let settingsPath = "\(dir)/settings.xml"
-            try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-            if let data = safeSettingsXml.data(using: .utf8) {
-                try? data.write(to: URL(fileURLWithPath: settingsPath))
-                appendLog("Sanitized GTA V graphics settings to safe baseline (\(mode)).")
-            }
+            let settings = "\(root)/\(mode)/Documents/Rockstar Games/GTA V/settings.xml"
+            if (try? FileManager.default.removeItem(atPath: settings)) != nil { appendLog("Reset the game's own graphics settings (\(mode)); use the app's Settings for graphics.") }
         }
-        var effectiveManifest = path
-        if let data = localData {
+        if GameFolder.isChosen {
+            guard let data = GameFolder.open() else {
+                appendLog("The game folder on this iPhone can't be opened any more. Choose it again.")
+                showWhenFree(title: AppLanguage.choose("Game files not found"), message: AppLanguage.choose("The game folder was moved or deleted. Put it back in Files › On My iPhone › GTA V Port, or pick it again."))
+                GameFolder.clear(); updateServerStatus(); launchButton.isEnabled = true; launchButton.setTitle(AppLanguage.choose("Play"), for: .normal)
+                return
+            }
             PGSetLocalGameFolder(data.path)
-            let modsDir = ModManagerViewController.modsDirectory
-            let runtimeDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("mod_runtime")
-            var dlcData: Data? = nil
-            let looseCandidates = [
-                data.appendingPathComponent("common/data/dlcList.xml"),
-                data.appendingPathComponent("common/data/dlclist.xml")
-            ]
-            for candidate in looseCandidates {
-                if FileManager.default.fileExists(atPath: candidate.path),
-                   let d = try? Data(contentsOf: candidate) {
-                    dlcData = d
-                    break
-                }
-            }
-            if dlcData == nil {
-                // Read dlclist.xml directly from update/update.rpf archive if present
-                let updateRpfURL = data.appendingPathComponent("update/update.rpf")
-                if FileManager.default.fileExists(atPath: updateRpfURL.path),
-                   let updateArchive = try? RPFArchive(url: updateRpfURL) {
-                    if let entry = updateArchive.entries.first(where: {
-                        let p = $0.path.lowercased()
-                        return p.hasSuffix("common/data/dlclist.xml") || p == "dlclist.xml"
-                    }) {
-                        dlcData = try? updateArchive.metadata(entry)
-                    }
-                }
-            }
-            if dlcData == nil {
-                // Baseline dlclist.xml template so Add-on mods can always be registered into paths
-                let baseline = """
-                <?xml version="1.0" encoding="utf-8"?>
-                <Paths>
-                  <Item>platform:\\dlcPacks\\mppatchesng\\</Item>
-                  <Item>platform:\\dlcPacks\\mpchristmas2\\</Item>
-                  <Item>platform:\\dlcPacks\\mpheist\\</Item>
-                  <Item>platform:\\dlcPacks\\patchday1ng\\</Item>
-                  <Item>platform:\\dlcPacks\\patchday2ng\\</Item>
-                  <Item>platform:\\dlcPacks\\patchday3ng\\</Item>
-                </Paths>
-                """
-                dlcData = baseline.data(using: .utf8)
-            }
-
-            if let dlcData {
-                do {
-                    let baseManifestURL = URL(fileURLWithPath: path)
-                    let (overlayManifestURL, catalog) = try ModRuntime.prepare(
-                        baseManifest: baseManifestURL,
-                        mods: modsDir,
-                        runtime: runtimeDir,
-                        dlcList: dlcData
-                    )
-                    effectiveManifest = overlayManifestURL.path
-                    if !catalog.packs.isEmpty {
-                        appendLog("ModRuntime: Đã nạp \(catalog.packs.count) gói DLC mod (\(catalog.vehicleModels.count) xe: \(catalog.vehicleModels.joined(separator: ", "))).")
-                    }
-                    if !catalog.problems.isEmpty {
-                        appendLog("ModRuntime Lưu ý: " + catalog.problems.joined(separator: " | "))
-                    }
-                } catch {
-                    appendLog("ModRuntime Lỗi: \(error.localizedDescription)")
-                }
-            }
         } else {
             PGSetAssetServer(GameSettings.shared.assetServer)
         }
         AssetPreloader.shared.engineRunning = true
-        effectiveManifest.withCString { manifest in
+        path.withCString { manifest in
             root.withCString { PGStartEngine(manifest, $0, engineLog, Unmanaged.passUnretained(self).toOpaque()) }
         }
     }
@@ -661,7 +676,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     }
 
     /// Debug: scripted controller input, "step;step;..." with steps "wait:<s>", "hold:<buttons>:<s>"
-    /// (buttons: a b x y l1 r1 lt rt down up left right start rx+ rx- ry+ ry-, joined with +), "frame:<name>".
+    /// (buttons: a b x y l1 r1 lt rt down up left right start rx+ rx- ry+ ry- lx+ lx- ly+ ly-, joined with +), "frame:<name>".
     /// Debug: --watch-memory <address> <length> logs which bytes change between pad-script frames.
     private var watchSnapshot: [UInt8]?
     private func watchMemory(_ label: String) {
@@ -683,18 +698,29 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             let parts = step.split(separator: ":").map(String.init)
             switch parts.first {
             case "wait": at += Double(parts.count > 1 ? parts[1] : "1") ?? 1
+            case "limit":
+                let value = Int32(parts.count > 1 ? parts[1] : "2") ?? 2
+                DispatchQueue.main.asyncAfter(deadline: .now() + at) { PGSetFrameLimit(value) }
+            case "weapon":
+                DispatchQueue.main.asyncAfter(deadline: .now() + at) { PGNextAircraftWeapon(); self.appendLog("Pad script: next aircraft weapon") }
             case "frame":
                 let name = parts.count > 1 ? parts[1] : "script"
                 DispatchQueue.main.asyncAfter(deadline: .now() + at) { PGCaptureNativeFrame(name); self.appendLog("Pad script: frame \(name)"); self.watchMemory(name) }
             case "hold":
                 var state = PGPadState(); var held = PadButtons()
-                for name in (parts.count > 1 ? parts[1] : "").split(separator: "+") {
+                // Stick directions end in + or -, so "ly++a+rx+" is ly+, a and rx+.
+                let spec = parts.count > 1 ? parts[1] : ""
+                let names = (try? NSRegularExpression(pattern: "[lr][xy][+-]|[a-z0-9]+"))?
+                    .matches(in: spec, range: NSRange(spec.startIndex..., in: spec))
+                    .compactMap { Range($0.range, in: spec).map { String(spec[$0]) } } ?? []
+                for name in names {
                     switch name {
                     case "a": held.insert(.a); case "b": held.insert(.b); case "x": held.insert(.x); case "y": held.insert(.y)
                     case "l1": held.insert(.l1); case "r1": held.insert(.r1); case "down": held.insert(.down); case "up": held.insert(.up)
                     case "left": held.insert(.left); case "right": held.insert(.right); case "start": held.insert(.start)
                     case "lt": state.leftTrigger = 1; case "rt": state.rightTrigger = 1
                     case "rx+": state.rightX = 1; case "rx-": state.rightX = -1; case "ry+": state.rightY = 1; case "ry-": state.rightY = -1
+                    case "ly+": state.leftY = 1; case "ly-": state.leftY = -1; case "lx+": state.leftX = 1; case "lx-": state.leftX = -1
                     default: break
                     }
                 }
@@ -709,6 +735,48 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         }
         // Hand input back to the touch controls (and controller) when the script ends.
         DispatchQueue.main.asyncAfter(deadline: .now() + at + 0.5) { self.padProof = nil; self.appendLog("Pad script: done") }
+    }
+
+    /// Presses one of the game's own controller cheat sequences, then gives the pad back.
+    private func playStoryCheat(_ cheat: StoryCheat, resumed: Bool = false) {
+        // Settings paused the game; cheats are typed in play, so leave the pause menu first (Start).
+        if PGPauseMenuActive() && !resumed {
+            appendLog("Story cheat \(cheat.title): leaving the pause menu first.")
+            PGRequestPauseMenu()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in self?.playStoryCheat(cheat, resumed: true) }
+            return
+        }
+        let status = PGGameStatus()
+        if PGPauseMenuActive() || (status & (1 | 4 | 8 | 16)) != 0 {
+            appendLog("Story cheat skipped (\(cheat.title)): pause menu, cutscene, or no player.")
+            return
+        }
+        storyCheatToken += 1
+        let token = storyCheatToken
+        appendLog("Story cheat: \(cheat.title)")
+        var at = 0.4
+        // Each press spans several frames even when a frame runs long (a 0.09 s press was about
+        // 3 frames at 30 FPS, and one stutter could drop it and void the whole cheat).
+        let hold = 0.15
+        let gap = 0.1
+        for input in cheat.inputs {
+            let state = input.state
+            DispatchQueue.main.asyncAfter(deadline: .now() + at) { [weak self] in
+                guard let self, self.storyCheatToken == token else { return }
+                self.padProof = state
+            }
+            at += hold
+            DispatchQueue.main.asyncAfter(deadline: .now() + at) { [weak self] in
+                guard let self, self.storyCheatToken == token else { return }
+                self.padProof = PGPadState()
+            }
+            at += gap
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + at + 0.15) { [weak self] in
+            guard let self, self.storyCheatToken == token else { return }
+            self.padProof = nil
+            self.appendLog("Story cheat entered: \(cheat.title)")
+        }
     }
 
     /// Simulator proof that the engine accepts the virtual controller and
@@ -742,19 +810,17 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     private func startAudio() {
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .default, options: [])
+            // Players' own music (Spotify, Apple Music) keeps playing alongside the game instead of stopping it (GTA-132).
+            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
             try session.setPreferredSampleRate(48000)
             try session.setActive(true)
-
             let format = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 2)!
             let source = AVAudioSourceNode(format: format) { _, _, count, audioBufferList in
                 let buffers = UnsafeMutableAudioBufferListPointer(audioBufferList)
-                if buffers.count >= 2, let left = buffers[0].mData, let right = buffers[1].mData {
-                    PGFillAudio(left.assumingMemoryBound(to: Float.self), right.assumingMemoryBound(to: Float.self), count)
-                } else if buffers.count == 1, let mono = buffers[0].mData {
-                    var tempRight = [Float](repeating: 0, count: Int(count))
-                    PGFillAudio(mono.assumingMemoryBound(to: Float.self), &tempRight, count)
-                }
+                guard buffers.count >= 2, let left = buffers[0].mData, let right = buffers[1].mData else { return noErr }
+                PGFillAudio(left.assumingMemoryBound(to: Float.self), right.assumingMemoryBound(to: Float.self), count)
+                // The game's sound waits for the intro video (its ring is still read, so nothing piles up).
+                if introPlaying { memset(left, 0, Int(count) * 4); memset(right, 0, Int(count) * 4) }
                 return noErr
             }
             audioSource = source
@@ -766,173 +832,93 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             #endif
             // Silent test runs on a phone.
             if ProcessInfo.processInfo.arguments.contains("--mute") { audioEngine.mainMixerNode.outputVolume = 0 }
-            audioEngine.prepare()
             try audioEngine.start()
+            observeAudioInterruptions()
         } catch { appendLog("Native audio setup failed: \(error.localizedDescription)") }
     }
 
-    private func handleVoiceMicChanged(_ enabled: Bool) {
-        if enabled {
-            let session = AVAudioSession.sharedInstance()
-            switch session.recordPermission {
-            case .granted:
-                self.audioQueue.async { [weak self] in
-                    self?.configureMicRecording(enabled: true)
-                }
-            case .denied:
-                appendLog("[Voice] Quyền truy cập Micro bị từ chối trong Cài đặt iOS")
-                MugoatVoiceSetMicEnabled(false)
-                touchControls.updateVisibility()
-            case .undetermined:
-                session.requestRecordPermission { [weak self] granted in
-                    DispatchQueue.main.async {
-                        guard let self = self else { return }
-                        if granted {
-                            self.audioQueue.async { [weak self] in
-                                self?.configureMicRecording(enabled: true)
-                            }
-                        } else {
-                            self.appendLog("[Voice] Quyền truy cập Micro bị từ chối")
-                            MugoatVoiceSetMicEnabled(false)
-                            self.touchControls.updateVisibility()
-                        }
-                    }
-                }
-            @unknown default:
-                break
-            }
-        } else {
-            audioQueue.async { [weak self] in
-                self?.configureMicRecording(enabled: false)
-            }
+    /// A call, Siri, another app's audio or the app going to the background stops the audio engine,
+    /// and iOS doesn't start it again: the game was silent after coming back (log 418). Restarted when
+    /// the interruption ends, when the app is active again, and when the route or format changes.
+    private func observeAudioInterruptions() {
+        let center = NotificationCenter.default
+        center.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] note in
+            let type = (note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt).flatMap(AVAudioSession.InterruptionType.init)
+            self?.appendLog("Audio interruption \(type == .began ? "began" : "ended").")
+            if type == .ended { self?.resumeAudio(reason: "interruption ended") }
         }
+        center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in self?.resumeAudio(reason: "app active") }
+        center.addObserver(forName: .AVAudioEngineConfigurationChange, object: audioEngine, queue: .main) { [weak self] _ in self?.resumeAudio(reason: "audio configuration changed") }
+        center.addObserver(forName: AVAudioSession.mediaServicesWereResetNotification, object: nil, queue: .main) { [weak self] _ in self?.resumeAudio(reason: "media services reset") }
     }
-
-    private func configureMicRecording(enabled: Bool) {
-        let session = AVAudioSession.sharedInstance()
-        if enabled {
-            do {
-                // .defaultToSpeaker already uses the loudspeaker instead of the earpiece; forcing
-                // .speaker would also bypass connected headphones and feed the voice back into the mic.
-                try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP])
-                try session.setActive(true)
-            } catch {
-                appendLog("[Voice] Lỗi thiết lập AVAudioSession: \(error.localizedDescription)")
-            }
-
-            let inputNode = audioEngine.inputNode
-            let bus = 0
-            if isMicTapInstalled {
-                inputNode.removeTap(onBus: bus)
-                isMicTapInstalled = false
-            }
-
-            let inputFormat = inputNode.inputFormat(forBus: bus)
-            let outputFormat = inputNode.outputFormat(forBus: bus)
-            let tapFormat = inputFormat.sampleRate > 0 && inputFormat.channelCount > 0 ? inputFormat
-                : (outputFormat.sampleRate > 0 && outputFormat.channelCount > 0 ? outputFormat : nil)
-            // No microphone route yet (0 channels): installing a tap would raise an Objective-C exception.
-            guard let tapFormat else {
-                appendLog("[Voice] Không tìm thấy micro khả dụng; tắt mic")
-                MugoatVoiceSetMicEnabled(false)
-                DispatchQueue.main.async { self.touchControls.updateVisibility() }
-                restoreGameAudio(micActive: false)
-                return
-            }
-
-            inputNode.installTap(onBus: bus, bufferSize: 1024, format: tapFormat) { buffer, _ in
-                guard let channelData = buffer.floatChannelData?[0] else { return }
-                let frameCount = Int(buffer.frameLength)
-                let sampleRate = buffer.format.sampleRate
-                guard frameCount > 0, sampleRate > 0 else { return }
-                if abs(sampleRate - 48000.0) < 1.0 {
-                    MugoatVoiceSubmitMicAudio(channelData, UInt32(frameCount))
-                } else {
-                    let ratio = 48000.0 / sampleRate
-                    let targetCount = Int(Double(frameCount) * ratio)
-                    if targetCount > 0 {
-                        var resampled = [Float](repeating: 0, count: targetCount)
-                        for i in 0..<targetCount {
-                            let srcIndex = Double(i) / ratio
-                            let idx0 = Int(srcIndex)
-                            let idx1 = min(idx0 + 1, frameCount - 1)
-                            let frac = Float(srcIndex - Double(idx0))
-                            resampled[i] = channelData[idx0] * (1.0 - frac) + channelData[idx1] * frac
-                        }
-                        resampled.withUnsafeBufferPointer { ptr in
-                            if let base = ptr.baseAddress {
-                                MugoatVoiceSubmitMicAudio(base, UInt32(targetCount))
-                            }
-                        }
-                    }
-                }
-            }
-            isMicTapInstalled = true
-            startAudioEngine()
-            appendLog("[Voice] Đã bật Micro - chuyển sang chế độ loa thoại")
-        } else {
-            if isMicTapInstalled {
-                audioEngine.inputNode.removeTap(onBus: 0)
-                isMicTapInstalled = false
-            }
-            restoreGameAudio(micActive: false)
-            appendLog("[Voice] Đã tắt Micro - chuyển về loa thường")
-        }
-    }
-
-    @objc private func handleAudioEngineConfigurationChange(_ notification: Notification) {
-        appendLog("[Audio] Cấu hình audio engine thay đổi, tự động khởi động lại...")
-        audioQueue.async { [weak self] in self?.restoreGameAudio(micActive: MugoatVoiceIsMicEnabled()) }
-    }
-
-    /// Puts the session back for game sound (or voice chat) and makes sure the engine runs.
-    private func restoreGameAudio(micActive: Bool) {
-        let session = AVAudioSession.sharedInstance()
+    /// Activation fails while a call or Siri still holds the audio ("Session activation failed", logs 666 and
+    /// 752), so a failed restart is tried again a few times, 0.5 to 8 s apart, while the app is in front (GTA-132).
+    private func resumeAudio(reason: String, attempt: Int = 0) {
+        guard audioSource != nil, !audioEngine.isRunning, !audioShutDown else { return }
         do {
-            if micActive {
-                // .defaultToSpeaker already uses the loudspeaker instead of the earpiece; forcing
-                // .speaker would also bypass connected headphones and feed the voice back into the mic.
-                try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP])
-            } else {
-                try session.setCategory(.playback, mode: .default, options: [])
-            }
-            try session.setActive(true)
-        } catch {
-            appendLog("[Audio] Lỗi thiết lập AVAudioSession: \(error.localizedDescription)")
-        }
-        startAudioEngine()
-    }
-
-    /// Once the mic was used the engine owns an input node; with the .playback category some
-    /// devices then refuse to start it, leaving the game silent. Fall back to play-and-record
-    /// without voice processing (normal loudspeaker volume) so game sound always comes back.
-    private func startAudioEngine() {
-        guard !audioEngine.isRunning else { return }
-        do {
-            audioEngine.prepare()
+            try AVAudioSession.sharedInstance().setActive(true)
             try audioEngine.start()
+            appendLog("Audio restarted (\(reason)\(attempt > 0 ? ", try \(attempt + 1)" : "")).")
         } catch {
-            appendLog("[Audio] Không khởi động được audio (\(error.localizedDescription)); thử chế độ dự phòng")
-            let session = AVAudioSession.sharedInstance()
-            do {
-                try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP])
-                try session.setActive(true)
-                audioEngine.prepare()
-                try audioEngine.start()
-            } catch {
-                appendLog("[Audio] Không thể khởi động lại audio engine: \(error.localizedDescription)")
-            }
+            appendLog("Audio could not restart (\(reason)): \(error.localizedDescription)")
+            guard attempt < 5, UIApplication.shared.applicationState == .active else { return }
+            audioRetry?.cancel()
+            let retry = DispatchWorkItem { [weak self] in self?.resumeAudio(reason: reason, attempt: attempt + 1) }
+            audioRetry = retry
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5 * Double(1 << attempt), execute: retry)
         }
-    }
-
-    @objc private func handleAudioRouteChange(_ notification: Notification) {
-        // Headphones plugged in or out: iOS picks the route itself (.defaultToSpeaker covers the
-        // earpiece case). Forcing the speaker here sent sound past headphones and caused echo.
-        let reason = (notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt).flatMap(AVAudioSession.RouteChangeReason.init) ?? .unknown
-        appendLog("[Audio] Route changed (reason \(reason.rawValue))")
     }
 
     @objc private func controllerChanged() { pollController() }
+
+    // MARK: TV (AirPlay and HDMI)
+
+    /// With a TV connected (AirPlay screen mirroring or an HDMI adapter), the game picture goes to the TV
+    /// during play and the phone keeps the touch controls over black (GTA-3).
+    private var tvWindow: UIWindow?
+    private var phoneGameConstraints: [NSLayoutConstraint] = []
+    private func observeExternalDisplays() {
+        let center = NotificationCenter.default
+        center.addObserver(forName: UIScreen.didConnectNotification, object: nil, queue: .main) { [weak self] _ in self?.updateExternalDisplay() }
+        center.addObserver(forName: UIScreen.didDisconnectNotification, object: nil, queue: .main) { [weak self] _ in self?.updateExternalDisplay() }
+        center.addObserver(forName: UIScreen.modeDidChangeNotification, object: nil, queue: .main) { [weak self] _ in self?.updateExternalDisplay() }
+    }
+    private func updateExternalDisplay(resize: Bool = true) {
+        let tv = engineStarted && !ProcessInfo.processInfo.arguments.contains("--no-tv") ? UIScreen.screens.first(where: { $0 != UIScreen.main }) : nil
+        if let tv {
+            if tvWindow?.screen === tv, tvWindow?.bounds == tv.bounds { return }
+            let window = tvWindow ?? UIWindow(frame: tv.bounds)
+            window.screen = tv
+            window.frame = tv.bounds
+            if window.rootViewController == nil {
+                let root = UIViewController()
+                root.view.backgroundColor = .black
+                window.rootViewController = root
+            }
+            tv.overscanCompensation = .none
+            if metalView.superview !== window.rootViewController?.view {
+                NSLayoutConstraint.deactivate(phoneGameConstraints)
+                metalView.removeFromSuperview()
+                let host = window.rootViewController!.view!
+                host.addSubview(metalView)
+                NSLayoutConstraint.activate([
+                    metalView.leadingAnchor.constraint(equalTo: host.leadingAnchor), metalView.trailingAnchor.constraint(equalTo: host.trailingAnchor),
+                    metalView.topAnchor.constraint(equalTo: host.topAnchor), metalView.bottomAnchor.constraint(equalTo: host.bottomAnchor)])
+                view.backgroundColor = .black
+            }
+            window.isHidden = false
+            tvWindow = window
+            appendLog("TV connected (\(Int(tv.bounds.width * tv.scale))×\(Int(tv.bounds.height * tv.scale))): the game shows on the TV, the controls stay on the phone.")
+        } else if let window = tvWindow {
+            metalView.removeFromSuperview()
+            view.insertSubview(metalView, at: 0)
+            NSLayoutConstraint.activate(phoneGameConstraints)
+            window.isHidden = true
+            tvWindow = nil
+            appendLog("TV disconnected: the game is back on the phone.")
+        } else { return }
+        if resize { applyLiveResolution() }
+    }
 
     // MARK: Game file server
 
@@ -941,21 +927,37 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     @objc private func lookForGameFiles() {
         guard !engineStarted, !GameFolder.isChosen || GameFolder.inAppFolder, !lookingForGameFiles, !GameInstallManager.shared.isRunning else { return }
         lookingForGameFiles = true
-        if !GameFolder.isChosen { home.setFiles(.busy, title: L10n.text("Looking for your game files…"), detail: "") }
+        if !GameFolder.isChosen { home.setFiles(.busy, title: AppLanguage.choose("Looking for your game files…"), detail: "") }
         DispatchQueue.global(qos: .userInitiated).async {
             GameFolder.findInAppFolder()
             DispatchQueue.main.async {
                 self.lookingForGameFiles = false
                 self.updateServerStatus()
-                if self.launchAfterFileScan {
-                    self.launchAfterFileScan = false
-                    self.startEngine()
-                }
+                self.logStartupStatus()
             }
         }
     }
     private var lookingForGameFiles = false
-    private var launchAfterFileScan = false
+    private var startupStatusLogged = false
+    /// Once per launch: where the game files are and the main settings, so a log sent from the
+    /// start screen (without playing) still shows why the game can't start.
+    private func logStartupStatus() {
+        guard !startupStatusLogged else { return }
+        startupStatusLogged = true
+        var files: String
+        if GameFolder.isChosen {
+            files = "\(GameFolder.inAppFolder ? "in the app's folder" : "picked in Files") (\"\(GameFolder.name)\")"
+            if GameFolder.acceptedProblemCount > 0 { files += ", \(GameFolder.acceptedProblemCount) problem files, played anyway" }
+        } else if let problem = GameFolder.appFolderProblem {
+            files = "found but can't be used: " + problem
+        } else {
+            files = "none found"
+        }
+        if !GameFolder.archivesFound.isEmpty { files += "; archives: " + GameFolder.archivesFound.map(\.lastPathComponent).joined(separator: ", ") }
+        let free = (try? GameFolder.appFolder.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage).flatMap { $0 }
+        let settings = GameSettings.shared
+        appendLog("Startup: game files \(files). Free storage \(free.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "unknown"). Memory limit \(settings.tier.memoryLimitMB) MB (increased memory limit \(DeviceTier.increasedMemoryGranted.map { $0 ? "granted" : "not granted" } ?? "unknown")). \(settings.gameMode.title), \(settings.graphicsPreset.title).")
+    }
     @objc private func installChanged() {
         guard !engineStarted else { return }
         updateServerStatus()
@@ -964,7 +966,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         GameInstallManager.shared.acknowledge()
         switch result {
         case .success: appendLog("Game files installed and checked.")
-        case let .failure(message): showWhenFree(title: "Couldn't get the game files", message: message)
+        case let .failure(message): showWhenFree(title: AppLanguage.choose("Couldn't get the game files"), message: message)
         case .webPage: showGameFiles()
         }
     }
@@ -972,7 +974,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     private func updateServerStatus(_ status: String? = nil) {
         // A download running in the background shows on the card (tap it for the full progress).
         if case let .running(update) = GameInstallManager.shared.state {
-            home.setFiles(.busy, title: update.title, detail: update.detail.split(separator: "\n").first.map(String.init) ?? L10n.text("Tap to see the progress."))
+            home.setFiles(.busy, title: update.title, detail: update.detail.split(separator: "\n").first.map(String.init) ?? AppLanguage.choose("Tap to see the progress."))
             updatePlayEnabled()
             return
         }
@@ -980,33 +982,100 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         let raw = GameSettings.shared.assetServer
         let server = Self.isServerAddress(raw) ? raw : ""
         if GameFolder.isChosen {
-            let place = GameFolder.inAppFolder ? "In the Mugoat folder" : L10n.text("On this iPhone")
+            let place = GameFolder.inAppFolder ? AppLanguage.choose("In the GTA V Port folder") : AppLanguage.choose("On this iPhone")
             let problems = GameFolder.acceptedProblemCount
             home.setFiles(problems > 0 ? .attention : .ready, title: "\"\(GameFolder.name)\"",
-                          detail: problems > 0 ? "\(place) · \(problems) problem \(problems == 1 ? "file" : "files"), playing anyway" : "\(place) · every file checked")
+                          detail: problems > 0
+                            ? AppLanguage.interpolate(problems == 1 ? AppLanguage.choose("{arg0} · 1 problem file, playing anyway") : AppLanguage.choose("{arg0} · {arg1} problem files, playing anyway"), [place, String(problems)])
+                            : AppLanguage.interpolate(AppLanguage.choose("{arg0} · every file checked"), [place]))
         } else if server.isEmpty, let report = GameFolder.appFolderReport {
-            home.setFiles(.problem, title: report.explanation.title, detail: L10n.text("Found your game folder, but it can't be used yet. Tap to see why and how to fix it."))
+            home.setFiles(.problem, title: report.explanation.title, detail: AppLanguage.choose("Found your game folder, but it can't be used yet. Tap to see why and how to fix it."))
         } else if server.isEmpty, !raw.isEmpty {
-            home.setFiles(.problem, title: L10n.text("Server address isn't a web address"), detail: L10n.text("Tap to change it."))
+            home.setFiles(.problem, title: AppLanguage.choose("Server address isn't a web address"), detail: AppLanguage.choose("Tap to change it."))
         } else if server.isEmpty {
-            home.setFiles(.attention, title: L10n.text("Add your game files"), detail: GameFolder.archivesFound.isEmpty ? L10n.text("Tap to find them on this iPhone, or get them from a link or an archive.") : L10n.text("Found a game archive. Tap to unpack it."))
-        } else if status == "checking…" {
-            home.setFiles(.busy, title: L10n.text("Streaming from your server"), detail: server)
+            home.setFiles(.attention, title: AppLanguage.choose("Add your game files"), detail: GameFolder.archivesFound.isEmpty ? AppLanguage.choose("Tap to find them on this iPhone, or get them from a link or an archive.") : AppLanguage.choose("Found a game archive. Tap to unpack it."))
+        } else if status == AppLanguage.choose("checking…") {
+            home.setFiles(.busy, title: AppLanguage.choose("Streaming from your server"), detail: server)
         } else {
-            let ok = status == nil || status == "connected ✓"
-            home.setFiles(ok ? .ready : .problem, title: L10n.text("Streaming from your server"), detail: server + (status.map { " · " + $0 } ?? ""))
+            let ok = status == nil || status == AppLanguage.choose("connected ✓")
+            home.setFiles(ok ? .ready : .problem, title: AppLanguage.choose("Streaming from your server"), detail: server + (status.map { " · " + $0 } ?? ""))
         }
         updatePlayEnabled()
     }
-    /// Missing files or a mode choice are handled by tapping Play; only a running engine locks it.
+    /// Play needs game files and a chosen mode.
     private func updatePlayEnabled() {
-        launchButton.isEnabled = !engineStarted && !engineFailed
+        let server = Self.isServerAddress(GameSettings.shared.assetServer)
+        launchButton.isEnabled = !engineStarted && !GameInstallManager.shared.isRunning && (GameFolder.isChosen || server) && GameSettings.shared.gameModeChoice != nil
     }
     static func isServerAddress(_ text: String) -> Bool {
         guard let url = URL(string: text), let scheme = url.scheme?.lowercased(), let host = url.host else { return false }
         return (scheme == "http" || scheme == "https") && !host.isEmpty
     }
     /// The game files screen: checking, finding, downloading and unpacking.
+    /// A script mod opened the game's on-screen keyboard: the Mod keys keyboard takes the text.
+    private func checkModTextRequest() {
+        var title = [CChar](repeating: 0, count: 160), text = [CChar](repeating: 0, count: 1024), maxLength: Int32 = 0
+        guard PGAsiTextRequest(&title, title.count, &text, text.count, &maxLength) else { return }
+        modKeys.startTextRequest(title: String(cString: title), text: String(cString: text), maxLength: Int(maxLength))
+        appendLog("Mods: a script asks for text: \(String(cString: title))")
+        #if targetEnvironment(simulator)
+        // Test: PG_TEST_TEXT_ANSWER types an answer and presses Done after a few seconds (screenshots first).
+        if let answer = ProcessInfo.processInfo.environment["PG_TEST_TEXT_ANSWER"] {
+            appendLog("TEST: text box shown: \(String(cString: title))")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 6) { self.modKeys.testAnswer(answer) }
+        }
+        #endif
+    }
+
+    /// Simulator test: --install-mod <file> (repeatable) runs the in-app installer on each file before the
+    /// game starts, as if picked in Settings › Mods, and logs what it did.
+    private func installModsForTest() {
+        #if targetEnvironment(simulator)
+        let args = ProcessInfo.processInfo.arguments
+        for (i, arg) in args.enumerated() where arg == "--install-mod" && i + 1 < args.count {
+            let file = URL(fileURLWithPath: args[i + 1])
+            do {
+                let folder = try ModInstaller.unpack(file)
+                let plan = ModInstaller.plan(folder: folder, name: file.lastPathComponent, index: .load(manifest: EnginePaths.manifest))
+                try ModInstaller.install(plan)
+                appendLog("TEST: installed mod \(plan.name)\(plan.unsupported ? " (unsupported)" : ""): \(plan.items.map { $0.target }.joined(separator: ", ")); skipped \(plan.skipped.map { $0.file + " (" + $0.reason + ")" }.joined(separator: ", "))")
+                try? FileManager.default.removeItem(at: folder)
+            } catch { appendLog("TEST: mod install failed for \(file.lastPathComponent): \(error.localizedDescription)") }
+        }
+        #endif
+    }
+
+    /// Mods (GTA-69): once per set of mod files, says that mods can break things and where mod help is.
+    private func noticeMods() {
+        let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("Mods")
+        guard let walk = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey]) else { return }
+        ModInstaller.placeWaitingFiles()
+        // Switched-off mods (folders ending in .off) and files still waiting to be placed don't count.
+        // The signature must be the same on every launch (Swift's hashValue isn't), so it's FNV-1a.
+        var count = 0, signature: UInt64 = 14695981039346656037
+        for case let url as URL in walk {
+            let name = url.lastPathComponent
+            if name.hasSuffix(".off") || name == ".pending" { walk.skipDescendants(); continue }
+            guard name != "README.txt", !name.hasPrefix(".") else { continue }
+            let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+            guard values?.isRegularFile == true else { continue }
+            count += 1
+            // Relative to the Mods folder: the app's own folder path changes with every app update.
+            for byte in url.path.replacingOccurrences(of: folder.path, with: "").utf8 { signature = (signature ^ UInt64(byte)) &* 1099511628211 }
+            signature = (signature ^ UInt64(values?.fileSize ?? 0)) &* 1099511628211
+        }
+        guard count > 0 else { return }
+        appendLog("Mods folder: \(count) file\(count == 1 ? "" : "s").")
+        let key = "modsNoticeSignature", value = "\(count)-\(signature)"
+        guard UserDefaults.standard.string(forKey: key) != value else { return }
+        #if targetEnvironment(simulator)
+        if ProcessInfo.processInfo.environment["PG_TEST_NO_MODS_NOTICE"] != nil { return }
+        #endif
+        UserDefaults.standard.set(value, forKey: key)
+        showWhenFree(title: AppLanguage.choose("Mods are on"),
+                     message: AppLanguage.interpolate(AppLanguage.choose("{arg0} mod files are active. Mods can cause crashes and glitches that we can't fix: ask about them in the Mods topic on Telegram. Send logs only for problems that also happen without mods."), [String(count)]))
+    }
+
     private func showGameFiles() {
         guard !engineStarted, presentedViewController == nil else { return }
         let controller = GameFilesViewController()
@@ -1030,7 +1099,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             return
         }
         let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        alert.addAction(UIAlertAction(title: AppLanguage.choose("OK"), style: .default))
         present(alert, animated: true)
     }
     /// Checks that the server answers with the game's file list.
@@ -1038,33 +1107,33 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         var server = GameSettings.shared.assetServer
         while server.hasSuffix("/") { server.removeLast() }
         guard let url = URL(string: server + "/data/manifest.json"), url.scheme?.hasPrefix("http") == true else {
-            updateServerStatus("not a valid address"); return
+            updateServerStatus(AppLanguage.choose("not a valid address")); return
         }
-        updateServerStatus("checking…")
+        updateServerStatus(AppLanguage.choose("checking…"))
         var request = URLRequest(url: url, timeoutInterval: 10)
         request.httpMethod = "HEAD"
         URLSession.shared.dataTask(with: request) { [weak self] _, response, error in
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
             DispatchQueue.main.async {
-                if code == 200 { self?.updateServerStatus("connected ✓") }
-                else if let error { self?.updateServerStatus("can't connect (\(error.localizedDescription))") }
-                else { self?.updateServerStatus("answered \(code); is the address the folder with data/ and b/?") }
+                if code == 200 { self?.updateServerStatus(AppLanguage.choose("connected ✓")) }
+                else if let error { self?.updateServerStatus(AppLanguage.interpolate(AppLanguage.choose("can't connect ({arg0})"), [error.localizedDescription])) }
+                else { self?.updateServerStatus(AppLanguage.interpolate(AppLanguage.choose("answered {arg0}; is the address the folder with data/ and b/?"), [String(code)])) }
             }
         }.resume()
     }
     /// The popup after a launch that ran out of memory: what happened, what changed, and the way back.
     private func explainRecovery(_ recovery: GameSettings.BootRecovery) {
         let lowered = recovery.fallback != recovery.failed
-        let title = lowered ? "Graphics lowered to \(recovery.fallback.title)" : "Resolution set back to Auto"
-        var message = "The game closed while starting on \(recovery.failed.title)"
-        if let height = recovery.resetHeight { message += " at \(height)p" }
-        message += ". iOS reported an estimated process memory allowance of \(recovery.processAllowanceMB) MB at launch; this is separate from the device's total RAM."
-        message += lowered ? "\n\nThe game now starts on \(recovery.fallback.title)" : "\n\nThe game now starts at its usual resolution"
-        message += recovery.resetHeight != nil && lowered ? " with Auto resolution." : "."
-        message += " You can change this any time in Settings."
+        let title = lowered ? AppLanguage.interpolate(AppLanguage.choose("Graphics lowered to {arg0}"), [recovery.fallback.title]) : AppLanguage.choose("Resolution set back to Auto")
+        var message = AppLanguage.interpolate(AppLanguage.choose("The game closed while starting on {arg0}"), [recovery.failed.title])
+        if let height = recovery.resetHeight { message += AppLanguage.interpolate(AppLanguage.choose(" at {arg0}p"), [String(height)]) }
+        message += AppLanguage.interpolate(AppLanguage.choose(". That usually means this setting needs more memory than iOS gives the app on this iPhone (about {arg0} MB)."), [String(recovery.memoryLimitMB)])
+        message += lowered ? AppLanguage.interpolate(AppLanguage.choose("\n\nThe game now starts on {arg0}"), [recovery.fallback.title]) : AppLanguage.choose("\n\nThe game now starts at its usual resolution")
+        message += recovery.resetHeight != nil && lowered ? AppLanguage.choose(" with Auto resolution.") : "."
+        message += AppLanguage.choose(" You can change this any time in Settings.")
         let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .cancel))
-        alert.addAction(UIAlertAction(title: L10n.text("Share log"), style: .default) { _ in
+        alert.addAction(UIAlertAction(title: AppLanguage.choose("OK"), style: .cancel))
+        alert.addAction(UIAlertAction(title: AppLanguage.choose("Share log"), style: .default) { _ in
             let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             let logs = ["native-port-previous.log", "native-port.log"].map { documents.appendingPathComponent($0) }
                 .filter { FileManager.default.fileExists(atPath: $0.path) }
@@ -1072,29 +1141,62 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             sheet.popoverPresentationController?.sourceView = self.view
             self.present(sheet, animated: true)
         })
-        alert.addAction(UIAlertAction(title: "Try \(recovery.failed.title) again", style: .destructive) { _ in
+        alert.addAction(UIAlertAction(title: AppLanguage.interpolate(AppLanguage.choose("Try {arg0} again"), [recovery.failed.title]), style: .destructive) { _ in
             GameSettings.shared.undoRecovery(recovery)
             self.appendLog("Kept \(recovery.failed.title) after the warning.")
         })
         present(alert, animated: true)
     }
 
+    private var healthLines = 0
+    private var lastStoryMission = "", lastReplayState: Int32 = -1
     private func logHealth() {
         var vm = task_vm_info_data_t()
         var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size)
         let ok = withUnsafeMutablePointer(to: &vm) {
             $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count) }
         } == KERN_SUCCESS
-        let used = ok ? Int(vm.phys_footprint / 1_048_576) : -1
-        let free = Int(os_proc_available_memory() / 1_048_576)
+        var used = ok ? Int(vm.phys_footprint / 1_048_576) : -1
+        #if targetEnvironment(simulator)
+        if used >= 0 { used += Int(PGGPUTextureBytes() / 1_048_576) }   // counted as an iPhone counts it (see EngineHost.c)
+        #endif
+        let available = Int(os_proc_available_memory() / 1_048_576)
+        let free = available > 0 ? available : max(0, GameSettings.shared.tier.memoryLimitMB - used)
+        healthLines += 1
+        // An interruption that never ends (another app's audio, logs 700 and 613) leaves the game silent while it plays on (GTA-132).
+        // Not while another app still plays: the player's own music would be cut off every 10 s.
+        if !audioEngine.isRunning, UIApplication.shared.applicationState == .active, !AVAudioSession.sharedInstance().isOtherAudioPlaying {
+            resumeAudio(reason: "silent while playing")
+        }
+        if healthLines % 6 == 1 { PGLogMemoryPools() }   // where the memory is, once a minute
         var reads = [UInt64](repeating: 0, count: 6)
         reads.withUnsafeMutableBufferPointer { PGAssetHealth($0.baseAddress) }
-        let now = [PGMemoryBudgetClamps()] + reads
+        let now = [PGMemoryBudgetClamps()] + reads + [PGMemoryBudgetEvictions()]
+        // What players see of streaming (GTA-116): requests still waiting, how long loads took, what was unloaded.
+        var stream = [UInt64](repeating: 0, count: 6)
+        stream.withUnsafeMutableBufferPointer { PGStreamingHealth($0.baseAddress) }
+        let gpuMS = PGGPUFrameMilliseconds()
         let d = zip(now, lastHealth).map { $0 &- $1 }
         lastHealth = now
         let avgMS = d[1] > 0 ? Double(d[6]) / Double(d[1]) / 1000 : 0
-        appendLog(String(format: "Health: device RAM %d MB · app %d MB used, iOS headroom %d MB · guard held back streaming %llu× · reads %llu (%.1f MB, avg %.1f ms, slow %llu, errors %llu) · %.0f FPS",
-                         GameSettings.shared.tier.physicalMemoryMB, used, free, d[0], d[1], Double(d[2]) / 1_048_576, avgMS, d[5], d[3], PGRenderedFramesPerSecond()))
+        // iOS slows the chip down as the phone heats up; the same frames then take longer.
+        let thermal = ["nominal", "fair", "serious", "critical"][min(3, ProcessInfo.processInfo.thermalState.rawValue)]
+        // CPU time the whole app used, in cores, since the last line (what heats the phone).
+        var usage = rusage(); getrusage(RUSAGE_SELF, &usage)
+        let cpu = Double(usage.ru_utime.tv_sec + usage.ru_stime.tv_sec) + Double(usage.ru_utime.tv_usec + usage.ru_stime.tv_usec) / 1e6
+        let wall = CACurrentMediaTime()
+        let cores = lastCPU.map { (cpu - $0.cpu) / max(0.001, wall - $0.wall) } ?? 0
+        lastCPU = (cpu, wall)
+        // Which mission and where (GTA-106), so a report can be replayed at the same moment in the simulator.
+        var name = [CChar](repeating: 0, count: 64), position: (Float, Float, Float) = (0, 0, 0), replay: Int32 = -1
+        let story = withUnsafeMutablePointer(to: &position) { $0.withMemoryRebound(to: Float.self, capacity: 3) { PGStoryContext(&name, name.count, $0, &replay) } }
+        if story {
+            let mission = String(cString: name)
+            if mission != lastStoryMission { lastStoryMission = mission; appendLog("Story: \(mission.isEmpty ? "no mission running" : "mission \(mission) running")") }
+            if replay != lastReplayState { if replay == 1 { appendLog("Story: Mission failed screen") }; lastReplayState = replay }
+        }
+        appendLog(String(format: "Health: memory %d MB used, %d MB free · guard stopped streaming growth %llu×, asked to evict %llu× · reads %llu (%.1f MB, avg %.1f ms, slow %llu, errors %llu) · %.0f FPS · thermal %@ · CPU %.2f cores · GPU %.1f ms · streaming %llu waiting (%llu over 10 s), loaded %llu (median %llu ms, 95%% %llu ms), unloaded %llu · at %.0f, %.0f, %.0f",
+                         used, free, d[0], d[7], d[1], Double(d[2]) / 1_048_576, avgMS, d[5], d[3], PGRenderedFramesPerSecond(), thermal, cores, gpuMS, stream[0], stream[1], stream[2], stream[3], stream[4], stream[5], position.0, position.1, position.2))
     }
 
     @objc private func leftApp() { if stableTimer?.isValid != false { GameSettings.shared.markBootInterrupted() } }
@@ -1109,193 +1211,195 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         }
         (presentedViewController ?? self).present(editor, animated: true)
     }
+    @objc private func languageChanged() {
+        // The 1.3 home and its new widgets own their own labels.
+        home.refreshLanguage()
+        touchControls.refreshLanguage()
+        refreshModeChoice()
+        updateServerStatus()
+        launchButton.setNeedsUpdateConfiguration()
+        if !engineStarted { controllerLabel.text = AppLanguage.choose("Controller: none connected") }
+    }
+
+    private var stoppedPanel: UIView?
+    /// Shown once the engine has stopped: what happened, Send log and Settings, above everything.
+    private func showEngineStopped(title titleText: String? = nil, message: String? = nil) {
+        guard stoppedPanel == nil else { return }
+        touchControls.reset(publish: false)
+        touchControls.isHidden = true
+        PGUpdateVirtualPad(PGPadState())
+        let title = UILabel()
+        title.text = titleText ?? AppLanguage.choose("The game stopped")
+        title.font = Theme.display(22, .heavy)
+        title.textColor = .white
+        let info = UILabel()
+        info.text = message ?? AppLanguage.choose("Please send the log so this can be fixed, then close the app and open it again to keep playing.")
+        info.numberOfLines = 0
+        info.textAlignment = .center
+        info.font = .preferredFont(forTextStyle: .subheadline)
+        info.textColor = UIColor(white: 1, alpha: 0.8)
+        var sendStyle = UIButton.Configuration.filled()
+        sendStyle.title = AppLanguage.choose("Send log to the developer")
+        sendStyle.cornerStyle = .large
+        let send = UIButton(configuration: sendStyle, primaryAction: UIAction { [weak self] _ in self?.sendLogAfterStop() })
+        var settingsStyle = UIButton.Configuration.gray()
+        settingsStyle.title = AppLanguage.choose("Settings")
+        settingsStyle.cornerStyle = .large
+        let settings = UIButton(configuration: settingsStyle, primaryAction: UIAction { [weak self] _ in self?.showSettings() })
+        let stack = UIStackView(arrangedSubviews: [title, info, send, settings])
+        stack.axis = .vertical
+        stack.alignment = .center
+        stack.spacing = 14
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        let panel = UIView()
+        panel.backgroundColor = UIColor.black.withAlphaComponent(0.78)
+        panel.layer.cornerRadius = 18
+        panel.translatesAutoresizingMaskIntoConstraints = false
+        panel.addSubview(stack)
+        view.addSubview(panel)
+        NSLayoutConstraint.activate([
+            panel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            panel.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            panel.widthAnchor.constraint(equalToConstant: 380),
+            stack.topAnchor.constraint(equalTo: panel.topAnchor, constant: 22),
+            stack.bottomAnchor.constraint(equalTo: panel.bottomAnchor, constant: -22),
+            stack.leadingAnchor.constraint(equalTo: panel.leadingAnchor, constant: 22),
+            stack.trailingAnchor.constraint(equalTo: panel.trailingAnchor, constant: -22),
+            info.widthAnchor.constraint(equalTo: stack.widthAnchor),
+        ])
+        stoppedPanel = panel
+        appendLog("The engine stopped: showing Send log and Settings.")
+        #if targetEnvironment(simulator)
+        // Test: --send-log-after-stop opens the Send log screen from the panel.
+        if ProcessInfo.processInfo.arguments.contains("--send-log-after-stop") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.sendLogAfterStop() }
+        }
+        #endif
+    }
+    private func sendLogAfterStop() {
+        guard presentedViewController == nil else { return }
+        let screen = SendLogViewController()
+        screen.finished = { [weak self] title, message in
+            let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: AppLanguage.choose("OK"), style: .default))
+            self?.present(alert, animated: true)
+        }
+        let navigation = UINavigationController(rootViewController: screen)
+        navigation.modalPresentationStyle = .fullScreen
+        present(navigation, animated: true)
+        appendLog("Send log opened after the engine stopped.")
+    }
+
     private func showSettings() {
         guard presentedViewController == nil else { return }
         touchControls.reset()
-        let controller = SettingsViewController(engineRunning: engineStarted, runningMode: bootedMode)
+        pauseGame(reason: "Settings opened during play")
+        let controller = SettingsHomeViewController(engineRunning: engineStarted, runningMode: bootedMode)
         controller.gameModeChanged = { [weak self] in self?.refreshModeChoice() }
         controller.resolutionChanged = { [weak self] in self?.applyLiveResolution() }
         controller.controlsChanged = { [weak self] in self?.touchControls.updateVisibility() }
         controller.editLayout = { [weak self] in self?.showLayoutEditor() }
         controller.targetingChanged = { PGSetTargetingMode(Int32(GameSettings.shared.targetingMode)) }
-        controller.openCheat = { [weak self] in self?.showCheatMenu() }
-        controller.openMods = { [weak controller, weak self] in
-            guard let self, let controller else { return }
-            let mods = ModManagerViewController(engineRunning: self.engineStarted)
-            mods.spawnHandler = { [weak self] model in self?.spawnVehicle(model) }
-            controller.navigationController?.pushViewController(mods, animated: true)
-        }
-        controller.openSaves = { [weak controller, weak self] in
-            guard let self, let controller else { return }
-            let saves = SaveViewController(engineRunning: self.engineStarted)
-            controller.navigationController?.pushViewController(saves, animated: true)
+        controller.cheatSelected = { [weak self] cheat in self?.playStoryCheat(cheat) }
+        controller.nativeCheatSelected = { [weak self] action in self?.performNativeCheat(action) }
+        controller.vehicleSelected = { [weak self] vehicle, enter in self?.spawnVehicle(vehicle, enter: enter) }
+        controller.moneyEntered = { [weak self] amount in
+            self?.appendLog("Story cheat: set money to \(amount)")
+            PGSetPlayerCash(amount)
         }
         let navigation = UINavigationController(rootViewController: controller)
         Theme.styleNavigation(navigation)
         present(navigation, animated: true)
     }
-
-    private func showModManager() {
-        guard presentedViewController == nil else { return }
-        touchControls.reset()
-        let vc = ModManagerViewController(engineRunning: engineStarted)
-        vc.spawnHandler = { [weak self] model in self?.spawnVehicle(model) }
-        let navigation = UINavigationController(rootViewController: vc)
-        Theme.styleNavigation(navigation)
-        present(navigation, animated: true)
-    }
-
-    private func showSaves() {
-        guard presentedViewController == nil else { return }
-        touchControls.reset()
-        let navigation = UINavigationController(rootViewController: SaveViewController(engineRunning: engineStarted))
-        Theme.styleNavigation(navigation)
-        present(navigation, animated: true)
-    }
-
-    private func refreshLanguage() {
-        home.languageButton.configuration?.title = L10n.language.uppercased()
-        LocalizedUI.apply(to: home)
-        refreshModeChoice()
-        updateServerStatus()
-        launchButton.setNeedsUpdateConfiguration()
-    }
-
-    @objc private func handleThreeFingerTap(_ gesture: UITapGestureRecognizer) {
-        showCheatMenu()
-    }
-
-    func showCheatMenu() {
-        // Offline free roam opens the menu for its vehicle/mod spawner; cheat codes stay blocked there.
-        guard !MugoatOnlineEnabled() else {
-            showCheatToast(L10n.text("Tiện ích cheat bị vô hiệu hóa trong Online.")); return
+    /// Cheats › Spawn vehicle: the game thread spawns it once play resumes (NativeVehicleSpawn.inc).
+    private func spawnVehicle(_ vehicle: SpawnVehicle, enter: Bool) {
+        guard PGSpawnVehicle(vehicle.model, enter) else {
+            showWhenFree(title: AppLanguage.choose("Spawn vehicle"), message: AppLanguage.choose("A vehicle is already loading. Wait for it to finish."))
+            return
         }
-        touchControls.reset()
-        let cheatView = CheatMenuView(
-            engineRunning: engineStarted,
-            onApply: { [weak self] code, mode in
-                self?.applyCheat(code, mode: mode)
-            },
-            onSpawnVehicle: { [weak self] model in
-                self?.spawnVehicle(model)
-            },
-            onOpenMods: { [weak self] in
-                self?.showModManager()
+        appendLog("Vehicle menu: requested \(vehicle.name) (enter: \(enter)).")
+        monitorMenuAction(title: vehicle.title) {
+            switch PGGetVehicleSpawnStatus() {
+            case PGVehicleSpawnWaiting, PGVehicleSpawnLoading: return nil
+            case PGVehicleSpawnSucceeded: return AppLanguage.interpolate(AppLanguage.choose("Vehicle spawned: {arg0}"), [vehicle.title])
+            case PGVehicleSpawnUnavailable: return AppLanguage.choose("This vehicle isn't available in your game.")
+            case PGVehicleSpawnTimedOut: return AppLanguage.choose("Loading the vehicle took too long. Try again in an open area.")
+            case PGVehicleSpawnLowMemory: return AppLanguage.choose("Not enough free memory to spawn it safely. Go somewhere quieter, or restart with a lower graphics preset.")
+            case PGVehicleSpawnVehicleLimit: return AppLanguage.choose("Both menu vehicles are in use. Leave one empty, then try again.")
+            case PGVehicleSpawnNotReady: return AppLanguage.choose("Return to normal gameplay before spawning a vehicle.")
+            default: return AppLanguage.choose("The game couldn't create this vehicle here.")
             }
-        )
-        let host = UIHostingController(rootView: cheatView)
-        host.modalPresentationStyle = .fullScreen
-        (presentedViewController ?? self).present(host, animated: true)
+        }
     }
-
-    private let cheatToastLabel: UILabel = {
+    /// Cheats › repair, clean, time or weather: the game thread runs it once play resumes (NativeCheats.inc).
+    private func performNativeCheat(_ action: NativeCheatAction) {
+        guard PGQueueCheat(action.command, action.value) else {
+            showWhenFree(title: AppLanguage.choose("Cheats"), message: AppLanguage.choose("A cheat is already pending. Wait for it to finish."))
+            return
+        }
+        appendLog("Cheats: requested \(action.title).")
+        let title = AppLanguage.choose(action.title)
+        monitorMenuAction(title: title) {
+            switch PGGetCheatStatus() {
+            case PGCheatWaiting: return nil
+            case PGCheatSucceeded: return AppLanguage.interpolate(AppLanguage.choose("Done: {arg0}"), [title])
+            case PGCheatNoVehicle: return AppLanguage.choose("Get into a vehicle first.")
+            default: return AppLanguage.choose("Return to normal gameplay before using this cheat.")
+            }
+        }
+    }
+    /// Leaves the pause menu Settings opened, then shows a note at the top until `result` has an answer
+    /// (checked four times a second), and that answer for 5 s.
+    private func monitorMenuAction(title: String, result: @escaping () -> String?) {
+        touchControls.reset()
+        if PGPauseMenuActive() { PGRequestPauseMenu() }
+        vehicleSpawnTimer?.invalidate()
+        vehicleSpawnNotice?.removeFromSuperview()
+        let notice = UIView()
+        notice.translatesAutoresizingMaskIntoConstraints = false
+        notice.backgroundColor = Theme.night.withAlphaComponent(0.85)
+        notice.layer.cornerRadius = 12
         let label = UILabel()
-        label.font = Theme.display(14, .bold)
-        label.textColor = .white
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.textColor = Theme.text
+        label.font = Theme.body(16, .semibold)
         label.textAlignment = .center
-        label.backgroundColor = UIColor.black.withAlphaComponent(0.8)
-        label.layer.cornerRadius = 14
-        label.clipsToBounds = true
-        label.alpha = 0
-        label.isUserInteractionEnabled = false
-        return label
-    }()
-
-    private func showCheatToast(_ message: String) {
-        cheatToastLabel.text = "  ⚡ \(message)  "
-        cheatToastLabel.sizeToFit()
-        cheatToastLabel.frame.size.width += 28
-        cheatToastLabel.frame.size.height += 14
-        cheatToastLabel.center = CGPoint(x: view.bounds.midX, y: max(view.safeAreaInsets.top, 20) + 25)
-        if cheatToastLabel.superview == nil {
-            view.addSubview(cheatToastLabel)
-        }
-        view.bringSubviewToFront(cheatToastLabel)
-        UIView.animate(withDuration: 0.2) {
-            self.cheatToastLabel.alpha = 1
-        } completion: { _ in
-            UIView.animate(withDuration: 0.3, delay: 2.5, options: .curveEaseOut) {
-                self.cheatToastLabel.alpha = 0
-            }
-        }
-    }
-
-    private func spawnVehicle(_ model: String) {
-        // Offline free roam is for trying things out (mod cars included); only Online blocks spawning.
-        guard !MugoatOnlineEnabled() else {
-            showCheatToast(L10n.text("Triệu hồi xe bị vô hiệu hóa trong Online"))
-            return
-        }
-        var clean = model.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if clean == "mbs1k" { clean = "mbslk" }
-        guard !clean.isEmpty else { return }
-        guard engineStarted else {
-            showCheatToast(L10n.text("Cần vào game trước khi triệu hồi xe"))
-            return
-        }
-        let started = clean.withCString { PGSpawnVehicle($0) }
-        if started {
-            showCheatToast(String(format: L10n.text("Đang triệu hồi: %@"), clean))
-            appendLog("Vehicle spawn requested: \(clean)")
-            watchVehicleSpawn(clean)
-        } else {
-            showCheatToast(L10n.text("Hệ thống đang bận triệu hồi xe khác!"))
-        }
-    }
-
-    /// Reports how a spawn ended: the engine needs a few frames to stream the model (mods take longer).
-    private func watchVehicleSpawn(_ model: String, attempt: Int = 0) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            guard let self else { return }
-            switch PGSpawnVehicleStatus() {
-            case 2:
-                self.showCheatToast(String(format: L10n.text("Đã triệu hồi: %@"), model))
-            case -1:
-                self.showCheatToast(String(format: L10n.text("Không gọi được '%@': sai tên model hoặc mod chưa được nạp (khởi động lại game sau khi cài mod)"), model))
-                self.appendLog("Vehicle spawn failed: \(model)")
-            case 1 where attempt < 140:
-                self.watchVehicleSpawn(model, attempt: attempt + 1)
-            default:
-                break
-            }
-        }
-    }
-
-    private func applyCheat(_ code: String, mode: CheatInputMode = .auto) {
-        guard !MugoatOnlineEnabled() && (bootedMode ?? GameSettings.shared.gameMode) != .sandbox else {
-            showCheatToast(L10n.text("Mã cheat không dùng được trong Tự do & Online (gọi xe vẫn dùng được khi offline)"))
-            return
-        }
-        let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        guard !trimmed.isEmpty else { return }
-        if trimmed == "UNFREEZE" || trimmed == "SKIPSCENE" {
-            PGForceSkipScene()
-            showCheatToast(L10n.text("Đã gửi lệnh gỡ kẹt cảnh / thoát cutscene"))
-            appendLog("Cheat: PGForceSkipScene triggered")
-            return
-        }
-        let modeDesc = mode == .console ? "Console (~)" : mode == .gamepad ? "Gamepad" : "Tự động"
-        showCheatToast("Đang kích hoạt cheat: \(trimmed) (\(modeDesc))")
-        appendLog("Cheat: applying '\(trimmed)' (\(modeDesc))")
-        CheatManager.apply(code: trimmed, mode: mode) { [weak self] ok in
-            if ok {
-                self?.appendLog("Cheat: sent '\(trimmed)' to game engine")
-            }
+        label.numberOfLines = 0
+        label.text = AppLanguage.interpolate(AppLanguage.choose("{arg0}: waiting for the game…"), [title])
+        notice.addSubview(label)
+        view.addSubview(notice)
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: notice.leadingAnchor, constant: 16),
+            label.trailingAnchor.constraint(equalTo: notice.trailingAnchor, constant: -16),
+            label.topAnchor.constraint(equalTo: notice.topAnchor, constant: 12),
+            label.bottomAnchor.constraint(equalTo: notice.bottomAnchor, constant: -12),
+            notice.centerXAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerXAnchor),
+            notice.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
+            notice.widthAnchor.constraint(lessThanOrEqualTo: view.safeAreaLayoutGuide.widthAnchor, constant: -120),
+            notice.widthAnchor.constraint(greaterThanOrEqualToConstant: 240),
+        ])
+        vehicleSpawnNotice = notice
+        let started = Date()
+        vehicleSpawnTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self, weak notice, weak label] timer in
+            // The game answers within 40 s (10 s to resume play, 30 s to load a vehicle); if it never
+            // does, the note shouldn't stay up forever.
+            let answer = result() ?? (Date().timeIntervalSince(started) > 60
+                ? AppLanguage.choose("The game didn't respond. Return to normal gameplay and try again.") : nil)
+            guard let message = answer else { return }
+            timer.invalidate()
+            self?.vehicleSpawnTimer = nil
+            label?.text = message
+            UIAccessibility.post(notification: .announcement, argument: message)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak notice] in notice?.removeFromSuperview() }
         }
     }
     /// The engine follows back-buffer size changes while running.
-    @objc private func thermalStateChanged() {
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            let state = ProcessInfo.processInfo.thermalState
-            self.appendLog("Thermal state changed to \(state.rawValue)")
-        }
-    }
     private func applyLiveResolution() {
         guard engineStarted else { return }
         let settings = GameSettings.shared
-        let renderHeight = settings.renderHeight > 0 ? settings.renderHeight : bootedPreset.height
-        let (width, height) = GraphicsConfiguration.size(for: bootedPreset, renderHeight: renderHeight, screen: view.bounds.size, matchScreenShape: settings.matchScreenShape)
+        // On a TV the picture takes the TV's shape.
+        let surface = tvWindow?.bounds.size ?? view.bounds.size
+        let (width, height) = GraphicsConfiguration.size(for: bootedPreset, renderHeight: settings.renderHeight, screen: surface, matchScreenShape: tvWindow != nil || settings.matchScreenShape)
         PGSetBackBufferSize(Int32(width), Int32(height))
         appendLog("Graphics: live resize to \(width)×\(height)")
     }
@@ -1303,21 +1407,44 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         touchControls.reset(publish: false)
         gyro.setRunning(false, orientation: .landscapeRight)
         lastControllerPoll = nil
-        hardwareKeys.removeAll()
+        #if targetEnvironment(simulator)
+        simulatorKeys.removeAll()
+        #endif
         KeyboardMouse.shared.releaseAll()
         PGUpdateVirtualPad(PGPadState())
+        pauseGame(reason: "App inactive during play")
     }
-
-    private func showOnline() {
-        guard presentedViewController == nil else { return }
-        touchControls.reset()
-        let controller = OnlineSettingsViewController(running: engineStarted)
-        let navigation = UINavigationController(rootViewController: controller)
-        Theme.styleNavigation(navigation); present(navigation, animated: true)
+    /// Control Center, a notification, a call or another app: the game opens its own pause menu, so
+    /// nothing happens while the player is away and it stays paused until they resume (GitHub #11).
+    /// Only during normal play: not in a cutscene, the pause menu, with the phone out or during a cheat.
+    /// Also when the player opens Settings during play.
+    private func pauseGame(reason: String) {
+        guard engineStarted, padProof == nil, !PGPauseMenuActive(), PGGameStatus() & (1 | 2 | 4 | 8 | 16) == 0 else { return }
+        appendLog("\(reason): opening the pause menu.")
+        // Held by the engine itself for its next frames: the engine may not run a frame until the app is back.
+        PGRequestPauseMenu()
     }
     private var injectedKey = false, releasedKey = false, injectedMouse = false
+    private var touchSprintTesting = false
+    private var controllerTriggerPeak: (Float, Float) = (0, 0)
+    private var controllerTriggerLoggedAt: CFTimeInterval = 0
     private func injectTestInput(sinceWorld: Double) {
         let arguments = ProcessInfo.processInfo.arguments
+        #if targetEnvironment(simulator)
+        // --test-touch-sprint <after> <seconds>: Sprint through the touch controls (GTA-46).
+        if let i = arguments.firstIndex(of: "--test-touch-sprint"), i + 2 < arguments.count,
+           let after = Double(arguments[i + 1]), let hold = Double(arguments[i + 2]) {
+            let on = sinceWorld > after && sinceWorld < after + hold
+            if on != touchSprintTesting { touchSprintTesting = on; touchControls.testSprint(on); appendLog("Test: touch sprint \(on ? "on" : "off")") }
+        }
+        #endif
+        #if targetEnvironment(simulator)
+        // --test-pause-at <seconds>: opens the pause menu the way leaving the app does (Start for 3 engine frames).
+        if let i = arguments.firstIndex(of: "--test-pause-at"), i + 1 < arguments.count, let at = Double(arguments[i + 1]),
+           !testPauseDone, sinceWorld > at {
+            testPauseDone = true; PGRequestPauseMenu(); appendLog("Test: pause menu requested")
+        }
+        #endif
         if let i = arguments.firstIndex(of: "--inject-key"), i + 3 < arguments.count,
            let key = UInt8(arguments[i + 1], radix: 16), let after = Double(arguments[i + 2]), let hold = Double(arguments[i + 3]) {
             if !injectedKey && sinceWorld > after { injectedKey = true; KeyboardMouse.shared.inject(key: key, down: true); appendLog("Test: key 0x\(arguments[i + 1]) down") }
@@ -1336,21 +1463,54 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             touchControls.reset(publish: false)
             lastControllerPoll = nil
             PGUpdateVirtualPad(PGPadState())
+            PGSetMouseFocus(false, false)
+            wasMouseSwipeActive = false
+            inputTestLabel.isHidden = true
             return
         }
         let now = CACurrentMediaTime()
         if now - lastFPSLabelUpdate >= 0.25 {
+            if touchControlsAvailable { fpsLabel.isHidden = !GameSettings.shared.showFPS }
             let fps = PGRenderedFramesPerSecond()
-            let frames = fps > 0 ? String(format: "%.0f FPS", fps) : "— FPS"
-            fpsLabel.text = frames
+            fpsLabel.text = fps > 0 ? String(format: "%.0f FPS", fps) : "— FPS"
             lastFPSLabelUpdate = now
         }
         let elapsed = lastControllerPoll.map { now - $0 } ?? (1.0 / 60.0)
         lastControllerPoll = now
         let gameStatus = PGGameStatus()
+        // A long respawn or story load looked like a freeze (GTA-50): say it's loading.
+        let loading = engineStarted && PGLoadSceneSeconds() >= 3 && gameStatus & 1 != 0 && gameStatus & 16 == 0
+        if loading == loadingPill.isHidden {
+            loadingPill.isHidden = !loading
+            if loadingPill.superview == nil {
+                view.addSubview(loadingPill)
+                NSLayoutConstraint.activate([loadingPill.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+                                             loadingPill.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -18)])
+            }
+        }
+        // Friend Request (GTA-73): the Lifeinvader presentation runs on a black TV for about 3 minutes; say how
+        // far it is, or players give up before Jay Norris takes out the phone.
+        var presentationMs: Int32 = 0, presentationLength: Int32 = 0
+        if engineStarted, bootedMode == .story, PGTVPresentation(&presentationMs, &presentationLength) {
+            if presentationPill.superview == nil {
+                view.addSubview(presentationPill)
+                NSLayoutConstraint.activate([presentationPill.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+                                             presentationPill.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 64),
+                                             presentationPill.widthAnchor.constraint(lessThanOrEqualTo: view.widthAnchor, multiplier: 0.6)])
+            }
+            let second = Int(presentationMs / 1000)
+            if second != presentationSecond {
+                presentationSecond = second
+                let time = { (ms: Int32) in String(format: "%d:%02d", ms / 60000, ms / 1000 % 60) }
+                presentationPill.text = AppLanguage.interpolate(AppLanguage.choose("Lifeinvader presentation {arg0} of {arg1}. The TV stays black in this port (the game files have no TV videos): keep watching and wait for the next hint."), [time(presentationMs), time(presentationLength)])
+            }
+            if presentationPill.isHidden { presentationPill.isHidden = false; appendLog("TV: Lifeinvader presentation playing (\(presentationLength / 1000) s); showing its progress") }
+        } else if !presentationPill.isHidden {
+            presentationPill.isHidden = true; presentationSecond = -1; appendLog("TV: presentation progress hidden")
+        }
         if gameStatus != lastGameStatus {
             lastGameStatus = gameStatus
-            appendLog("Game state: control \(gameStatus & 1 != 0 ? "off" : "on")\(gameStatus & 2 != 0 ? ", phone out" : "")\(gameStatus & 4 != 0 ? ", cutscene" : "")\(gameStatus & 8 != 0 ? ", warning screen" : "")\(gameStatus & 16 != 0 ? ", no player" : "")")
+            appendLog("Game state: control \(gameStatus & 1 != 0 ? "off" : "on")\(gameStatus & 2 != 0 ? ", phone out" : "")\(gameStatus & 4 != 0 ? ", cutscene" : "")\(gameStatus & 8 != 0 ? ", warning screen" : "")\(gameStatus & 16 != 0 ? ", no player" : "")\(gameStatus & 32 != 0 ? ", paused" : "")")
             if ProcessInfo.processInfo.arguments.contains("--capture-state") { PGCaptureNativeFrame("state-\(gameStatus)-\(Int(now))") }
         }
         if let padProof { PGUpdateVirtualPad(padProof); return }
@@ -1361,9 +1521,37 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         if let controller = GCController.controllers().first(where: { $0.extendedGamepad != nil }), let pad = controller.extendedGamepad {
             state = PGPadState(gamepad: pad)
             hasController = true
-            if diagnosticsOverlay?.isHidden != true { controllerLabel.text = "Controller: \(controller.vendorName ?? "Gamepad")" }
+            // The touch Settings button hides while a controller is connected, so holding View / Share (Select)
+            // for a second opens the app's Settings; players used to disconnect the controller to get there.
+            if engineStarted, pad.buttonOptions?.isPressed == true {
+                if let since = controllerSelectSince, since >= 0, now - since > 1, presentedViewController == nil {
+                    controllerSelectSince = -1
+                    appendLog("Controller: Select held, opening Settings.")
+                    showSettings()
+                } else if controllerSelectSince == nil { controllerSelectSince = now }
+            } else { controllerSelectSince = nil }
+            // Diagnostics (GTA-58, "R2 sometimes doesn't accelerate"): the strongest trigger values the
+            // controller reported, how often each trigger went down, and which other buttons were held with RT,
+            // logged every 10 s while they move.
+            controllerTriggerPeak = (max(controllerTriggerPeak.0, pad.leftTrigger.value), max(controllerTriggerPeak.1, pad.rightTrigger.value))
+            let triggersDown = (pad.leftTrigger.value > 0.5, pad.rightTrigger.value > 0.5)
+            if triggersDown.0 && !controllerTriggersWereDown.0 { controllerTriggerPresses.0 += 1 }
+            if triggersDown.1 && !controllerTriggersWereDown.1 { controllerTriggerPresses.1 += 1; controllerButtonsWithRT.formUnion(state.padButtons) }
+            controllerTriggersWereDown = triggersDown
+            if now - controllerTriggerLoggedAt > 10, controllerTriggerPeak.0 + controllerTriggerPeak.1 > 0 {
+                let names: [(PadButtons, String)] = [(.a, "A"), (.b, "B"), (.x, "X"), (.y, "Y"), (.l1, "LB"), (.r1, "RB"), (.start, "Menu"), (.select, "View"), (.l3, "LS"), (.r3, "RS"), (.up, "Up"), (.down, "Down"), (.left, "Left"), (.right, "Right")]
+                let withRT = names.filter { controllerButtonsWithRT.contains($0.0) }.map(\.1).joined(separator: ",")
+                appendLog(String(format: "Controller %@: LT peak %.2f, RT peak %.2f (analog %@), pressed LT %d, RT %d times, held with RT: %@ in the last 10 s, vehicle %u", controller.vendorName ?? "?", controllerTriggerPeak.0, controllerTriggerPeak.1, pad.rightTrigger.isAnalog ? "yes" : "no", controllerTriggerPresses.0, controllerTriggerPresses.1, withRT.isEmpty ? "nothing" : withRT, PGCurrentTouchContext()))
+                controllerTriggerPeak = (0, 0); controllerTriggerLoggedAt = now; controllerTriggerPresses = (0, 0); controllerButtonsWithRT = []
+            }
+            // A digital trigger (0 or 1, e.g. the GameSir X5 Lite's) pulses many times a second when the controller's
+            // turbo is on for it, and a pulsing RT hardly accelerates (GTA-58): it stays held 0.12 s after its last
+            // pressed reading, so the pulses become one press. Analog triggers are left as they are.
+            if !pad.leftTrigger.isAnalog { if triggersDown.0 { digitalTriggerAt.0 = now } else if now - digitalTriggerAt.0 < 0.12 { state.leftTrigger = 1 } }
+            if !pad.rightTrigger.isAnalog { if triggersDown.1 { digitalTriggerAt.1 = now } else if now - digitalTriggerAt.1 < 0.12 { state.rightTrigger = 1 } }
+            if diagnosticsOverlay?.isHidden != true { controllerLabel.text = AppLanguage.interpolate(AppLanguage.choose("Controller: {arg0}"), [controller.vendorName ?? AppLanguage.choose("Gamepad")]) }
         } else if diagnosticsOverlay?.isHidden != true {
-            controllerLabel.text = L10n.text("Touch controls ready")
+            controllerLabel.text = AppLanguage.choose("Touch controls ready")
         }
         // With a controller connected the touch controls step aside (Settings › Touch controls).
         // Keyboard and mouse: every frame while the game runs (keys go straight to the game as they change).
@@ -1373,7 +1561,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         if let ready = worldReadyAt { injectTestInput(sinceWorld: now - ready) }
         let pcControls = keyboardMouse && KeyboardMouse.shared.hasKeyboard && KeyboardMouse.shared.hasMouse
         let previewing = ProcessInfo.processInfo.arguments.contains("--touch-controls-preview")
-        let touchActive = touchControlsAvailable && (previewing || !((hasController || pcControls) && GameSettings.shared.hideTouchWithController))
+        let touchActive = touchControlsAvailable && stoppedPanel == nil && (previewing || !((hasController || pcControls) && GameSettings.shared.hideTouchWithController))
         touchControls.isHidden = !touchActive
         var vehicle = touchActive ? PGCurrentTouchContext() : 0
         var pauseMenu = PGPauseMenuActive()
@@ -1394,63 +1582,85 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             touchControls.updateGameState(status)
             touchControls.updateContext(vehicle: vehicle, pauseMenu: pauseMenu)
             var hints = PGReadControlHints(vehicle)
-            // Debug: --preview-hints special,detonate,help shows the situational buttons.
+            // Debug: --preview-hints special,detonate,help,taxi shows the situational buttons.
             if let i = arguments.firstIndex(of: "--preview-hints"), i + 1 < arguments.count {
                 let wanted = arguments[i + 1]
                 if wanted.contains("special") { hints.specialShown = true; hints.specialReady = true; hints.specialFill = 0.7 }
                 if wanted.contains("detonate") { hints.canDetonate = true }
                 if wanted.contains("help") { hints.helpShown = true; hints.helpContext = true }
+                if wanted.contains("taxi") { hints.vehicleModel = 0xC703DB5F; hints.passenger = true; hints.taxiMenu = true }
             }
             touchControls.updateHints(hints)
+            // Debug: --preview-mission-inputs shows every mission button.
+            let previewMission = arguments.contains("--preview-mission-inputs")
+            touchControls.updateMissionInputs { previewMission || PGInputPolledWithin($0, 700) != 0 }
+            // Deliberately let the native game decide if relative mouse motion
+            // disables assisted targeting. Never force the last-device flag.
+            var mouseSwipe = touchControls.experimentalMouseLookActive && !hasController && !pcControls
+            #if targetEnvironment(simulator)
+            // Test (PG_TEST_MOUSE=<seconds after WORLD_READY>): 20 s of swipe-camera mouse movement.
+            if let start = ProcessInfo.processInfo.environment["PG_TEST_MOUSE"].flatMap(Double.init), let ready = worldReadyAt,
+               now - ready > start, now - ready < start + 20 {
+                mouseSwipe = true; PGSetMouseFocus(true, true); PGMouseInput(6, 0, 0)
+                if !testMouseLogged { testMouseLogged = true; appendLog("TEST: mouse moving (swipe camera) for 20 s") }
+            } else if testMouseLogged, let start = ProcessInfo.processInfo.environment["PG_TEST_MOUSE"].flatMap(Double.init), let ready = worldReadyAt,
+                      now - ready >= start + 20, !testMouseStopped {
+                testMouseStopped = true; appendLog("TEST: mouse stopped")
+            }
+            #endif
+            if mouseSwipe { PGSetMouseFocus(true, true) }
+            else if wasMouseSwipeActive { PGSetMouseFocus(true, false) }
+            wasMouseSwipeActive = mouseSwipe
+            #if targetEnvironment(simulator)
+            if let ready = worldReadyAt { touchControls.applyTestPresses(sinceWorld: now - ready) }
+            #endif
             let touch = touchControls.padState(elapsed: elapsed)
-            touchControls.sendCameraMotion()
             if ProcessInfo.processInfo.arguments.contains("--trace-touch-controls") {
                 let sample = String(format: "Touch pad: buttons=%u move=%.2f,%.2f look=%.2f,%.2f triggers=%.2f,%.2f device=%d", touch.buttons, touch.leftX, touch.leftY, touch.rightX, touch.rightY, touch.leftTrigger, touch.rightTrigger, PGLastInputDevice())
                 if sample != lastTouchInputTrace { lastTouchInputTrace = sample; appendLog(sample) }
             }
             state.merge(touch)
-        } else {
-            PGTouchCameraEnabled(false)
         }
-        if !pcControls {
-            var keys = PGPadState()
-            func held(_ key: UIKeyboardHIDUsage) -> Float { hardwareKeys.contains(key) ? 1 : 0 }
-            let isPlane = (vehicle == 2 || vehicle == 17 || vehicle == 9 || vehicle == 10 || vehicle == 16)
-            if isPlane {
-                // Aircraft flight: W throttle up, S throttle down, Q yaw left, E yaw right, A/D roll, Arrows pitch
-                keys.leftX = held(.keyboardD) - held(.keyboardA)
-                let pitch = held(.keyboardUpArrow) - held(.keyboardDownArrow)
-                keys.leftY = pitch != 0 ? pitch : (held(.keyboardW) - held(.keyboardS))
-                keys.rightTrigger = max(held(.keyboardX), held(.keyboardW))
-                keys.leftTrigger = max(held(.keyboardZ), held(.keyboardS))
-            } else if vehicle != 0 {
-                // Ground / water vehicles: W gas, S brake/reverse, A/D steer
-                keys.leftX = held(.keyboardD) - held(.keyboardA)
-                keys.leftY = 0
-                keys.rightTrigger = max(held(.keyboardX), held(.keyboardW))
-                keys.leftTrigger = max(held(.keyboardZ), held(.keyboardS))
-            } else {
-                // On foot: WASD move
-                keys.leftX = held(.keyboardD) - held(.keyboardA)
-                keys.leftY = held(.keyboardW) - held(.keyboardS)
-                keys.leftTrigger = held(.keyboardZ); keys.rightTrigger = held(.keyboardX)
+        #if targetEnvironment(simulator)
+        var keys = PGPadState()
+        func held(_ key: UIKeyboardHIDUsage) -> Float { simulatorKeys.contains(key) ? 1 : 0 }
+        keys.leftX = held(.keyboardD) - held(.keyboardA)
+        keys.leftY = held(.keyboardW) - held(.keyboardS)
+        keys.rightX = held(.keyboardRightArrow) - held(.keyboardLeftArrow)
+        keys.rightY = held(.keyboardUpArrow) - held(.keyboardDownArrow)
+        keys.leftTrigger = held(.keyboardZ); keys.rightTrigger = held(.keyboardX)
+        let map: [(UIKeyboardHIDUsage, PadButtons)] = [(.keyboardSpacebar, .x), (.keyboardLeftShift, .a), (.keyboardF, .y), (.keyboardR, .b),
+            (.keyboardQ, .r1), (.keyboardTab, .l1), (.keyboardV, .select), (.keyboardEscape, .start), (.keyboardE, .l3),
+            (.keyboardReturnOrEnter, .a), (.keyboardDeleteOrBackspace, .b), (.keyboardI, .up), (.keyboardK, .down), (.keyboardJ, .left), (.keyboardL, .right)]
+        var keyButtons = PadButtons()
+        for (key, bit) in map where simulatorKeys.contains(key) { keyButtons.insert(bit) }
+        // Test: --test-pause-cycle <seconds> presses Start every period from 20 s after WORLD_READY,
+        // opening and closing the pause map over and over.
+        if let i = arguments.firstIndex(of: "--test-pause-cycle"), i + 1 < arguments.count, let period = Double(arguments[i + 1]),
+           let ready = worldReadyAt, now - ready > 20, (now - ready).truncatingRemainder(dividingBy: period) < 0.15 {
+            keyButtons.insert(.start)
+        }
+        keys.padButtons = keyButtons
+        state.merge(keys)
+        if now < debugPadUntil { state.merge(debugPad) }
+        #endif
+        if !touchActive && wasMouseSwipeActive {
+            PGSetMouseFocus(true, false)
+            wasMouseSwipeActive = false
+        }
+        if engineStarted && touchActive && GameSettings.shared.cameraTouchMode != .stick {
+            let device = PGLastInputDevice()
+            let mode = PGTargetingMode()
+            let text = "\(device == -4 ? "MOUSE" : (0...3).contains(device) ? "PAD" : "UNKNOWN") \(device) | Aim \(mode)"
+            let key = "\(GameSettings.shared.cameraTouchMode.rawValue):\(text):\(touchControls.aiming)"
+            if key != lastDeviceDiagnostic && now - lastDeviceLogAt > 0.25 {
+                lastDeviceDiagnostic = key
+                lastDeviceLogAt = now
+                appendLog("Swipe input: \(key)")
             }
-            keys.rightX = held(.keyboardRightArrow) - held(.keyboardLeftArrow)
-            keys.rightY = isPlane ? 0 : (held(.keyboardUpArrow) - held(.keyboardDownArrow))
-            let map: [(UIKeyboardHIDUsage, PadButtons)] = [
-                (.keyboardSpacebar, .x), (.keyboardLeftShift, .a), (.keyboardF, .y), (.keyboardR, .b),
-                (.keyboardQ, .l1), (.keyboardE, .r1), (.keyboardTab, .l1), (.keyboardV, .select), (.keyboardM, .select),
-                (.keyboardEscape, .start), (.keyboardP, .start), (.keyboardLeftControl, .l3),
-                (.keyboardC, .r3), (.keyboardReturnOrEnter, .a), (.keyboardDeleteOrBackspace, .b),
-                (.keyboardI, .up), (.keyboardK, .down), (.keyboardJ, .left), (.keyboardL, .right)
-            ]
-            var keyButtons = PadButtons()
-            for (key, bit) in map where hardwareKeys.contains(key) { keyButtons.insert(bit) }
-            keys.padButtons = keyButtons
-            state.merge(keys)
-            if diagnosticsOverlay?.isHidden != true && !hardwareKeys.isEmpty && !hasController {
-                controllerLabel.text = "Keyboard (Gamepad)"
-            }
+        } else {
+            inputTestLabel.isHidden = true
+            lastDeviceDiagnostic = ""
         }
         // Optional gyro: phone rotation adds to the right stick.
         let settings = GameSettings.shared
@@ -1500,11 +1710,18 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             controllerRadioWheel = false
             PGSetRadioWheelDirection(0, 0, false)
         }
-        if !PGIsCheatInProgress() {
-            PGUpdateVirtualPad(state)
-        }
+        #if targetEnvironment(simulator)
+        debugLastPad = state
+        #endif
+        PGUpdateVirtualPad(state)
     }
+    private var testMouseLogged = false, testMouseStopped = false, testPauseDone = false
+    /// When the controller's Select button went down (-1: Settings already opened for this hold).
+    private var controllerSelectSince: CFTimeInterval?
     private var controllerRadioWheel = false
+    /// Controller trigger diagnostics and the digital-trigger hold (GTA-58).
+    private var controllerTriggersWereDown = (false, false), controllerTriggerPresses = (0, 0), controllerButtonsWithRT = PadButtons()
+    private var digitalTriggerAt: (CFTimeInterval, CFTimeInterval) = (-1, -1)
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
     func draw(in view: MTKView) {
@@ -1514,4 +1731,42 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         command.present(drawable)
         command.commit()
     }
+}
+
+/// Read from the audio thread: the game's sound is silent while the intro plays.
+nonisolated(unsafe) private var introPlaying = false
+
+/// Full-screen intro video; a tap skips it.
+final class IntroVideoView: UIView {
+    override class var layerClass: AnyClass { AVPlayerLayer.self }
+    private let player: AVPlayer
+    private var ended: NSObjectProtocol?
+    var finished: (() -> Void)?
+
+    init(frame: CGRect, url: URL, muted: Bool) {
+        player = AVPlayer(url: url)
+        player.isMuted = muted
+        super.init(frame: frame)
+        backgroundColor = .black
+        (layer as! AVPlayerLayer).player = player
+        (layer as! AVPlayerLayer).videoGravity = .resizeAspect
+        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(finish)))
+        ended = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: player.currentItem, queue: .main) { [weak self] _ in self?.finish() }
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+    deinit { if let ended { NotificationCenter.default.removeObserver(ended) } }
+
+    func play() { player.play() }
+    @objc private func finish() {
+        guard let finished else { return }
+        self.finished = nil
+        player.pause()
+        finished()
+    }
+}
+
+/// A label with room around its text (the loading pill).
+private final class PaddedLabel: UILabel {
+    override func drawText(in rect: CGRect) { super.drawText(in: rect.insetBy(dx: 14, dy: 6)) }
+    override var intrinsicContentSize: CGSize { let size = super.intrinsicContentSize; return CGSize(width: size.width + 28, height: size.height + 12) }
 }

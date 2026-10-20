@@ -4,12 +4,22 @@ import Foundation
 enum GameInstallSource {
     /// A direct link to an archive: downloaded, unpacked as it arrives, and never stored whole.
     case url(URL, headers: [String: String] = [:])
+    /// A file a download page started in the app's browser: fetched the way Safari asked for it.
+    case browser(URL, BrowserDownload)
     /// An archive in Files (other parts of a multi-part set are found by name). When the app owns
     /// it (it's in the app's folder), the part already unpacked is freed as it goes, so the
     /// archive and the game don't both need room.
     case file(URL, ownedByApp: Bool)
     /// Every part of a multi-part archive, in order.
     case parts([URL])
+}
+
+/// How Safari asked for a file: method, form data, headers and the browser's cookies.
+struct BrowserDownload {
+    var method: String
+    var body: Data?
+    var headers: [String: String] = [:]
+    var cookies: [HTTPCookie]
 }
 
 /// One progress report for the screen.
@@ -39,16 +49,33 @@ final class GameInstallRun {
                       completion: @escaping (GameInstallResult) -> Void) -> GameInstallRun {
         let run = GameInstallRun()
         guard let manifest = EnginePaths.manifest else {
-            DispatchQueue.main.async { completion(.failure("The app's game file list is missing.")) }
+            DispatchQueue.main.async { completion(.failure(AppLanguage.choose("The app's game file list is missing."))) }
             return run
         }
         var options = GameInstaller.Options()
         options.log = { GameFolder.log("Install: " + $0) }
+        // A locked phone or a long Wi-Fi drop: iOS pauses the app, so keep trying for half an hour (it resumes
+        // at the byte it stopped) instead of 3 minutes; players lost whole downloads to a short break (GTA-93).
+        options.giveUpAfter = 1800
         options.toleratedSizeMismatches = tolerated
+        #if targetEnvironment(simulator)
+        // Simulator tests: PG_FAKE_FREE_GB pretends there is room, so a link install starts its download.
+        if let gigabytes = ProcessInfo.processInfo.environment["PG_FAKE_FREE_GB"].flatMap(Int64.init) { options.freeSpaceOverride = gigabytes << 30 }
+        #endif
         let installerSource: GameInstaller.Source
         switch source {
         case let .url(url, headers):
-            options.httpHeaders = headers
+            // A pasted link is fetched as if typed into Safari, in one request like Safari.
+            options.httpHeaders = DownloadBrowserViewController.safariHeaders(for: url, page: nil, userAgent: DownloadBrowserViewController.userAgent, method: "GET", body: nil)
+                .merging(headers) { $1 }
+            options.singleRequest = true
+            installerSource = .url(url)
+        case let .browser(url, request):
+            options.httpHeaders = request.headers
+            options.httpMethod = request.method
+            options.httpBody = request.body
+            options.httpCookies = request.cookies
+            options.singleRequest = true
             installerSource = .url(url)
         case let .file(url, owned):
             run.access(url)
@@ -77,8 +104,18 @@ final class GameInstallRun {
                         completion(.webPage(url))
                         return
                     }
+                    // Refused the very first request (a bot check such as Cloudflare's, or a host that only
+                    // serves browsers): open the link in the browser, which passes the check like Safari and
+                    // hands the file back with its cookies.
+                    if error.kind == .httpError, let detail = error.detail, detail.hasSuffix("first request"),
+                       ["HTTP 401", "HTTP 403", "HTTP 429", "HTTP 503"].contains(where: detail.contains),
+                       case let .url(url, headers) = source, headers.isEmpty {
+                        GameFolder.log("The link refused the app's request (\(detail)); opening it in the browser.")
+                        completion(.webPage(url))
+                        return
+                    }
                     var message = error.message
-                    if error.kind == .cancelled { message = "Cancelled. Files already unpacked are kept; starting again replaces them." }
+                    if error.kind == .cancelled { message = AppLanguage.choose("Cancelled. What was downloaded and unpacked is kept: Continue the download picks up where it stopped.") }
                     completion(.failure(message))
                 }
             })
@@ -94,6 +131,7 @@ final class GameInstallRun {
     private static func describe(_ source: GameInstallSource) -> String {
         switch source {
         case let .url(url, _): return "a link (\(url.host ?? "?"))"
+        case let .browser(url, _): return "a download page's file (\(url.host ?? "?"))"
         case let .file(url, owned): return "\(url.lastPathComponent)\(owned ? " (freed as it unpacks)" : "")"
         case let .parts(urls): return "\(urls.count) parts"
         }
@@ -104,23 +142,26 @@ final class GameInstallRun {
         var detail: [String] = []
         switch p.phase {
         case .checking:
-            return GameInstallUpdate(title: "Checking space and the archive…", detail: "", fraction: 0)
+            return GameInstallUpdate(title: AppLanguage.choose("Checking space and the archive…"), detail: "", fraction: 0)
         case .verifying:
-            return GameInstallUpdate(title: "Checking every file…", detail: "", fraction: 1)
+            return GameInstallUpdate(title: AppLanguage.choose("Checking every file…"), detail: "", fraction: 1)
         case .finished:
-            return GameInstallUpdate(title: L10n.text("Done"), detail: "", fraction: 1)
+            return GameInstallUpdate(title: AppLanguage.choose("Done"), detail: "", fraction: 1)
         case .downloading, .unpacking:
-            detail.append("\(size(p.extractedBytes)) of \(size(p.totalBytes)) unpacked · \(p.filesDone) of \(p.filesTotal) files")
+            detail.append(AppLanguage.interpolate(AppLanguage.choose("{arg0} of {arg1} unpacked · {arg2} of {arg3} files"), [size(p.extractedBytes), size(p.totalBytes), String(p.filesDone), String(p.filesTotal)]))
             if p.downloadedBytes > 0 {
-                let total = p.downloadTotalBytes.map { " of " + size($0) } ?? ""
-                detail.append("Downloaded \(size(p.downloadedBytes))\(total)\(p.bytesPerSecond.map { " · " + size(Int64($0)) + "/s" } ?? "")")
+                let speed = p.bytesPerSecond.map { " · " + size(Int64($0)) + "/s" } ?? ""
+                let downloaded = p.downloadTotalBytes.map { AppLanguage.interpolate(AppLanguage.choose("Downloaded {arg0} of {arg1}"), [size(p.downloadedBytes), size($0)]) }
+                    ?? AppLanguage.interpolate(AppLanguage.choose("Downloaded {arg0}"), [size(p.downloadedBytes)])
+                detail.append(downloaded + speed)
             }
             if let seconds = p.secondsRemaining, seconds.isFinite {
-                detail.append(seconds < 90 ? "About a minute left" : "About \(Int(seconds / 60)) minutes left")
+                detail.append(seconds < 90 ? AppLanguage.choose("About a minute left") : AppLanguage.interpolate(AppLanguage.choose("About {arg0} minutes left"), [String(Int(seconds / 60))]))
             }
-            if p.retries > 0 { detail.append("Connection dropped \(p.retries)× and resumed") }
+            if p.retries > 0 { detail.append(AppLanguage.interpolate(AppLanguage.choose("Connection dropped {arg0}× and resumed"), [String(p.retries)])) }
             if let file = p.currentFile { detail.append(file) }
-            let title = p.phase == .downloading ? "Downloading and unpacking… \(Int(p.fraction * 100))%" : "Unpacking… \(Int(p.fraction * 100))%"
+            let format = p.phase == .downloading ? AppLanguage.choose("Downloading and unpacking… {arg0}%") : AppLanguage.choose("Unpacking… {arg0}%")
+            let title = AppLanguage.interpolate(format, [String(Int(p.fraction * 100))])
             return GameInstallUpdate(title: title, detail: detail.joined(separator: "\n"), fraction: p.fraction)
         }
     }
@@ -147,7 +188,7 @@ final class GameInstallManager {
 
     func start(_ source: GameInstallSource, to destination: URL) {
         guard !isRunning else { return }
-        state = .running(GameInstallUpdate(title: "Starting…", detail: "", fraction: 0))
+        state = .running(GameInstallUpdate(title: AppLanguage.choose("Starting…"), detail: "", fraction: 0))
         post()
         run = GameInstallRun.start(source, to: destination, progress: { [weak self] update in
             self?.state = .running(update)

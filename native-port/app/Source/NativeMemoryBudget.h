@@ -1,6 +1,5 @@
 #pragma once
 #include <stdint.h>
-
 // Keep a 256 MiB resource-pool growth step plus transient upload headroom.
 // The virtual heap capacity is unchanged; this only informs streaming eviction.
 // Two thresholds: streaming stops growing `band` bytes above the reserve, and only evicts below
@@ -11,7 +10,6 @@ static inline uint64_t pg_streaming_headroom_budget(uint64_t engineAvailable,uin
  uint64_t available=processAvailable>grow?processAvailable-grow:0;
  return engineAvailable<available?engineAvailable:available;
 }
-
 // The resource budget is signed. Below the reserve, a negative answer asks
 // the existing streamer to evict that many bytes; zero only stops growth.
 static inline int64_t pg_streaming_resource_budget(int64_t engineAvailable,uint64_t processAvailable,uint64_t reserve,uint64_t band){

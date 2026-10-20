@@ -4,19 +4,25 @@ import UIKit
 /// over blue, glass panels on top of the background art, and one warm accent for the main actions.
 enum Theme {
     /// The app's version as players should quote it in reports, e.g. "v1.3 (6)".
+    /// The community: official releases, help and announcements.
+    static let telegramURL = URL(string: "https://t.me/fivestarport")!
     static let appVersion: String = {
         let info = Bundle.main.infoDictionary
-        return "v\(info?["CFBundleShortVersionString"] as? String ?? "?") (\(info?["CFBundleVersion"] as? String ?? "?"))"
+        // Each release has one build number, so the marketing version alone identifies it.
+        return "v\(info?["CFBundleShortVersionString"] as? String ?? "?")" + (isLite ? " Lite" : "")
     }()
-    static let accent = UIColor(red: 0.34, green: 0.93, blue: 0.77, alpha: 1)
-    static let accentDeep = UIColor(red: 0.18, green: 0.76, blue: 0.66, alpha: 1)
+    /// The Lite build for iPhones with little memory: Info.plist PGLiteMode (build_ipa.sh --lite), or PG_LITE=1.
+    static let isLite: Bool = (Bundle.main.object(forInfoDictionaryKey: "PGLiteMode") as? Bool ?? false)
+        || (ProcessInfo.processInfo.environment["PG_LITE"].map { $0 != "0" } ?? false)
+    static let accent = UIColor(red: 1.0, green: 0.62, blue: 0.18, alpha: 1)        // sunset orange
+    static let accentDeep = UIColor(red: 0.95, green: 0.36, blue: 0.16, alpha: 1)
     static let ok = UIColor(red: 0.30, green: 0.85, blue: 0.47, alpha: 1)
     static let warning = UIColor(red: 1.0, green: 0.78, blue: 0.26, alpha: 1)
     static let problem = UIColor(red: 1.0, green: 0.42, blue: 0.38, alpha: 1)
     static let text = UIColor.white
     static let secondaryText = UIColor(white: 1, alpha: 0.68)
     static let tertiaryText = UIColor(white: 1, alpha: 0.45)
-    static let night = UIColor(red: 0.035, green: 0.055, blue: 0.095, alpha: 1)
+    static let night = UIColor(red: 0.03, green: 0.05, blue: 0.11, alpha: 1)       // behind everything
     static let panelStroke = UIColor(white: 1, alpha: 0.12)
 
     static func display(_ size: CGFloat, _ weight: UIFont.Weight = .heavy) -> UIFont {
@@ -37,11 +43,13 @@ enum Theme {
         return panel
     }
 
-    /// The background art (sunset over the city) with darkening on the left where the controls sit.
+    /// The background art (the beach selfie) with darkening on the left where the controls sit.
     static func backdrop(image name: String, darken: CGFloat = 0.55) -> UIView {
         let view = UIView()
         view.backgroundColor = night
-        let art = GradientView(colors: [UIColor(red: 0.045, green: 0.17, blue: 0.18, alpha: 1), night, UIColor(red: 0.11, green: 0.10, blue: 0.22, alpha: 1)], locations: [0, 0.55, 1], horizontal: true)
+        let art = UIImageView(image: UIImage(named: name))
+        art.contentMode = .scaleAspectFill
+        art.clipsToBounds = true
         let shade = GradientView(colors: [night.withAlphaComponent(0.92), night.withAlphaComponent(darken), night.withAlphaComponent(0.05)],
                                  locations: [0, 0.42, 1], horizontal: true)
         let floor = GradientView(colors: [.clear, night.withAlphaComponent(0.6)], locations: [0.6, 1], horizontal: false)
@@ -61,15 +69,27 @@ enum Theme {
     static func dimmedBackdrop(image name: String) -> UIView {
         let view = UIView()
         view.backgroundColor = night
-        let art = GradientView(colors: [night, UIColor(red: 0.07, green: 0.13, blue: 0.17, alpha: 1)], locations: [0, 1], horizontal: true)
+        let art = UIImageView(image: UIImage(named: name))
+        art.contentMode = .scaleAspectFill
+        art.clipsToBounds = true
         let shade = UIView()
         shade.backgroundColor = night.withAlphaComponent(0.78)
         for layer in [art, shade] {
-            layer.frame = view.bounds
-            layer.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            layer.translatesAutoresizingMaskIntoConstraints = false
             view.addSubview(layer)
+            NSLayoutConstraint.activate([
+                layer.leadingAnchor.constraint(equalTo: view.leadingAnchor), layer.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+                layer.topAnchor.constraint(equalTo: view.topAnchor), layer.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+            ])
         }
+        view.isUserInteractionEnabled = false
         return view
+    }
+    /// Settings pages (and Cheats › Spawn vehicle): the dimmed art behind the rows, also behind a search bar.
+    static func styleSettingsTable(_ table: UITableView) {
+        table.backgroundColor = night
+        table.backgroundView = dimmedBackdrop(image: "SettingsBackground")
+        table.separatorColor = UIColor(white: 1, alpha: 0.1)
     }
     /// A table row on the dark art.
     static let rowBackground = UIColor(white: 1, alpha: 0.07)
@@ -91,7 +111,7 @@ enum Theme {
         let button = UIButton(configuration: config)
         button.configurationUpdateHandler = { button in
             button.configuration?.background.backgroundColor = button.isEnabled ? (button.isHighlighted ? accentDeep : accent) : UIColor(white: 1, alpha: 0.16)
-            button.configuration?.baseForegroundColor = button.isEnabled ? UIColor(red: 0.02, green: 0.13, blue: 0.15, alpha: 1) : UIColor(white: 1, alpha: 0.6)
+            button.configuration?.baseForegroundColor = button.isEnabled ? UIColor(red: 0.16, green: 0.07, blue: 0.02, alpha: 1) : UIColor(white: 1, alpha: 0.6)
         }
         button.layer.shadowColor = accent.cgColor
         button.layer.shadowOpacity = 0.35

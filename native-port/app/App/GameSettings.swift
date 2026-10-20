@@ -6,11 +6,11 @@ enum GameMode: Int, CaseIterable {
     case story = 1
     case sandbox = 2
 
-    var title: String { self == .story ? L10n.text("Cốt truyện") : L10n.text("Tự do") }
+    var title: String { self == .story ? AppLanguage.choose("Story mode") : AppLanguage.choose("Sandbox") }
     var detail: String {
         switch self {
-        case .story: return L10n.text("Tiếp tục bản lưu gần nhất hoặc bắt đầu cốt truyện mới.")
-        case .sandbox: return L10n.text("Khám phá bản đồ và thử mọi vũ khí trong chế độ tự do.")
+        case .story: return AppLanguage.choose("The campaign with missions. Continues your latest save, or starts from the Prologue.")
+        case .sandbox: return AppLanguage.choose("Free roam anywhere on the map with every weapon. No missions.")
         }
     }
 }
@@ -31,10 +31,6 @@ final class GameSettings {
     var gyroInvertY: Bool {
         get { defaults.bool(forKey: "gyroInvertY") }
         set { defaults.set(newValue, forKey: "gyroInvertY") }
-    }
-    var invertLookY: Bool {
-        get { defaults.bool(forKey: "invertLookY") }
-        set { defaults.set(newValue, forKey: "invertLookY") }
     }
 
     var tiltSteer: TiltSteerMode {
@@ -66,14 +62,74 @@ final class GameSettings {
         get { defaults.object(forKey: "controlScale") as? Double ?? 1.0 }
         set { defaults.set(min(max(newValue, 0.7), 1.5), forKey: "controlScale") }
     }
+    // Independent experimental controls; original v1.3 stick is the default.
+    // Do not conflate swipes with input device classification: the mouse path
+    // is intentionally tested as a separate option, not assumed to retain auto-aim.
+    enum CameraTouchMode: Int, CaseIterable {
+        case stick = 0
+        case swipePad = 1
+        case swipeMouse = 2
+
+        var title: String {
+            switch self {
+            case .stick: return AppLanguage.choose("Virtual right stick")
+            case .swipePad: return AppLanguage.choose("Swipe (controller)")
+            case .swipeMouse: return AppLanguage.choose("Swipe (mouse experiment)")
+            }
+        }
+    }
+    var cameraTouchMode: CameraTouchMode {
+        // Swipe always drives the game's mouse: the controller swipe felt choppy, worst on the
+        // vertical axis, because a finger can only tilt the stick up to the game's max turn speed.
+        get {
+            #if targetEnvironment(simulator)
+            // Tests: --test-camera-mode <0 stick, 2 swipe> for this run only.
+            let arguments = ProcessInfo.processInfo.arguments
+            if let i = arguments.firstIndex(of: "--test-camera-mode"), i + 1 < arguments.count { return arguments[i + 1] == "0" ? .stick : .swipeMouse }
+            #endif
+            return (CameraTouchMode(rawValue: defaults.integer(forKey: "cameraTouchMode")) ?? .stick) == .stick ? .stick : .swipeMouse
+        }
+        set {
+            defaults.set(newValue.rawValue, forKey: "cameraTouchMode")
+            // Remember the chosen swipe variant while the user switches to the
+            // controller tab. Never overwrite it when selecting the stick.
+            if newValue != .stick { defaults.set(newValue.rawValue, forKey: "preferredSwipeMode") }
+        }
+    }
+    var preferredSwipeMode: CameraTouchMode {
+        let saved = CameraTouchMode(rawValue: defaults.integer(forKey: "preferredSwipeMode"))
+        return saved == .swipePad ? .swipePad : .swipeMouse
+    }
+    static let swipeSensitivityMinimum = 0.2
+    static let swipeSensitivityMaximum = 15.0
+    static let swipeSensitivityDefault = 3.0
+    var swipeLookSensitivity: Double {
+        get { defaults.object(forKey: "swipeLookSensitivity") as? Double ?? Self.swipeSensitivityDefault }
+        set { defaults.set(min(max(newValue, Self.swipeSensitivityMinimum), Self.swipeSensitivityMaximum), forKey: "swipeLookSensitivity") }
+    }
+    var swipeAimSensitivity: Double {
+        get { defaults.object(forKey: "swipeAimSensitivity") as? Double ?? Self.swipeSensitivityDefault }
+        set { defaults.set(min(max(newValue, Self.swipeSensitivityMinimum), Self.swipeSensitivityMaximum), forKey: "swipeAimSensitivity") }
+    }
+
+    // Swipe moves the game's mouse by relative pixels; 1x was far too slow on a phone screen.
+    static let mouseSensitivityDefault = 5.0
+    var mouseLookSensitivity: Double {
+        get { defaults.object(forKey: "mouseLookSensitivity") as? Double ?? Self.mouseSensitivityDefault }
+        set { defaults.set(min(max(newValue, Self.swipeSensitivityMinimum), Self.swipeSensitivityMaximum), forKey: "mouseLookSensitivity") }
+    }
+    var mouseAimSensitivity: Double {
+        get { defaults.object(forKey: "mouseAimSensitivity") as? Double ?? Self.mouseSensitivityDefault }
+        set { defaults.set(min(max(newValue, Self.swipeSensitivityMinimum), Self.swipeSensitivityMaximum), forKey: "mouseAimSensitivity") }
+    }
     var lookSensitivity: Double {
-        get { defaults.object(forKey: "lookSensitivity") as? Double ?? 2.5 }
-        set { defaults.set(min(max(newValue, 0.5), 10.0), forKey: "lookSensitivity") }
+        get { defaults.object(forKey: "lookSensitivity") as? Double ?? 2.0 }
+        set { defaults.set(min(max(newValue, 0.3), 3), forKey: "lookSensitivity") }
     }
     /// Camera speed while aiming (the game slows the camera when aiming).
     var aimSensitivity: Double {
-        get { defaults.object(forKey: "aimSensitivity") as? Double ?? 2.5 }
-        set { defaults.set(min(max(newValue, 0.5), 10.0), forKey: "aimSensitivity") }
+        get { defaults.object(forKey: "aimSensitivity") as? Double ?? 1.3 }
+        set { defaults.set(min(max(newValue, 0.3), 4), forKey: "aimSensitivity") }
     }
     /// Fire also locks on, like the classic mobile GTA ports.
     var fireAlsoAims: Bool {
@@ -87,15 +143,15 @@ final class GameSettings {
         get { defaults.object(forKey: "targetingMode") as? Int ?? 1 }
         set { defaults.set(newValue, forKey: "targetingMode") }
     }
-    static let targetingTitles = [L10n.text("Traditional lock-on"), L10n.text("Assisted aim"), L10n.text("Assisted free aim"), L10n.text("Free aim")]
+    static var targetingTitles: [String] { [AppLanguage.choose("Traditional lock-on"), AppLanguage.choose("Assisted aim"), AppLanguage.choose("Assisted free aim"), AppLanguage.choose("Free aim")] }
 
     /// nil until the player has chosen on the launch screen.
-    /// Only the Los Santos map is exposed in Mugoat.
+    /// Sandbox map: 0 the GTA V map, 1 the test level the game files include (env_test).
     var sandboxMap: Int {
-        get { 0 }
-        set { defaults.set(0, forKey: "sandboxMap") }
+        get { defaults.integer(forKey: "sandboxMap") == 1 ? 1 : 0 }
+        set { defaults.set(newValue == 1 ? 1 : 0, forKey: "sandboxMap") }
     }
-    static let sandboxMapTitles = ["Los Santos"]
+    static var sandboxMapTitles: [String] { ["GTA V", AppLanguage.choose("GTA VI test map")] }
     var gameModeChoice: GameMode? {
         get { (defaults.object(forKey: "gameMode") as? Int).flatMap(GameMode.init) }
         set { defaults.set(newValue?.rawValue, forKey: "gameMode") }
@@ -110,7 +166,10 @@ final class GameSettings {
     lazy var tier = DeviceTier.probe()
     var graphicsPreset: GraphicsPreset {
         // integer(forKey:) also reads "-graphicsPreset 4" given as a launch argument (a string).
-        get { defaults.object(forKey: "graphicsPreset") != nil ? GraphicsPreset(rawValue: defaults.integer(forKey: "graphicsPreset")) ?? tier.recommended : tier.recommended }
+        get {
+            guard defaults.object(forKey: "graphicsPreset") != nil, let preset = GraphicsPreset(rawValue: defaults.integer(forKey: "graphicsPreset")) else { return tier.recommended }
+            return preset == .lite && !GraphicsPreset.liteAvailable ? .battery : preset
+        }
         set { defaults.set(newValue.rawValue, forKey: "graphicsPreset") }
     }
     var resolutionScale: Double {
@@ -128,15 +187,101 @@ final class GameSettings {
         set { defaults.set(newValue, forKey: "matchScreenShape") }
     }
     /// A hardware keyboard and mouse play through the game's own PC controls (on by default).
-    var keyboardMouse: Bool {
-        get { defaults.object(forKey: "keyboardMouse") as? Bool ?? true }
-        set { defaults.set(newValue, forKey: "keyboardMouse") }
+    /// Settings › Memory cap: the most memory (MB) the game may use, 0 automatic (the app's limit).
+    var memoryCapMB: Int {
+        get { defaults.integer(forKey: "memoryCapMB") }
+        set { defaults.set(max(0, newValue), forKey: "memoryCapMB") }
+    }
+    /// The player's own graphics details over the preset (GTA-84): engine option name -> value, e.g.
+    /// "textureQuality": "2". A detail not listed follows the preset. Kept when the preset changes.
+    var graphicsOverrides: [String: String] {
+        get { (defaults.dictionary(forKey: "graphicsOverrides") as? [String: String]) ?? [:] }
+        set { defaults.set(newValue, forKey: "graphicsOverrides") }
+    }
+    /// A Sprint button on foot (sprinting also works by holding the move stick at its edge). Off by default.
+    var sprintButton: Bool {
+        get { defaults.bool(forKey: "sprintButton") }
+        set { defaults.set(newValue, forKey: "sprintButton") }
     }
     /// Left/right buttons instead of the steering stick in vehicles. Off by default.
     var steeringButtons: Bool {
         get { defaults.bool(forKey: "steeringButtons") }
         set { defaults.set(newValue, forKey: "steeringButtons") }
     }
+    /// Optional airplane throttle/rudder stick. Helicopters keep their buttons.
+    var airplaneRightStick: Bool {
+        get { defaults.bool(forKey: "airplaneRightStick") }
+        set { defaults.set(newValue, forKey: "airplaneRightStick") }
+    }
+    /// Lower the frame rate while the phone is hot (NativePortViewController.thermalChanged). Off by default.
+    var steadyWhenHot: Bool {
+        get { defaults.bool(forKey: "steadyWhenHot") }
+        set { defaults.set(newValue, forKey: "steadyWhenHot") }
+    }
+    /// Graphics › Sharper upscaling (MetalFX), off by default: it costs some GPU time.
+    var sharperUpscaling: Bool {
+        get { defaults.bool(forKey: "sharperUpscaling") }
+        set { defaults.set(newValue, forKey: "sharperUpscaling"); PGSetSharperUpscaling(newValue ? 1 : 0) }
+    }
+    /// This device › Experimental (v1.4.3, on by default): improvements that player logs still have to confirm,
+    /// each with a switch to turn it off. Read by the engine and renderer, so they apply when the app starts.
+    var smarterTextureLoading: Bool {   // GTA-128: grey ground after long play
+        get { defaults.object(forKey: "expSmarterTextureLoading") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "expSmarterTextureLoading") }
+    }
+    var lighterBigTextures: Bool {      // GTA-122: the largest textures without their top level
+        get { defaults.object(forKey: "expLighterBigTextures") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "expLighterBigTextures") }
+    }
+    var fastEngineThreads: Bool {       // GTA-92: engine threads on the fast cores, queries sent at once
+        get { defaults.object(forKey: "expFastEngineThreads") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "expFastEngineThreads") }
+    }
+    /// A switch turned off sets the engine's own off value, unless a test launch already set it.
+    static func applyExperimentalSwitches() {
+        let settings = GameSettings.shared
+        func off(_ name: String, _ value: String) { if getenv(name) == nil { setenv(name, value, 1) } }
+        if !settings.smarterTextureLoading { off("PG_GUARD_POOL_ROOM", "0") }
+        if !settings.lighterBigTextures { off("PG_BIG_MIP_SKIP", "0") }
+        if !settings.fastEngineThreads { off("PG_ENGINE_QOS", "off"); off("PG_QUERY_COMMIT_MS", "2") }
+    }
+    var showFPS: Bool {
+        get { defaults.object(forKey: "showFPS") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "showFPS") }
+    }
+    /// Touch controls › Minimap (GTA-131): where the game's minimap sits. The game reads it when it starts.
+    enum MinimapPlace: Int, CaseIterable {
+        case bottomLeft, topLeft, custom
+        var title: String { [AppLanguage.choose("Bottom left"), AppLanguage.choose("Top left"), AppLanguage.choose("Custom")][rawValue] }
+    }
+    var minimapPlace: MinimapPlace {
+        get { MinimapPlace(rawValue: defaults.integer(forKey: "minimapPlace")) ?? .bottomLeft }
+        set { defaults.set(newValue.rawValue, forKey: "minimapPlace") }
+    }
+    /// The custom place, in the game's HUD units: offset from the usual bottom-left corner (x to the right,
+    /// y negative = up) and a size factor.
+    var minimapCustom: (dx: Double, dy: Double, scale: Double) {
+        get {
+            let v = defaults.array(forKey: "minimapCustom") as? [Double] ?? []
+            return v.count == 3 ? (v[0], v[1], v[2]) : (0, 0, 1)
+        }
+        set { defaults.set([newValue.dx, newValue.dy, newValue.scale], forKey: "minimapCustom") }
+    }
+    /// What the game gets for the chosen place. Top left: up until the map's top edge is just below the screen's.
+    var minimapLayout: (dx: Double, dy: Double, scale: Double) {
+        switch minimapPlace {
+        case .bottomLeft: return (0, 0, 1)
+        case .topLeft: return (0, -0.79, 1)
+        case .custom: return minimapCustom
+        }
+    }
+    /// The map sits in the top half: the FPS counter moves to the bottom left instead.
+    var minimapAtTop: Bool { minimapLayout.dy < -0.4 && minimapLayout.dx < 0.25 }
+    var keyboardMouse: Bool {
+        get { defaults.object(forKey: "keyboardMouse") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "keyboardMouse") }
+    }
+    /// Hide the touch controls while a game controller is connected (on by default).
     var hideTouchWithController: Bool {
         get { defaults.object(forKey: "hideTouchWithController") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "hideTouchWithController") }
@@ -150,7 +295,7 @@ final class GameSettings {
         }
         set { defaults.set(newValue, forKey: "frameRateCap") }
     }
-    static func frameRateTitle(_ cap: Int) -> String { cap == 0 ? L10n.text("Unlocked") : "\(cap) FPS" }
+    static func frameRateTitle(_ cap: Int) -> String { cap == 0 ? AppLanguage.choose("Unlocked") : "\(cap) FPS" }
 
     // Crash fallback: a launch that never reached a stable world is treated
     // as a memory kill, and the last preset that worked is restored.
@@ -168,7 +313,7 @@ final class GameSettings {
         let fallback: GraphicsPreset
         /// The custom resolution that was set back to Auto, if any.
         let resetHeight: Int?
-        let processAllowanceMB: Int
+        let memoryLimitMB: Int
     }
     /// Lowers the settings when the previous launch failed. Returns what changed, or nil.
     func recoverFromFailedBoot() -> BootRecovery? {
@@ -183,7 +328,7 @@ final class GameSettings {
         // closed by an update or by Xcode): keep it, and only undo a resolution raised above it.
         let fallback = lastGoodPreset == failed ? failed
             : lastGoodPreset.flatMap { $0.rawValue < failed.rawValue ? $0 : nil }
-            ?? GraphicsPreset(rawValue: max(0, min(failed.rawValue - 1, tier.recommended.rawValue))) ?? .performance
+            ?? GraphicsPreset(rawValue: max(GraphicsPreset.available[0].rawValue, min(failed.rawValue - 1, tier.recommended.rawValue))) ?? .performance
         // A custom resolution above the fallback's own also costs memory: back to Auto (unless that
         // resolution already ran stably with this preset).
         let provenHeight = fallback == lastGoodPreset ? defaults.integer(forKey: "lastGoodRenderHeight") : 0
@@ -191,7 +336,7 @@ final class GameSettings {
         guard fallback != failed || resetHeight != nil else { return nil }
         graphicsPreset = fallback
         if resetHeight != nil { renderHeight = 0 }
-        return BootRecovery(failed: failed, fallback: fallback, resetHeight: resetHeight, processAllowanceMB: tier.processAllowanceMB)
+        return BootRecovery(failed: failed, fallback: fallback, resetHeight: resetHeight, memoryLimitMB: tier.memoryLimitMB)
     }
     /// "Try again anyway" in the popup: put the settings back as they were.
     func undoRecovery(_ recovery: BootRecovery) {

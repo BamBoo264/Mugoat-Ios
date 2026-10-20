@@ -7,28 +7,11 @@ extension Notification.Name {
 /// Where the engine keeps its files. The asset cache sits next to this folder
 /// (`AssetCache-<version>`), so the preloader and the engine must agree on it.
 enum EnginePaths {
-    static var manifest: String? {
-        if let bundlePath = Bundle.main.path(forResource: "manifest", ofType: "json"),
-           FileManager.default.fileExists(atPath: bundlePath) {
-            return bundlePath
-        }
-        if let folder = GameFolder.open() {
-            let candidate1 = folder.appendingPathComponent("data/manifest.json").path
-            if FileManager.default.fileExists(atPath: candidate1) { return candidate1 }
-            let candidate2 = folder.appendingPathComponent("manifest.json").path
-            if FileManager.default.fileExists(atPath: candidate2) { return candidate2 }
-        }
-        return nil
-    }
+    static var manifest: String? { Bundle.main.path(forResource: "manifest", ofType: "json") }
 
     /// Returns the engine files root and, on the simulator, an optional note.
     static func filesRoot() -> (path: String, note: String?) {
-        let base = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        // Upgrading the old Muguet-based build must preserve its actual saves.
-        // Reuse that root when present; never overwrite or delete either folder.
-        let legacy = base.appendingPathComponent("saves")
-        let folder = FileManager.default.fileExists(atPath: legacy.path) ? legacy : base.appendingPathComponent("EngineFiles")
-        let documents = folder.path
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("EngineFiles").path
         #if targetEnvironment(simulator)
         // PG_SIMULATOR_ENGINE_ROOT (or PG_ENGINE_FILES_ROOT) keeps a test run's saves and cache apart.
         let environment = ProcessInfo.processInfo.environment
@@ -45,7 +28,7 @@ enum EnginePaths {
     }
 }
 
-/// L10n.text("Download all game files"): copies every archive into the same block cache
+/// "Download all game files": copies every archive into the same block cache
 /// that streaming fills, so play no longer depends on the server. The native
 /// side (Source/NativeAssetPreload.h) does the work; this class keeps the
 /// player's choice, checks storage, estimates time and handles app lifecycle.
@@ -105,10 +88,10 @@ final class AssetPreloader {
 
     var phase: Phase {
         if GameFolder.isChosen {
-            return .unavailable("The game files are already on this iPhone (folder \"\(GameFolder.name)\"), so nothing needs downloading.")
+            return .unavailable(AppLanguage.interpolate(AppLanguage.choose("The game files are already on this iPhone (folder \"{arg0}\"), so nothing needs downloading."), [String(describing: GameFolder.name)]))
         }
         if prepared && !PGAssetPreloadSupported() {
-            return .unavailable("The simulator reads the Mac's game files directly. Launch with --stream-assets to test downloads.")
+            return .unavailable(AppLanguage.choose("The simulator reads the Mac's game files directly. Launch with --stream-assets to test downloads."))
         }
         if running { return .downloading }
         if measured && totalBytes > 0 && cachedBytes >= totalBytes { return .complete }
@@ -167,11 +150,11 @@ final class AssetPreloader {
     @discardableResult
     func start() -> String? {
         prepare()
-        guard !GameSettings.shared.assetServer.isEmpty else { return "Set your game file server first (Play screen)." }
+        guard !GameSettings.shared.assetServer.isEmpty else { return AppLanguage.choose("Set your game file server first (Play screen).") }
         PGSetAssetServer(GameSettings.shared.assetServer)
-        guard PGAssetPreloadSupported() else { return "Downloads are not available here." }
+        guard PGAssetPreloadSupported() else { return AppLanguage.choose("Downloads are not available here.") }
         if running { return nil }
-        if removing { return "Still removing files. Try again in a moment." }
+        if removing { return AppLanguage.choose("Still removing files. Try again in a moment.") }
         var total: UInt64 = 0, cached: UInt64 = 0, files: UInt32 = 0
         if let filter { filter.withCString { PGAssetPreloadMeasure($0, &total, &cached, &files) } }
         else { PGAssetPreloadMeasure(nil, &total, &cached, &files) }
@@ -180,7 +163,7 @@ final class AssetPreloader {
         let needed = total - cached + Self.reserveBytes
         let free = availableBytes()
         if free < needed {
-            let message = "Not enough free space. The rest of the game needs \(Self.format(total - cached)) plus \(Self.format(Self.reserveBytes)) to spare, but only \(Self.format(free)) is free. Free up \(Self.format(needed - free)) and try again."
+            let message = AppLanguage.interpolate(AppLanguage.choose("Not enough free space. The rest of the game needs {arg0} plus {arg1} to spare, but only {arg2} is free. Free up {arg3} and try again."), [String(describing: Self.format(total - cached)), String(describing: Self.format(Self.reserveBytes)), String(describing: Self.format(free)), String(describing: Self.format(needed - free))])
             lastError = message
             notify()
             return message
@@ -191,7 +174,7 @@ final class AssetPreloader {
         samples = []
         let lanes: UInt32 = engineRunning ? 2 : 6
         let started = filter.map { $0.withCString { PGAssetPreloadStart($0, lanes) } } ?? PGAssetPreloadStart(nil, lanes)
-        guard started else { return "The download could not start." }
+        guard started else { return AppLanguage.choose("The download could not start.") }
         running = true
         NSLog("[asset-preload] started: %llu of %llu bytes on device, %u files", cached, total, files)
         startTimer()
@@ -218,8 +201,8 @@ final class AssetPreloader {
     /// background queue; thousands of files can take a few seconds.
     /// Returns a message when it cannot run now.
     func removeDownloads(completion: @escaping (String?) -> Void) {
-        guard !running else { completion("Stop the download first."); return }
-        guard !engineRunning else { completion("Restart the app to remove files; the game is using them."); return }
+        guard !running else { completion(AppLanguage.choose("Stop the download first.")); return }
+        guard !engineRunning else { completion(AppLanguage.choose("Restart the app to remove files; the game is using them.")); return }
         guard !removing else { completion(nil); return }
         removing = true
         wanted = false
@@ -234,7 +217,7 @@ final class AssetPreloader {
                 if removed { self.cachedBytes = 0 }
                 NSLog("[asset-preload] removed cache: %d, %llu bytes", removed ? 1 : 0, freed)
                 self.refresh()
-                completion(removed ? nil : "The files could not be removed.")
+                completion(removed ? nil : AppLanguage.choose("The files could not be removed."))
             }
         }
     }
@@ -263,7 +246,7 @@ final class AssetPreloader {
         samples.removeAll { now - $0.time > 20 }
         if status.totalBytes > 0 { totalBytes = status.totalBytes; cachedBytes = status.cachedBytes }
         if status.running, availableBytes() < 300_000_000 {
-            lastError = "Paused because this iPhone is almost out of storage."
+            lastError = AppLanguage.choose("Paused because this iPhone is almost out of storage.")
             PGAssetPreloadStop()
         }
         if !status.running {
@@ -271,9 +254,9 @@ final class AssetPreloader {
             timer?.invalidate(); timer = nil
             switch status.error {
             case Int32(PGAssetPreloadErrorNetwork.rawValue):
-                lastError = "Could not reach the game server. Check that Tailscale is connected, then resume."
+                lastError = AppLanguage.choose("Could not reach the game server. Check that Tailscale is connected, then resume.")
             case Int32(PGAssetPreloadErrorStorage.rawValue):
-                lastError = "Stopped because files could not be saved. Free up storage, then resume."
+                lastError = AppLanguage.choose("Stopped because files could not be saved. Free up storage, then resume.")
             default: break
             }
             NSLog("[asset-preload] stopped: %llu of %llu bytes on device, error %d", status.cachedBytes, status.totalBytes, status.error)
@@ -311,21 +294,21 @@ final class AssetPreloader {
         return formatter.string(fromByteCount: Int64(bytes))
     }
     static func formatDuration(_ seconds: Double) -> String {
-        if seconds < 60 { return "under a minute left" }
+        if seconds < 60 { return AppLanguage.choose("under a minute left") }
         let formatter = DateComponentsFormatter()
         formatter.unitsStyle = .short
         formatter.allowedUnits = seconds >= 3600 ? [.hour, .minute] : [.minute]
         formatter.maximumUnitCount = 2
-        return "about \(formatter.string(from: seconds) ?? "") left"
+        return AppLanguage.interpolate(AppLanguage.choose("about {arg0} left"), [String(describing: formatter.string(from: seconds) ?? "")])
     }
 
     /// One-line summary for the launch screen; nil when there is nothing to say.
     var launchSummary: String? {
         let percent = Int((fraction * 100).rounded(.down))
         switch phase {
-        case .downloading: return "Downloading game files: \(percent)% (\(Self.format(cachedBytes)) of \(Self.format(totalBytes)))"
-        case .paused: return "Game file download paused at \(percent)%"
-        case .complete: return wanted ? "All game files on device" : nil
+        case .downloading: return AppLanguage.interpolate(AppLanguage.choose("Downloading game files: {arg0}% ({arg1} of {arg2})"), [String(describing: percent), String(describing: Self.format(cachedBytes)), String(describing: Self.format(totalBytes))])
+        case .paused: return AppLanguage.interpolate(AppLanguage.choose("Game file download paused at {arg0}%"), [String(describing: percent)])
+        case .complete: return wanted ? AppLanguage.choose("All game files on device") : nil
         case .idle, .unavailable: return nil
         }
     }

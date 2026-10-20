@@ -12,12 +12,8 @@ final class KeyboardMouse {
     var hasKeyboard: Bool { GCKeyboard.coalesced != nil }
     var hasMouse: Bool { !GCMouse.mice().isEmpty }
 
-    var isPCMode: Bool { GameSettings.shared.keyboardMouse && hasKeyboard && hasMouse }
-    /// Forward keyboard events to gamepad emulation when PC mode (keyboard + mouse) is inactive.
-    var onControllerKey: ((UIKeyboardHIDUsage, Bool) -> Void)?
-
     private var started = false
-    private var enabled: Bool { isPCMode }
+    private var enabled: Bool { GameSettings.shared.keyboardMouse }
     private var dx: Double = 0, dy: Double = 0, wheel: Double = 0
     private var remainderX = 0.0, remainderY = 0.0
     private var buttons: Int32 = 0
@@ -46,19 +42,12 @@ final class KeyboardMouse {
 
     private func attachKeyboard(_ keyboard: GCKeyboard?) {
         keyboard?.keyboardInput?.keyChangedHandler = { [weak self] _, _, code, pressed in
-            guard let self else { return }
-            if self.enabled {
-                guard let key = Self.virtualKey(code) else { return }
-                self.set(key, pressed)
-                // The game also reads the side-less Shift/Ctrl/Alt codes.
-                if let generic = [0xA0: 0x10, 0xA1: 0x10, 0xA2: 0x11, 0xA3: 0x11, 0xA4: 0x12, 0xA5: 0x12][Int(key)] {
-                    let sides: [UInt8] = generic == 0x10 ? [0xA0, 0xA1] : generic == 0x11 ? [0xA2, 0xA3] : [0xA4, 0xA5]
-                    self.set(UInt8(generic), sides.contains(where: self.held.contains))
-                }
-            } else {
-                if let usage = UIKeyboardHIDUsage(rawValue: Int(code.rawValue)) {
-                    self.onControllerKey?(usage, pressed)
-                }
+            guard let self, self.enabled, let key = Self.virtualKey(code) else { return }
+            self.set(key, pressed)
+            // The game also reads the side-less Shift/Ctrl/Alt codes.
+            if let generic = [0xA0: 0x10, 0xA1: 0x10, 0xA2: 0x11, 0xA3: 0x11, 0xA4: 0x12, 0xA5: 0x12][Int(key)] {
+                let sides: [UInt8] = generic == 0x10 ? [0xA0, 0xA1] : generic == 0x11 ? [0xA2, 0xA3] : [0xA4, 0xA5]
+                self.set(UInt8(generic), sides.contains(where: self.held.contains))
             }
         }
     }
@@ -82,6 +71,7 @@ final class KeyboardMouse {
     private func set(_ key: UInt8, _ down: Bool) {
         if down { held.insert(key) } else { held.remove(key) }
         PGSetKey(key, down)
+        PGAsiSetKey(Int32(key), down)  // script mods (.asi) read the same Windows keys
     }
     private func setButton(_ bit: Int32, _ pressed: Bool) {
         guard enabled else { return }
@@ -104,7 +94,6 @@ final class KeyboardMouse {
     func releaseAll() {
         held.removeAll()
         buttons = 0
-        dx = 0; dy = 0; wheel = 0
         PGReleaseAllKeys()
     }
 

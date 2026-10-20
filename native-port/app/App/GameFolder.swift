@@ -1,7 +1,7 @@
 import Foundation
 
 /// Where your own copy of the game lives on this iPhone. Two ways:
-/// - In the app's own folder (Files › On My iPhone › Mugoat): found automatically, at any
+/// - In the app's own folder (Files › On My iPhone › GTA V Port): found automatically, at any
 ///   depth, with no picking and no permissions. Moving a folder within On My iPhone is instant.
 /// - A folder picked in Files, which can be any folder above the game (even On My iPhone itself):
 ///   the app looks through it for the game and keeps access between launches with a bookmark.
@@ -33,12 +33,13 @@ enum GameFolder {
     static var appFolder: URL { FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0] }
 
     static func clear() {
+        testMapKnown = nil
         for key in [bookmarkKey, nameKey, subpathKey, inAppKey] { UserDefaults.standard.removeObject(forKey: key) }
     }
 
     // MARK: The app's own folder
 
-    /// Looks for the game anywhere inside Files › On My iPhone › Mugoat and checks every file.
+    /// Looks for the game anywhere inside Files › On My iPhone › GTA V Port and checks every file.
     /// Returns true when a complete game was found (and remembers it). Does nothing when a picked
     /// folder is already in use. Takes about a second.
     @discardableResult
@@ -68,6 +69,7 @@ enum GameFolder {
         }
         UserDefaults.standard.removeObject(forKey: bookmarkKey)
         UserDefaults.standard.set(true, forKey: inAppKey)
+        testMapKnown = nil
         UserDefaults.standard.set(subpath, forKey: subpathKey)
         UserDefaults.standard.set(displayName(best.data), forKey: nameKey)
         return true
@@ -91,7 +93,7 @@ enum GameFolder {
         defer { if scoped { picked.stopAccessingSecurityScopedResource() } }
         log("Folder picked: \(picked.path) (access granted: \(scoped), \(describeLocation(picked)))")
         guard FileManager.default.isReadableFile(atPath: picked.path) else {
-            return .refused("The app was not allowed to open that folder. Move your game folder to Files › On My iPhone › Mugoat instead; the app finds it there by itself.")
+            return .refused(AppLanguage.choose("The app was not allowed to open that folder. Move your game folder to Files › On My iPhone › GTA V Port instead; the app finds it there by itself."))
         }
         let scan = GameFiles.scan(picked)
         archivesFound = scan.archives
@@ -110,13 +112,14 @@ enum GameFolder {
             let bookmark = try picked.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
             UserDefaults.standard.set(bookmark, forKey: bookmarkKey)
             UserDefaults.standard.set(false, forKey: inAppKey)
+            testMapKnown = nil
             UserDefaults.standard.set(subpath, forKey: subpathKey)
             UserDefaults.standard.set(displayName(best.data), forKey: nameKey)
             acceptedProblemCount = best.problems.count
             log("Game folder accepted: data at \(subpath.isEmpty ? "(the picked folder)" : subpath), all \(best.fileCount) files checked")
             return .accepted(best)
         } catch {
-            return .refused("The app could not remember that folder: \(error.localizedDescription)")
+            return .refused(AppLanguage.interpolate(AppLanguage.choose("The app could not remember that folder: {arg0}"), [error.localizedDescription]))
         }
     }
 
@@ -168,6 +171,16 @@ enum GameFolder {
         return GameFiles.gameData(at: data) == data ? data : nil
     }
 
+    /// Whether the game in use includes the GTA VI test map (checked once per launch).
+    static var testMapAvailable: Bool {
+        if let known = testMapKnown { return known }
+        let available = open().map(GameFiles.hasTestMap) ?? false
+        testMapKnown = available
+        if !available { log("The game files don't include the GTA VI test map; that Sandbox map is unavailable.") }
+        return available
+    }
+    static var testMapKnown: Bool?
+
     /// Checks every file of the game in use (Settings › Check game files).
     static func checkChosen() -> GameFiles.Report? {
         guard let data = open() else { return nil }
@@ -183,9 +196,9 @@ enum GameFolder {
         let hasEngine = manager.fileExists(atPath: picked.appendingPathComponent("game.wasm").path)
             || manager.fileExists(atPath: picked.appendingPathComponent("8b0b5899ed/game.wasm").path)
         if name == "b" || name == "8b0b5899ed" || name == "shaders" || hasEngine {
-            return "You opened the \"\(name)\" folder. Go back up one or two levels and pick the folder that has both \"data\" and \"b\" inside, then tap Open there."
+            return AppLanguage.interpolate(AppLanguage.choose("You opened the \"{arg0}\" folder. Go back up one or two levels and pick the folder that has both \"data\" and \"b\" inside, then tap Open there."), [String(describing: name)])
         }
-        return "There is no game in \"\(name)\". Pick the folder that has your game in it (any folder above it works, even On My iPhone itself).\n\nEasiest: move your game folder into Files › On My iPhone › Mugoat. The app finds it there by itself."
+        return AppLanguage.interpolate(AppLanguage.choose("There is no game in \"{arg0}\". Pick the folder that has your game in it (any folder above it works, even On My iPhone itself).\n\nEasiest: move your game folder into Files › On My iPhone › GTA V Port. The app finds it there by itself."), [name])
     }
 
     /// The name shown for a game folder: the folder holding data/, or data/'s own name.
