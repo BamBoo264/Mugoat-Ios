@@ -56,8 +56,9 @@ final class ModManagerViewController: UITableViewController, UIDocumentPickerDel
     private func scanMods() {
         scanGeneration += 1
         let generation = scanGeneration, directory = Self.modsDirectory
+        let mounted = engineRunning ? ModRuntime.activeCatalog : nil
         DispatchQueue.global(qos: .utility).async {
-            let files = ModFiles.scan(directory), catalog = ModRuntime.catalog(directory)
+            let files = ModFiles.scan(directory), catalog = mounted ?? ModRuntime.catalog(directory)
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.scanGeneration == generation else { return }
                 self.modFiles = files; self.dlcCatalog = catalog
@@ -259,12 +260,14 @@ final class ModManagerViewController: UITableViewController, UIDocumentPickerDel
             } else {
                 newURL = mod.url.deletingPathExtension()
             }
-            try? self.fileManager.moveItem(at: mod.url, to: newURL)
+            do { try self.fileManager.moveItem(at: mod.url, to: newURL) }
+            catch { self.showAlert("Không thể đổi trạng thái mod", error.localizedDescription) }
             self.scanMods()
         })
         sheet.addAction(UIAlertAction(title: L10n.text("Xóa vĩnh viễn"), style: .destructive) { [weak self] _ in
             guard let self else { return }
-            try? self.fileManager.removeItem(at: mod.url)
+            do { try self.fileManager.removeItem(at: mod.url) }
+            catch { self.showAlert("Không thể xóa mod", error.localizedDescription) }
             self.scanMods()
         })
         sheet.addAction(UIAlertAction(title: L10n.text("Đóng"), style: .cancel))

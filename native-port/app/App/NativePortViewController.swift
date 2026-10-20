@@ -569,6 +569,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         }
         var effectiveManifest = path
         PGSetManagedOpenRPFEnabled(false)
+        ModRuntime.activeCatalog = ModRuntime.Catalog()
         if let data = localData {
             PGSetLocalGameFolder(data.path)
             let modsDir = ModManagerViewController.modsDirectory
@@ -617,6 +618,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
                         dlcList: dlcData
                     )
                     effectiveManifest = overlayManifestURL.path
+                    ModRuntime.activeCatalog = catalog
                     if !catalog.packs.isEmpty {
                         PGSetManagedOpenRPFEnabled(true)
                         appendLog("ModRuntime: Đã nạp \(catalog.packs.count) gói DLC mod (\(catalog.vehicleModels.count) xe: \(catalog.vehicleModels.joined(separator: ", "))).")

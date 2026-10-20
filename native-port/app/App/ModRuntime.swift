@@ -1,6 +1,9 @@
 import Foundation
 
 enum ModRuntime {
+    // Published on the main thread before boot; immutable throughout gameplay.
+    // The in-game spawner must not reparse large RPFs while the renderer streams assets.
+    static var activeCatalog = Catalog()
     struct Catalog {
         var packs: [ModPack] = []
         var problems: [String] = []
