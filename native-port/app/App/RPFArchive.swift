@@ -141,6 +141,7 @@ struct ModPack {
     let models: [String]
     let vehicleModels: [String]
     let audioPolicies: [(model:String,profile:String,kind:String)]
+    let audioProfiles:[String]
     let archive: RPFArchive
     static func validName(_ name: String) -> Bool {
         !name.isEmpty && name.utf8.count<=63 && name.utf8.allSatisfy{(97...122).contains($0)||(48...57).contains($0)||$0==95}
@@ -153,10 +154,14 @@ struct ModPack {
         name=String(device.dropFirst(4));self.url=url;self.archive=archive
         var audio: [(model:String,profile:String,kind:String)] = []
         var vehicles=Set<String>(),peds=Set<String>(),fragments=Set<String>(),total=0
+        var profiles=Set<String>(),waveBanks=0
         func scan(_ rpf:RPFArchive,_ depth:Int) throws {
             guard depth<=4 else {throw ModError("DLC lồng archive quá sâu.")}
             for e in rpf.entries {
-                if e.path.hasSuffix("vehicles.meta") {
+                if e.path.hasSuffix(".dat151.rel") {
+                    profiles.formUnion(try ModAudio.profiles(rpf.binary(e),filename:e.path))
+                } else if e.path.hasSuffix(".awc") {waveBanks+=1
+                } else if e.path.hasSuffix("vehicles.meta") {
                     let parsed = try ModXML.read(rpf.metadata(e)); audio += parsed.audioPolicies
                     for m in parsed.values["modelName"] ?? [] {let n=m.lowercased();guard Self.validName(n) else {throw ModError("Model không hợp lệ: \(n)")};vehicles.insert(n)}
                 } else if e.path.hasSuffix("peds.meta") {
@@ -172,8 +177,35 @@ struct ModPack {
         }
         try scan(archive,0)
         if vehicles.isEmpty {vehicles=fragments} // replacement pack: engine already owns model metadata
-        guard !vehicles.isEmpty || !peds.isEmpty else {throw ModError("DLC không chứa model có thể nạp.")}
+        guard !vehicles.isEmpty || !peds.isEmpty || (!profiles.isEmpty && waveBanks>0) else {throw ModError("DLC không chứa model có thể nạp.")}
         guard vehicles.isSubset(of:fragments) else {throw ModError("DLC khai báo xe nhưng thiếu YFT: \(vehicles.subtracting(fragments).sorted().joined(separator:", "))")}
+        audioProfiles=profiles.sorted()
         audioPolicies=audio.filter { vehicles.contains($0.model) }; vehicleModels=vehicles.sorted();models=vehicles.union(peds).sorted()
+    }
+}
+
+/// Minimal bounded REL151 index reader; only verified type-3 vehicle settings names
+/// are offered. Format reference: CodeWalker RelFile.Load / RelIndexHash.
+enum ModAudio {
+    static func hash(_ name:String)->UInt32 {
+        var h:UInt32=0;for c in name.lowercased().utf8 {h=h &+ UInt32(c);h=h &+ (h<<10);h ^= h>>6};h=h &+ (h<<3);h ^= h>>11;return h &+ (h<<15)
+    }
+    static func profiles(_ b:Data,filename:String) throws -> [String] {
+        guard b.count>=24,VehicleInstaller.word(b,0)==151 else {throw ModError("REL151 bị cắt hoặc không hỗ trợ.")}
+        let length=Int(VehicleInstaller.word(b,4)),nameAt=8+length
+        guard length>=4,nameAt<=b.count-8 else {throw ModError("Data block REL bị hỏng.")}
+        let nameLength=Int(VehicleInstaller.word(b,nameAt)),indexAt=nameAt+4+nameLength
+        guard nameLength>=4,indexAt<=b.count-4 else {throw ModError("Bảng tên REL bị hỏng.")}
+        let count=Int(VehicleInstaller.word(b,indexAt))
+        guard count<=100000,count<=(b.count-indexAt-4)/12 else {throw ModError("Index REL bị cắt.")}
+        let base=(filename as NSString).lastPathComponent.lowercased()
+        let candidate=String(base.dropLast(".dat151.rel".count)).replacingOccurrences(of:"_game",with:"")
+        var hashes=Set<UInt32>()
+        for i in 0..<count {
+            let at=indexAt+4+i*12,h=VehicleInstaller.word(b,at),offset=Int(VehicleInstaller.word(b,at+4)),size=Int(VehicleInstaller.word(b,at+8))
+            guard offset>=4,size>0,offset<=length,size<=length-offset else {throw ModError("Mục REL vượt data block.")}
+            if b[8+offset]==3 {hashes.insert(h)}
+        }
+        return ModPack.validName(candidate) && hashes.contains(hash(candidate)) ? [candidate]:[]
     }
 }

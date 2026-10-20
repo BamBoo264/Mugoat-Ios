@@ -1,6 +1,13 @@
 import Foundation
 @main struct VehicleInstallerTests {
+ static func tryProfiles(_ b:Data,_ file:String)->[String] {try! ModAudio.profiles(b,filename:file)}
  static func main() throws {
+  for name in ["ta103ninjah2r","brabus850","gt3flat6","w211"] {
+   let file=name+"_game.dat151.rel"
+   let data=try Data(contentsOf:URL(fileURLWithPath:"Tests/Fixtures/vehicle_audio/"+file))
+   precondition(tryProfiles(data,file)==[name])
+  }
+  print("PASS: real H2R, Aquaphobic and W211 REL151 fixtures identify verified vehicle profiles")
   let fm=FileManager.default,root=fm.temporaryDirectory.appendingPathComponent("vehicle-tests-"+UUID().uuidString)
   try fm.createDirectory(at:root,withIntermediateDirectories:true);defer{try? fm.removeItem(at:root)}
   func resource(_ version:UInt32,_ count:Int)->Data {
@@ -47,7 +54,12 @@ import Foundation
   let audioSource=root.appendingPathComponent("audio-source");try fm.createDirectory(at:audioSource,withIntermediateDirectories:true)
   var audioRoot:[String:Data]=[:]
   for e in pack.archive.entries {audioRoot[e.path]=e.resourceVersion==nil ? try pack.archive.binary(e):pack.archive.bytes.subdata(in:e.offset..<(e.offset+e.size))}
-  let awc=Data("ADATtest-bank-payload".utf8),rel=Data([151,0,0,0,1,2,3,4])
+  let awc=Data("ADATtest-bank-payload".utf8)
+  func testREL(_ name:String)->Data {
+   let words:[UInt32]=[151,8,0,3,4,0,1,ModAudio.hash(name),4,4,0,0]
+   var b=Data();for w in words {for i in 0..<4 {b.append(UInt8(truncatingIfNeeded:w>>(i*8)))}};return b
+  }
+  let rel=testREL("custom")
   audioRoot["x64/audio/sfx/dlc_test/custom.awc"]=awc
   audioRoot["x64/audio/custom_game.dat151.rel"]=rel
   let audioDLC=audioSource.appendingPathComponent("dlc.rpf");try VehicleInstaller.pack(audioRoot).write(to:audioDLC)
@@ -68,6 +80,18 @@ import Foundation
   precondition(mountXML.contains("AUDIO_GAMEDATA") && mountXML.contains("AUDIO_WAVEPACK") && mountXML.contains("/audioconfig/custom_game.dat</filename>"))
   precondition(looseAudio.entries.contains{$0.path=="sfx/dlc_custom/custom.awc"})
   try fm.removeItem(at:a.appendingPathComponent("sfx"));try fm.removeItem(at:a.appendingPathComponent("custom_game.dat151.rel"))
+  let standalone=root.appendingPathComponent("standalone-sound"),soundOut=root.appendingPathComponent("sound-out")
+  try fm.createDirectory(at:standalone.appendingPathComponent("sfx/dlc_custom"),withIntermediateDirectories:true)
+  try fm.createDirectory(at:soundOut,withIntermediateDirectories:true)
+  try awc.write(to:standalone.appendingPathComponent("sfx/dlc_custom/custom.awc"));try rel.write(to:standalone.appendingPathComponent("custom_game.dat151.rel"))
+  let standaloneRPF=try VehicleInstaller.loose(VehicleInstaller.files(in:standalone),output:soundOut,baseModels:[])
+  let sound=try ModPack(url:standaloneRPF)
+  precondition(sound.models.isEmpty && sound.audioProfiles==["custom"])
+  do {_ = try ModAudio.profiles(Data([151,0,0,0]),filename:"bad_game.dat151.rel");fatalError("Truncated REL accepted")}catch is ModError {}
+  let extractedOut=root.appendingPathComponent("extracted-sound");try fm.createDirectory(at:extractedOut,withIntermediateDirectories:true)
+  let extractedSound=try ModPack(url:VehicleInstaller.soundPack(standaloneRPF,output:extractedOut))
+  precondition(extractedSound.audioProfiles==["custom"] && extractedSound.models.isEmpty)
+  print("PASS: standalone sound DLC; REL type-3 profile hash verified; audio-only extraction; truncated REL rejected")
   print("PASS: RPF audio payloads/mount paths preserved; loose REL/AWC mounted; path collisions rejected")
   let original=try Data(contentsOf:pack.url)
   _ = try VehicleInstaller.install(a,into:mods,baseModels:[])

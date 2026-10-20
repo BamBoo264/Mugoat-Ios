@@ -6,7 +6,7 @@ enum ModFiles {
         "rpf", "meta", "asi", "lua", "cs", "xml", "ini", "dat",
         "yft", "ytd", "ydr", "ydd", "ybn", "ymap", "ytyp", "ymt", "ycd", "ypt"
     ]
-    static let archiveExtensions: Set<String> = ["zip", "rar", "7z", "tar", "gz"]
+    static let archiveExtensions: Set<String> = ["zip", "rar", "7z", "tar", "gz", "oiv"]
     static var importExtensions: Set<String> { modExtensions.union(archiveExtensions) }
 
     struct Entry {

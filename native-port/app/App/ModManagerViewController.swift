@@ -9,6 +9,7 @@ final class ModManagerViewController: UITableViewController, UIDocumentPickerDel
     private var modFiles: [ModFile] = []
     private var dlcCatalog: ModRuntime.Catalog = ModRuntime.Catalog()
     private var scanGeneration = 0
+    private var audioOnlyImport=false
     /// Set by the game screen: spawns through it (with progress and failure messages on the game view).
     var spawnHandler: ((String) -> Void)?
 
@@ -73,7 +74,7 @@ final class ModManagerViewController: UITableViewController, UIDocumentPickerDel
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         switch section {
-        case 0: return 3 // Quản lý & Cài đặt
+        case 0: return 4 // Quản lý & Cài đặt
         case 1: return max(1, modFiles.count) // Tệp mod đã cài
         case 2: return 1 + dlcCatalog.vehicleModels.count + defaultVehicles.count // Gọi xe (Custom + Add-ons + Mặc định)
         default: return 0
@@ -111,14 +112,16 @@ final class ModManagerViewController: UITableViewController, UIDocumentPickerDel
             let titles = [
                 "Nhập Mod từ tệp / thư mục",
                 L10n.text("Vị trí thư mục Mod"),
-                L10n.text("Làm mới danh sách Mod")
+                L10n.text("Làm mới danh sách Mod"),
+                "Nhập bộ âm thanh riêng"
             ]
             let subs = [
                 L10n.text("Chọn tệp từ Tệp hoặc iCloud để tự động cài vào Mugoat"),
                 "Files › On My iPhone › Mugoat › mods",
-                L10n.text("Quét lại thư mục sau khi chép file qua máy tính hoặc app Tệp")
+                L10n.text("Quét lại thư mục sau khi chép file qua máy tính hoặc app Tệp"),
+                "ZIP/RAR/OIV/RPF hoặc thư mục REL/AWC; chỉ lấy audio"
             ]
-            let icons = ["square.and.arrow.down.fill", "folder.fill.badge.gearshape", "arrow.clockwise"]
+            let icons = ["square.and.arrow.down.fill", "folder.fill.badge.gearshape", "arrow.clockwise", "speaker.wave.3.fill"]
             cell.textLabel?.text = titles[indexPath.row]
             cell.detailTextLabel?.text = subs[indexPath.row]
             cell.imageView?.image = UIImage(systemName: icons[indexPath.row])
@@ -183,6 +186,7 @@ final class ModManagerViewController: UITableViewController, UIDocumentPickerDel
             if indexPath.row == 0 { pickModFile() }
             else if indexPath.row == 1 { showFolderInfo() }
             else if indexPath.row == 2 { scanMods() }
+            else if indexPath.row == 3 {pickModFile(audioOnly:true)}
 
         case 1:
             guard !modFiles.isEmpty, indexPath.row < modFiles.count else { return }
@@ -212,10 +216,11 @@ final class ModManagerViewController: UITableViewController, UIDocumentPickerDel
         let model=dlcCatalog.vehicleModels[indexPath.row-1]
         let policy=dlcCatalog.packs.flatMap(\.audioPolicies).first{$0.model==model}
         let key="vehicleSound."+model
-        let sheet=UIAlertController(title:"Tiếng động cơ · "+model,message:"Chọn tiếng xe gốc thay thế. Tiếng Ducati đúng mẫu cần bộ audio tương thích; đổi tên model không tạo được âm thanh mới. Áp dụng sau khi tắt hẳn app rồi mở lại. Không đổi audio của xe đang chạy.",preferredStyle:.actionSheet)
-        let profiles:[(String,String)]=[("Tự động / theo mod",""),("Mô tô thể thao · Bati 801","bati"),("Mô tô thể thao · Akuma","akuma"),("Mô tô thể thao · Double-T","double"),("Cruiser · Daemon","daemon"),("Cào cào · Sanchez","sanchez"),("Tay ga · Faggio","faggio2"),("Siêu xe · Turismo R","turismor"),("Siêu xe · Adder","adder")]
+        let sheet=UIAlertController(title:"Tiếng động cơ · "+model,message:"Chọn tiếng theo mod, tiếng xe gốc hoặc profile từ bộ âm thanh đã nhập. Áp dụng sau khi tắt hẳn app rồi mở lại. Không đổi audio của xe đang chạy.",preferredStyle:.actionSheet)
+        let custom=Set(dlcCatalog.packs.flatMap(\.audioProfiles))
+        let profiles:[(String,String)]=[("Tự động / theo mod",""),("Mô tô thể thao · Bati 801","bati"),("Mô tô thể thao · Akuma","akuma"),("Mô tô thể thao · Double-T","double"),("Cruiser · Daemon","daemon"),("Cào cào · Sanchez","sanchez"),("Tay ga · Faggio","faggio2"),("Siêu xe · Turismo R","turismor"),("Siêu xe · Adder","adder")]+custom.sorted().map{("Âm thanh đã nhập · "+$0,$0)}
         let bike=(policy?.kind ?? "").hasPrefix("vc_motorcycle")
-        for (label,profile) in profiles where profile.isEmpty || (policy != nil && (bike ? ["bati","akuma","double","daemon","sanchez","faggio2"].contains(profile):["turismor","adder"].contains(profile))) {
+        for (label,profile) in profiles where profile.isEmpty || custom.contains(profile) || (policy != nil && (bike ? ["bati","akuma","double","daemon","sanchez","faggio2"].contains(profile):["turismor","adder"].contains(profile))) {
             let selected=(UserDefaults.standard.string(forKey:key) ?? "")==profile
             sheet.addAction(UIAlertAction(title:(selected ? "✓ ":"")+label,style:.default){_ in
                 guard !MugoatOnlineEnabled() else{return}
@@ -227,10 +232,11 @@ final class ModManagerViewController: UITableViewController, UIDocumentPickerDel
         present(sheet,animated:true)
     }
 
-    private func pickModFile() {
+    private func pickModFile(audioOnly:Bool=false) {
+        audioOnlyImport=audioOnly
         guard !engineRunning else { showAlert("Cần khởi động lại", "Thoát game về launcher trước khi cài hoặc đổi mod."); return }
-        let sheet=UIAlertController(title:"Nhập xe Legacy",message:"Chọn ZIP/RPF, thư mục xe hoặc nhiều tệp YFT/YTD/meta cùng lúc.",preferredStyle:.actionSheet)
-        for (label,folder) in [("Chọn tệp ZIP/RPF hoặc YFT/YTD/meta",false),("Chọn thư mục xe",true)] {
+        let sheet=UIAlertController(title:audioOnly ? "Nhập bộ âm thanh":"Nhập xe Legacy",message:"Chọn ZIP/RAR/OIV/RPF hoặc thư mục. Không chạy Lua hay lệnh cài đặt OIV.",preferredStyle:.actionSheet)
+        for (label,folder) in [("Chọn tệp ZIP/RAR/OIV/RPF",false),("Chọn thư mục",true)] {
             sheet.addAction(UIAlertAction(title:label,style:.default){[weak self] _ in
                 let picker=UIDocumentPickerViewController(forOpeningContentTypes:folder ? [.folder]:[.data,.archive],asCopy:!folder)
                 picker.delegate=self;picker.allowsMultipleSelection=true;self?.present(picker,animated:true)
@@ -241,7 +247,7 @@ final class ModManagerViewController: UITableViewController, UIDocumentPickerDel
     }
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
         guard !engineRunning else {return}
-        let dest=Self.modsDirectory, game=GameFolder.open()
+        let dest=Self.modsDirectory, game=GameFolder.open(),audioOnly=audioOnlyImport
         view.isUserInteractionEnabled=false
         let progress=UIActivityIndicatorView(style:.large);progress.center=view.center;view.addSubview(progress);progress.startAnimating()
         DispatchQueue.global(qos:.userInitiated).async {
@@ -256,10 +262,10 @@ final class ModManagerViewController: UITableViewController, UIDocumentPickerDel
                     if ["yft","ytd","meta"].contains(u.pathExtension.lowercased()) {
                         try fm.createDirectory(at:group,withIntermediateDirectories:true)
                         try fm.copyItem(at:u,to:group.appendingPathComponent(u.lastPathComponent));loose=true
-                    } else {reports += try VehicleInstaller.install(u,into:dest,baseModels:base,gameData:game)}
+                    } else {reports += try VehicleInstaller.install(u,into:dest,baseModels:base,gameData:game,audioOnly:audioOnly)}
                 } catch {errors.append(u.lastPathComponent+": "+error.localizedDescription)}
             }
-            if loose {do {reports += try VehicleInstaller.install(group,into:dest,baseModels:base,gameData:game)} catch {errors.append(error.localizedDescription)}}
+            if loose {do {reports += try VehicleInstaller.install(group,into:dest,baseModels:base,gameData:game,audioOnly:audioOnly)} catch {errors.append(error.localizedDescription)}}
             DispatchQueue.main.async {[weak self] in
                 guard let self else{return};progress.removeFromSuperview();self.view.isUserInteractionEnabled=true;self.scanMods()
                 self.showAlert("Kết quả cài xe",([reports.isEmpty ? "": "Đã cài:\n"+reports.joined(separator:"\n"),errors.isEmpty ? "":"Không cài được:\n"+errors.joined(separator:"\n"),"Khởi động game sau khi cài. Tệp gốc không bị thay đổi."].filter{!$0.isEmpty}).joined(separator:"\n\n"))

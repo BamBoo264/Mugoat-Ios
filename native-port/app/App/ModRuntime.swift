@@ -12,13 +12,15 @@ enum ModRuntime {
         var vehicleModels: [String] { packs.flatMap(\.vehicleModels).sorted() }
     }
     static func catalog(_ directory: URL) -> Catalog {
-        var result = Catalog(), names = Set<String>(), models = Set<String>()
+        var result = Catalog(), names = Set<String>(), models = Set<String>(),sounds=Set<String>()
         let files = ModFiles.scan(directory).filter { $0.isEnabled && $0.url.pathExtension.lowercased() == "rpf" }.sorted { $0.name < $1.name }
         for file in files {
             do {
                 let pack = try ModPack(url: file.url)
                 guard names.insert(pack.name).inserted else { throw ModError("Trùng gói DLC \(pack.name). Chỉ bật một phiên bản của gói này.") }
                 guard models.isDisjoint(with: pack.models) else { throw ModError("Trùng tên xe giữa các mod: \(pack.models.joined(separator: ", ")).") }
+                guard sounds.isDisjoint(with:pack.audioProfiles) else {throw ModError("Trùng tên audio profile giữa các gói.")}
+                sounds.formUnion(pack.audioProfiles)
                 models.formUnion(pack.models); result.packs.append(pack)
             } catch let error as ModError {
                 if file.url.lastPathComponent.lowercased() == "dlc.rpf" || error.message.contains("Enhanced") || error.message.contains("Trùng") {

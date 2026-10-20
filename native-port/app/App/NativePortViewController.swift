@@ -583,9 +583,9 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
                         let selected=UserDefaults.standard.string(forKey:"vehicleSound."+p.model)
                         let bike=p.kind.hasPrefix("vc_motorcycle")
                         let allowed=bike ? ["bati","akuma","double","daemon","sanchez","faggio2"]:["turismor","adder"]
-                        let profile=selected.flatMap{allowed.contains($0) ? $0:nil} ?? p.profile
-                        if selected==profile {PGRegisterVehicleAudioOverride(p.model,profile,p.kind)}
-                        else {PGRegisterVehicleAudioPolicy(p.model,profile,p.kind)}
+                        let custom=Set(catalog.packs.flatMap(\.audioProfiles))
+                        let profile=selected.flatMap{allowed.contains($0) || custom.contains($0) ? $0:nil} ?? p.profile
+                        PGRegisterVehicleAudioPolicy(p.model,profile,p.kind)
                     }
                         for model in pack.vehicleModels where !pack.audioPolicies.contains(where:{$0.model==model}) {
                             if let sound=UserDefaults.standard.string(forKey:"vehicleSound."+model) {PGRegisterVehicleAudioPolicy(model,sound,"")}

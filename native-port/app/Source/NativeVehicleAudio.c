@@ -12,7 +12,7 @@ void PGRegisterVehicleAudioPolicy(const char *model,const char *profile,const ch
  uint32_t hash=0;for(const unsigned char *p=(const unsigned char *)model;*p;p++){hash+=(unsigned char)tolower(*p);hash+=hash<<10;hash^=hash>>6;}hash+=hash<<3;hash^=hash>>11;hash+=hash<<15;
  pthread_mutex_lock(&lock);PGVehicleAudioPolicy *p=NULL;
  for(unsigned i=0;i<count;i++)if(policies[i].model==hash){p=&policies[i];break;}
- if(!p){if(count==512){pthread_mutex_unlock(&lock);return;}p=&policies[count++];}p->model=hash;p->forced=false;
+ if(!p){if(count==512){pthread_mutex_unlock(&lock);return;}p=&policies[count++];}p->model=hash;
  snprintf(p->profile,64,"%s",*profile?profile:model);snprintf(p->kind,64,"%s",kind);atomic_fetch_add(&revision,1);pthread_mutex_unlock(&lock);
 }
 const PGVehicleAudioPolicy *PGFindVehicleAudioPolicy(uint32_t model){static _Thread_local PGVehicleAudioPolicy snapshot;bool found=false;pthread_mutex_lock(&lock);for(unsigned i=0;i<count;i++)if(policies[i].model==model){snapshot=policies[i];found=true;break;}pthread_mutex_unlock(&lock);return found?&snapshot:NULL;}
@@ -28,12 +28,4 @@ const char *PGChooseVehicleAudio(const PGVehicleAudioPolicy *p,bool (*exists)(co
  else if(!strcmp(p->kind,"vc_sedan")||!strcmp(p->kind,"vc_sedans")||!strcmp(p->kind,"vc_compact")||!strcmp(p->kind,"vc_compacts")||!strcmp(p->kind,"vc_coupe")||!strcmp(p->kind,"vc_coupes")){a="asea";b="adder";}
  else if(!strcmp(p->kind,"vc_van")||!strcmp(p->kind,"vc_vans")||!strcmp(p->kind,"vc_industrial")||!strcmp(p->kind,"vc_commercial")){a="speedo";b="pounder";}
  if(a&&exists(a,context))return a;if(b&&exists(b,context))return b;return NULL;
-}
-
-void PGRegisterVehicleAudioOverride(const char *model,const char *profile,const char *kind){
- PGRegisterVehicleAudioPolicy(model,profile,kind);
- pthread_mutex_lock(&lock);for(unsigned i=0;i<count;i++)if(!strcmp(policies[i].profile,profile)&&!strcmp(policies[i].kind,kind)){
-  uint32_t hash=0;for(const unsigned char *p=(const unsigned char *)model;*p;p++){hash+=(unsigned char)tolower(*p);hash+=hash<<10;hash^=hash>>6;}hash+=hash<<3;hash^=hash>>11;hash+=hash<<15;
-  if(policies[i].model==hash)policies[i].forced=true;
- }pthread_mutex_unlock(&lock);
 }

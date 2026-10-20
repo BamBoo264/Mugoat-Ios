@@ -27,7 +27,7 @@ enum VehicleInstaller {
             }
         }
         try unpack(original,0)
-        guard let vehicles=payload["vehicles.meta"] else {return source}
+        guard let vehicles=payload["vehicles.meta"] else {return hasAudio ? try soundPack(source,output:output):source}
         let baseURL=gameData?.appendingPathComponent("common/data/levels/gta5/vehicles.meta")
         guard let baseURL,let baseData=try? Data(contentsOf:baseURL) else {throw ModError("Chọn thư mục dữ liệu game trước khi nhập DLC xe để kiểm tra tương thích.")}
         let base=try ModXML.read(baseData)
@@ -167,7 +167,7 @@ enum VehicleInstaller {
         let models: Set<String>
         if let v=meta["vehicles.meta"] {models=Set(try ModXML.read(v).values["modelName"] ?? []);guard models.isSubset(of:fragments) else {throw ModError("Thiếu YFT cho model khai báo.")}}
         else {models=fragments}
-        guard !models.isEmpty else {throw ModError("Không có DLC RPF hoặc cặp YFT/YTD xe Legacy trong thư mục.")}
+        guard !models.isEmpty || (!audio.isEmpty && audioMounts.values.contains("AUDIO_GAMEDATA") && audioMounts.values.contains("AUDIO_WAVEPACK")) else {throw ModError("Không có xe Legacy hoặc bộ REL/AWC đầy đủ.")}
         for m in models {guard assets[m+".ytd"] != nil else {throw ModError("Thiếu \(m).ytd")}}
         if let vehicles=meta["vehicles.meta"] {
             let declared=Set((try ModXML.read(vehicles).values["modelName"] ?? []).map{$0.lowercased()})
@@ -175,10 +175,10 @@ enum VehicleInstaller {
         } else {
             guard models.isSubset(of:baseModels) else {throw ModError("Xe add-on mới cần vehicles.meta, handling/meta đi kèm. File rời không tự tạo được thông số xe.")}
         }
-        let joined=models.sorted().joined(separator:"_");var hash:UInt64=1469598103934665603
+        let joined=(models.isEmpty ? audio.keys.sorted():models.sorted()).joined(separator:"_");var hash:UInt64=1469598103934665603
         for b in joined.utf8 {hash=(hash ^ UInt64(b)) &* 1099511628211}
         let id=packName ?? ("mugoat_"+String(hash,radix:16)),device="dlc_"+id,change=id+"_AUTOGEN"
-        var root=meta;root["vehicles.rpf"]=try pack(assets)
+        var root=meta;if !assets.isEmpty {root["vehicles.rpf"]=try pack(assets)}
         let setup="<?xml version=\"1.0\"?><SSetupData><deviceName>\(device)</deviceName><datFile>content.xml</datFile><timeStamp>01/01/2020 12:00:00 PM</timeStamp><nameHash>\(id)</nameHash><contentChangeSetGroups><Item><NameHash>GROUP_STARTUP</NameHash><ContentChangeSets><Item>\(change)</Item></ContentChangeSets></Item></contentChangeSetGroups><type>EXTRACONTENT_COMPAT_PACK</type><order value=\"1001\"/></SSetupData>"
         var items="",enable=""
         for n in root.keys.sorted() {let type=n=="vehicles.rpf" ? "RPF_FILE":metadataTypes[n]!
@@ -193,7 +193,25 @@ enum VehicleInstaller {
         root["content.xml"]=Data("<?xml version=\"1.0\"?><CDataFileMgr__ContentsOfDataFileXml><disabledFiles/><includedXmlFiles/><includedDataFiles/><dataFiles>\(items)</dataFiles><contentChangeSets><Item><changeSetName>\(change)</changeSetName><filesToEnable>\(enable)</filesToEnable></Item></contentChangeSets><patchFiles/></CDataFileMgr__ContentsOfDataFileXml>".utf8)
         let file=output.appendingPathComponent("dlc.rpf");try pack(root).write(to:file,options:.atomic);return file
     }
-    static func install(_ source: URL, into mods: URL, baseModels: Set<String>, gameData:URL? = nil) throws -> [String] {
+    static func soundPack(_ source:URL,output:URL) throws -> URL {
+        let folder=output.appendingPathComponent("audio-only")
+        try FileManager.default.createDirectory(at:folder,withIntermediateDirectories:true)
+        func scan(_ r:RPFArchive,_ depth:Int) throws {
+            guard depth<=4 else {throw ModError("Audio archive lồng quá sâu.")}
+            for e in r.entries {
+                if e.path.hasSuffix(".rpf"),let nested=try? r.nested(e) {try scan(nested,depth+1)}
+                else if e.path.hasSuffix(".rel") || e.path.hasSuffix(".awc") {
+                    let target=folder.appendingPathComponent(e.path)
+                    guard !FileManager.default.fileExists(atPath:target.path) else {throw ModError("Trùng audio asset.")}
+                    try FileManager.default.createDirectory(at:target.deletingLastPathComponent(),withIntermediateDirectories:true)
+                    try r.binary(e).write(to:target)
+                }
+            }
+        }
+        try scan(RPFArchive(url:source),0)
+        return try loose(files(in:folder),output:output,baseModels:[])
+    }
+    static func install(_ source: URL, into mods: URL, baseModels: Set<String>, gameData:URL? = nil,audioOnly:Bool = false) throws -> [String] {
         let fm=FileManager.default, stage=fm.temporaryDirectory.appendingPathComponent("vehicle-import-"+UUID().uuidString)
         try fm.createDirectory(at:stage,withIntermediateDirectories:true);defer{try? fm.removeItem(at:stage)}
         var isDir:ObjCBool=false;guard fm.fileExists(atPath:source.path,isDirectory:&isDir) else {throw ModError("Không tìm thấy nguồn mod.")}
@@ -213,14 +231,15 @@ enum VehicleInstaller {
         let packs=try candidates.map { candidate -> ModPack in
             let converted=stage.appendingPathComponent(UUID().uuidString)
             try fm.createDirectory(at:converted,withIntermediateDirectories:true)
-            return try ModPack(url:gameData == nil ? candidate:compatible(candidate,output:converted,gameData:gameData))
+            return try ModPack(url:audioOnly ? soundPack(candidate,output:converted):(gameData == nil ? candidate:compatible(candidate,output:converted,gameData:gameData)))
         }
-        var names=Set<String>(),models=Set<String>();let updating=Set(packs.map(\.name))
-        for p in ModRuntime.catalog(mods).packs where !updating.contains(p.name) {models.formUnion(p.models)}
+        var names=Set<String>(),models=Set<String>(),sounds=Set<String>();let updating=Set(packs.map(\.name))
+        for p in ModRuntime.catalog(mods).packs where !updating.contains(p.name) {models.formUnion(p.models);sounds.formUnion(p.audioProfiles)}
         for p in packs {
             guard names.insert(p.name).inserted,models.isDisjoint(with:p.models) else {throw ModError("Xung đột tên gói/model: \(p.name). Tắt bản xe trùng trước.")}
-            models.formUnion(p.models)
+            guard sounds.isDisjoint(with:p.audioProfiles) else {throw ModError("Trùng audio profile; tắt bộ âm thanh cũ trước.")}
+            sounds.formUnion(p.audioProfiles);models.formUnion(p.models)
         }
-        return try packs.map {p in let installed=try ModRuntime.importPack(p.url,into:mods);return installed.name+": "+installed.vehicleModels.joined(separator:", ")}
+        return try packs.map {p in let installed=try ModRuntime.importPack(p.url,into:mods);return installed.name+": "+(installed.vehicleModels+installed.audioProfiles.map{"âm thanh "+$0}).joined(separator:", ")}
     }
 }

@@ -1111,7 +1111,6 @@ static void pg_bind_vehicle_audio(w2c_game *instance,uint32_t vehicle){
  uint32_t model=mg_call_u32(instance,"mp:GetEntityModel",entity,1);
  const PGVehicleAudioPolicy *p=PGFindVehicleAudioPolicy(model);if(!p)return;
  const char *profile=PGChooseVehicleAudio(p,pg_audio_profile_exists,instance);
- if(profile && !p->forced && !strcmp(profile,p->profile))return; // Native vehicles.meta already selects this profile, including custom DLC audio.
  if(!profile){pg_log("[vehicle-audio] no available compatible profile; original audio retained");return;}
  static uint64_t nameBuffer;if(!nameBuffer)nameBuffer=w2c_game_f100(instance,64);
  snprintf(pg_pointer(&env,nameBuffer,64),64,"%s",profile);
