@@ -11,6 +11,7 @@
 // Opens the asset cache exactly as the engine will (idempotent; safe before
 // or after PGStartEngine with the same arguments).
 void PGAssetCachePrepare(const char *manifestPath, const char *filesRoot);
+bool PGAssetCacheConfigured(void);
 // False on the simulator unless --stream-assets is set: there the game reads
 // the Mac's mirror directly and never looks at the cache.
 bool PGAssetPreloadSupported(void);

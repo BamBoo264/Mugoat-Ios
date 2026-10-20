@@ -130,7 +130,9 @@ final class AssetPreloader {
 
     /// Opens the cache the way the engine will. Cheap after the first call.
     func prepare() {
-        guard !prepared, let manifest = EnginePaths.manifest else { return }
+        // Local games need the final mod overlay, selected only when Play starts.
+        // Configuring the base table here would permanently discard appended DLC IDs.
+        guard !GameFolder.isChosen, !prepared, let manifest = EnginePaths.manifest else { return }
         let root = EnginePaths.filesRoot().path
         manifest.withCString { m in root.withCString { PGAssetCachePrepare(m, $0) } }
         prepared = true
@@ -242,6 +244,7 @@ final class AssetPreloader {
     /// App launch and return to the foreground: continue an unfinished
     /// download unless the player paused it.
     func resumeIfNeeded() {
+        guard wanted, !GameFolder.isChosen else { return }
         prepare()
         refresh { [weak self] in
             guard let self, !self.removing, PGAssetPreloadSupported(), self.wanted, !self.userPaused, !self.running,

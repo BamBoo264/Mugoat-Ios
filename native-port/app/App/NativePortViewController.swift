@@ -466,6 +466,15 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             localData = nil
         }
         let mode = GameSettings.shared.gameMode
+        // A remote downloader may already own the immutable base asset table if
+        // the user switched to local data during this launch. Never pretend its
+        // table contains the mod IDs; a fresh launch installs the overlay first.
+        if localData != nil, !OnlineSettings.enabled, PGAssetCacheConfigured(),
+           !ModRuntime.catalog(ModManagerViewController.modsDirectory).packs.isEmpty {
+            appendLog("ModRuntime: base asset table was initialized by downloader before local mods; restart required.")
+            showWhenFree(title: "Cần mở lại ứng dụng", message: "Bạn vừa chuyển từ tải dữ liệu sang thư mục local. Đóng hẳn rồi mở lại Mugoat để nạp danh sách asset có mod trước khi chạy game.")
+            return
+        }
         guard OnlineSettings.configure(mode: mode) else {
             showWhenFree(title: L10n.text("Máy chủ online"), message: L10n.text("Máy chủ không hợp lệ"))
             return

@@ -92,6 +92,7 @@ static BOOL assetBlockInFlight(PGAssetCondition *condition,uint64_t block){
 }
 
 static _Atomic bool assetsConfigured;
+bool PGAssetCacheConfigured(void) { return atomic_load(&assetsConfigured); }
 void pg_assets_configure(const char *manifest,const char *root) {
   // The Settings preloader may configure the same cache before Play; the
   // engine's later call then reuses it (same manifest and root).
