@@ -1,189 +1,109 @@
-//
-//  MRPipelineCache.mm
-//  Mugoat iOS - Metal Pipeline State Cache ("Pipecache") Implementation
-//
-
 #import "MRPipelineCache.h"
 #import "MRInternal.h"
-#import <Foundation/Foundation.h>
+#include <TargetConditionals.h>
+#if TARGET_OS_IOS
+#import <UIKit/UIKit.h>
+#endif
 #include <mutex>
-#include <fstream>
-#include <sstream>
-
+#include <cstdio>
 namespace mr {
-
-static std::mutex gCacheMutex;
-
-PipelineCache::PipelineCache() {}
-
-PipelineCache::~PipelineCache() {
-    serializeToDisk();
+static dispatch_queue_t worker;
+static dispatch_source_t timer;
+static id<MTLDevice> gpu;
+static id<MTLLibrary> functions;
+static id<MTLBinaryArchive> loaded, writer;
+static NSURL *archiveURL, *recipeURL;
+static NSMutableDictionary<NSString *, NSDictionary *> *recipes;
+static NSMutableDictionary<NSString *, id<MTLRenderPipelineState>> *states;
+static std::mutex statesLock;
+static bool dirty=false, archiveDirty=false, writeFailed=false;
+static unsigned failures=0, compiled=0, warmed=0;
+static NSDictionary *encode(MTLRenderPipelineDescriptor *d) {
+ if(!d.vertexFunction)return nil;
+ NSMutableArray *attrs=[NSMutableArray array],*layouts=[NSMutableArray array],*colors=[NSMutableArray array];
+ for(NSUInteger i=0;i<31;i++){
+  auto *a=d.vertexDescriptor.attributes[i];auto *l=d.vertexDescriptor.layouts[i];
+  [attrs addObject:@[@(a.format),@(a.offset),@(a.bufferIndex)]];
+  [layouts addObject:@[@(l.stride),@(l.stepFunction),@(l.stepRate)]];
+ }
+ for(NSUInteger i=0;i<8;i++){
+  auto *c=d.colorAttachments[i];[colors addObject:@[@(c.pixelFormat),@(c.writeMask),@(c.blendingEnabled),@(c.sourceRGBBlendFactor),@(c.destinationRGBBlendFactor),@(c.rgbBlendOperation),@(c.sourceAlphaBlendFactor),@(c.destinationAlphaBlendFactor),@(c.alphaBlendOperation)]];
+ }
+ return @{@"v":d.vertexFunction.name,@"f":d.fragmentFunction.name?:@"",@"a":attrs,@"l":layouts,@"c":colors,@"depth":@(d.depthAttachmentPixelFormat),@"stencil":@(d.stencilAttachmentPixelFormat),@"samples":@(d.rasterSampleCount),@"coverage":@(d.alphaToCoverageEnabled),@"alphaOne":@(d.alphaToOneEnabled),@"raster":@(d.rasterizationEnabled),@"topology":@(d.inputPrimitiveTopology)};
 }
-
-PipelineCache &PipelineCache::shared() {
-    static PipelineCache instance;
-    return instance;
+static NSString *keyFor(NSDictionary *r){return [[NSString alloc] initWithData:[NSJSONSerialization dataWithJSONObject:r options:NSJSONWritingSortedKeys error:nil] encoding:NSUTF8StringEncoding];}
+static MTLRenderPipelineDescriptor *decode(NSDictionary *r){
+ if(![r isKindOfClass:NSDictionary.class]||[r[@"a"] count]!=31||[r[@"l"] count]!=31||[r[@"c"] count]!=8)return nil;
+ auto *d=[MTLRenderPipelineDescriptor new];d.vertexFunction=[functions newFunctionWithName:r[@"v"]];
+ if([r[@"f"] length])d.fragmentFunction=[functions newFunctionWithName:r[@"f"]];
+ if(!d.vertexFunction||([r[@"f"] length]&&!d.fragmentFunction))return nil;
+ d.vertexDescriptor=[MTLVertexDescriptor vertexDescriptor];
+ for(NSUInteger i=0;i<31;i++){
+  NSArray *a=r[@"a"][i],*l=r[@"l"][i];if(a.count!=3||l.count!=3)return nil;
+  d.vertexDescriptor.attributes[i].format=(MTLVertexFormat)[a[0] unsignedIntegerValue];d.vertexDescriptor.attributes[i].offset=[a[1] unsignedIntegerValue];d.vertexDescriptor.attributes[i].bufferIndex=[a[2] unsignedIntegerValue];
+  d.vertexDescriptor.layouts[i].stride=[l[0] unsignedIntegerValue];d.vertexDescriptor.layouts[i].stepFunction=(MTLVertexStepFunction)[l[1] unsignedIntegerValue];d.vertexDescriptor.layouts[i].stepRate=[l[2] unsignedIntegerValue];
+ }
+ for(NSUInteger i=0;i<8;i++){
+  NSArray *a=r[@"c"][i];if(a.count!=9)return nil;auto *c=d.colorAttachments[i];
+  c.pixelFormat=(MTLPixelFormat)[a[0] unsignedIntegerValue];c.writeMask=(MTLColorWriteMask)[a[1] unsignedIntegerValue];c.blendingEnabled=[a[2] boolValue];c.sourceRGBBlendFactor=(MTLBlendFactor)[a[3] unsignedIntegerValue];c.destinationRGBBlendFactor=(MTLBlendFactor)[a[4] unsignedIntegerValue];c.rgbBlendOperation=(MTLBlendOperation)[a[5] unsignedIntegerValue];c.sourceAlphaBlendFactor=(MTLBlendFactor)[a[6] unsignedIntegerValue];c.destinationAlphaBlendFactor=(MTLBlendFactor)[a[7] unsignedIntegerValue];c.alphaBlendOperation=(MTLBlendOperation)[a[8] unsignedIntegerValue];
+ }
+ d.depthAttachmentPixelFormat=(MTLPixelFormat)[r[@"depth"] unsignedIntegerValue];d.stencilAttachmentPixelFormat=(MTLPixelFormat)[r[@"stencil"] unsignedIntegerValue];d.rasterSampleCount=[r[@"samples"] unsignedIntegerValue];d.alphaToCoverageEnabled=[r[@"coverage"] boolValue];d.alphaToOneEnabled=[r[@"alphaOne"] boolValue];d.rasterizationEnabled=[r[@"raster"] boolValue];d.inputPrimitiveTopology=(MTLPrimitiveTopologyClass)[r[@"topology"] unsignedIntegerValue];return d;
 }
-
-void PipelineCache::initialize(id<MTLDevice> device) {
-    std::lock_guard<std::mutex> lock(gCacheMutex);
-    if (m_initialized) return;
-    m_device = device;
-
-    // Use Caches directory for the compiled binary archive (OS handles eviction if under extreme pressure, but keeps across launches)
-    NSArray *cachePaths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
-    NSString *cacheDir = cachePaths.firstObject;
-    NSString *archivePath = [cacheDir stringByAppendingPathComponent:@"pipecache.metallib"];
-    m_archiveURL = [NSURL fileURLWithPath:archivePath];
-
-    // Documents/Mugoat/pipelines-v1.jsonl for persistent recipe text
-    NSArray *docPaths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-    NSString *docDir = docPaths.firstObject;
-    NSString *recipePath = [docDir stringByAppendingPathComponent:@"pipelines-v1.jsonl"];
-    m_recipesURL = [NSURL fileURLWithPath:recipePath];
-
-    if (@available(iOS 14.0, *)) {
-        MTLBinaryArchiveDescriptor *desc = [MTLBinaryArchiveDescriptor new];
-        if ([[NSFileManager defaultManager] fileExistsAtPath:archivePath]) {
-            desc.url = m_archiveURL;
-            NSError *err = nil;
-            m_binaryArchive = [m_device newBinaryArchiveWithDescriptor:desc error:&err];
-            if (m_binaryArchive) {
-                logf("Metal pipecache: loaded persistent binary archive from disk (%s)", archivePath.UTF8String);
-            } else {
-                logf("Metal pipecache: existing archive invalid (%s), creating fresh", err.localizedDescription.UTF8String ?: "unknown");
-                desc.url = nil;
-                m_binaryArchive = [m_device newBinaryArchiveWithDescriptor:desc error:&err];
-            }
-        } else {
-            desc.url = nil;
-            NSError *err = nil;
-            m_binaryArchive = [m_device newBinaryArchiveWithDescriptor:desc error:&err];
-            logf("Metal pipecache: initialized fresh binary archive");
-        }
-    }
-
-    loadRecipes();
-    m_initialized = true;
+static void save(){
+ if(dirty){NSData *data=[NSJSONSerialization dataWithJSONObject:recipes.allValues options:0 error:nil];if([data writeToURL:recipeURL options:NSDataWritingAtomic error:nil])dirty=false;}
+ if(!archiveDirty||!writer||writeFailed)return;
+ NSURL *temp=[archiveURL URLByAppendingPathExtension:@"tmp"];NSError *error=nil;
+ if(![writer serializeToURL:temp error:&error]){writeFailed=true;logf("[cache-v3] archive save disabled this session: %s; recipes retained",error.localizedDescription.UTF8String?:"unknown");return;}
+ if(rename(temp.fileSystemRepresentation,archiveURL.fileSystemRepresentation)==0){archiveDirty=false;logf("[cache-v3] saved %lu full recipes, %u compiled, %u warmed",(unsigned long)recipes.count,compiled,warmed);}
 }
-
-void PipelineCache::attachToDescriptor(MTLRenderPipelineDescriptor *desc) {
-    if (!desc) return;
-    if (@available(iOS 14.0, *)) {
-        if (m_binaryArchive) {
-            desc.binaryArchives = @[ m_binaryArchive ];
-        }
-    }
+static id<MTLRenderPipelineState> build(MTLRenderPipelineDescriptor *d,NSError **error){
+ if(loaded)d.binaryArchives=@[loaded];
+ id<MTLRenderPipelineState> state=[gpu newRenderPipelineStateWithDescriptor:d error:error];
+ if(!state&&loaded){d.binaryArchives=@[];state=[gpu newRenderPipelineStateWithDescriptor:d error:error];}
+ if(state&&writer&&!writeFailed){MTLRenderPipelineDescriptor *record=[d copy];record.binaryArchives=@[];NSError *e=nil;
+  if([writer addRenderPipelineFunctionsWithDescriptor:record error:&e])archiveDirty=true;
+  else if(++failures==1)logf("[cache-v3] archive add failed; rendering retained: %s",e.localizedDescription.UTF8String?:"unknown");
+ }return state;
 }
-
-void PipelineCache::recordPipeline(MTLRenderPipelineDescriptor *desc, uint64_t key) {
-    if (!desc) return;
-    std::lock_guard<std::mutex> lock(gCacheMutex);
-    if (m_recordedKeys.find(key) != m_recordedKeys.end()) {
-        m_hits++;
-        return;
-    }
-    m_misses++;
-    m_recordedKeys[key] = true;
-
-    if (@available(iOS 14.0, *)) {
-        if (m_binaryArchive) {
-            NSError *err = nil;
-            if ([m_binaryArchive addRenderPipelineFunctionsWithDescriptor:desc error:&err]) {
-                m_dirty = true;
-            } else if (err) {
-                // Ignore duplicate function warnings
-            }
-        }
-    }
-
-    // Periodically flush archive to disk every 50 new pipelines
-    if (m_dirty && (m_recordedKeys.size() % 50 == 0)) {
-        serializeToDisk();
-    }
+PipelineCache &PipelineCache::shared(){static PipelineCache *c=new PipelineCache;return *c;}
+void PipelineCache::initialize(id<MTLDevice> device){
+ static std::once_flag once;std::call_once(once,[device]{
+  gpu=device;recipes=[NSMutableDictionary dictionary];states=[NSMutableDictionary dictionary];
+  worker=dispatch_queue_create("mugoat.pipeline-cache-v3",dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL,QOS_CLASS_UTILITY,0));
+  NSURL *revisionURL=[NSBundle.mainBundle URLForResource:@"iosvn-build-revision" withExtension:@"txt"];
+  NSString *revision=revisionURL?[NSString stringWithContentsOfURL:revisionURL encoding:NSUTF8StringEncoding error:nil]:@"local";
+  NSString *identity=[NSString stringWithFormat:@"%@|%@|%@|schema3",gpu.name,NSProcessInfo.processInfo.operatingSystemVersionString,revision];
+  uint64_t hash=1469598103934665603ull;for(NSUInteger i=0;i<identity.length;i++){hash^=[identity characterAtIndex:i];hash*=1099511628211ull;}
+  NSURL *dir=[[NSFileManager.defaultManager URLsForDirectory:NSApplicationSupportDirectory inDomains:NSUserDomainMask].firstObject URLByAppendingPathComponent:@"PipelineCache-v3"];
+  [NSFileManager.defaultManager createDirectoryAtURL:dir withIntermediateDirectories:YES attributes:nil error:nil];
+  NSString *stem=[NSString stringWithFormat:@"%016llx",(unsigned long long)hash];archiveURL=[dir URLByAppendingPathComponent:[stem stringByAppendingString:@".archive"]];recipeURL=[dir URLByAppendingPathComponent:[stem stringByAppendingString:@".json"]];
+  dispatch_async(worker,^{@autoreleasepool{
+   NSError *error=nil;auto *ad=[MTLBinaryArchiveDescriptor new];if([NSFileManager.defaultManager fileExistsAtPath:archiveURL.path])ad.url=archiveURL;
+   loaded=ad.url?[gpu newBinaryArchiveWithDescriptor:ad error:&error]:nil;writer=[gpu newBinaryArchiveWithDescriptor:ad error:&error];if(!writer){ad.url=nil;writer=[gpu newBinaryArchiveWithDescriptor:ad error:nil];}
+   NSURL *libraryURL=[NSBundle.mainBundle URLForResource:@"shaders-iphoneos" withExtension:@"metallib"];
+   functions=libraryURL?[gpu newLibraryWithURL:libraryURL error:nil]:nil;
+   NSData *data=[NSData dataWithContentsOfURL:recipeURL];NSArray *stored=data.length<=16*1024*1024?[NSJSONSerialization JSONObjectWithData:data?:[NSData data] options:0 error:nil]:nil;
+   if([stored isKindOfClass:NSArray.class]&&stored.count<=2048)for(NSDictionary *r in stored){@try{
+    auto *d=decode(r);if(!d)continue;NSString *key=keyFor(r);NSError *e=nil;id<MTLRenderPipelineState> state=build(d,&e);if(state){{std::lock_guard<std::mutex> lock(statesLock);states[key]=state;}recipes[key]=r;warmed++;}
+   }@catch(NSException *e){logOnce("bad-cache-recipe","[cache-v3] invalid recipe ignored");}}
+   logf("[cache-v3] archive %s; prewarmed %u complete PSOs on serial utility queue",loaded?"loaded":"new",warmed);
+  }});
+  timer=dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER,0,0,worker);dispatch_source_set_timer(timer,dispatch_time(DISPATCH_TIME_NOW,30*NSEC_PER_SEC),30*NSEC_PER_SEC,NSEC_PER_SEC);dispatch_source_set_event_handler(timer,^{@autoreleasepool{save();}});dispatch_resume(timer);
+#if TARGET_OS_IOS
+  [NSNotificationCenter.defaultCenter addObserverForName:UIApplicationDidEnterBackgroundNotification object:nil queue:nil usingBlock:^(NSNotification *n){PipelineCache::shared().serializeToDisk();}];
+#endif
+ });
 }
-
-void PipelineCache::serializeToDisk() {
-    if (!m_dirty || !m_binaryArchive || !m_archiveURL) return;
-    if (@available(iOS 14.0, *)) {
-        NSError *err = nil;
-        if ([m_binaryArchive serializeToURL:m_archiveURL error:&err]) {
-            m_dirty = false;
-            logf("Metal pipecache: serialized %zu pipelines to disk (%s)", m_recordedKeys.size(), m_archiveURL.path.UTF8String);
-        } else if (err) {
-            logf("Metal pipecache: serialization failed: %s", err.localizedDescription.UTF8String ?: "unknown");
-        }
-    }
+void PipelineCache::compile(MTLRenderPipelineDescriptor *descriptor,void (^completion)(id<MTLRenderPipelineState>,NSError *)){
+ MTLRenderPipelineDescriptor *snapshot=[descriptor copy];NSDictionary *r=encode(snapshot);NSString *key=r?keyFor(r):nil;
+ id<MTLRenderPipelineState> cached=nil;{std::lock_guard<std::mutex> lock(statesLock);if(key)cached=states[key];}
+ if(cached){completion(cached,nil);return;} // a warmed hit never waits behind archive disk I/O
+ dispatch_async(worker,^{@autoreleasepool{
+  NSError *error=nil;id<MTLRenderPipelineState> state=nil;
+  {std::lock_guard<std::mutex> lock(statesLock);if(key)state=states[key];}
+  if(!state){state=build(snapshot,&error);compiled++;if(state&&key&&recipes.count<2048){{std::lock_guard<std::mutex> lock(statesLock);states[key]=state;}recipes[key]=r;dirty=true;}}
+  completion(state,error);
+ }});
 }
-
-void PipelineCache::loadRecipes() {
-    // 1. Check bundle for bundled pre-baked recipes
-    NSString *bundlePath = [NSBundle.mainBundle pathForResource:@"pipelines-v1" ofType:@"jsonl"];
-    std::vector<NSString *> paths;
-    if (bundlePath) paths.push_back(bundlePath);
-    if (m_recipesURL && [[NSFileManager defaultManager] fileExistsAtPath:m_recipesURL.path]) {
-        paths.push_back(m_recipesURL.path);
-    }
-
-    for (NSString *p : paths) {
-        std::ifstream file(p.fileSystemRepresentation);
-        if (!file.is_open()) continue;
-        std::string line;
-        while (std::getline(file, line)) {
-            if (line.empty() || line[0] != '{') continue;
-            // Parse lightweight recipe line
-            PipeRecipe r;
-            // Extract key if present
-            size_t keyPos = line.find("\"key\":");
-            if (keyPos != std::string::npos) {
-                r.key = std::strtoull(line.c_str() + keyPos + 6, nullptr, 10);
-            }
-            size_t vsPos = line.find("\"vs\":\"");
-            if (vsPos != std::string::npos) {
-                size_t end = line.find("\"", vsPos + 6);
-                if (end != std::string::npos) r.vsHash = line.substr(vsPos + 6, end - vsPos - 6);
-            }
-            size_t psPos = line.find("\"ps\":\"");
-            if (psPos != std::string::npos) {
-                size_t end = line.find("\"", psPos + 6);
-                if (end != std::string::npos) r.psHash = line.substr(psPos + 6, end - psPos - 6);
-            }
-            if (!r.vsHash.empty()) {
-                m_recipes.push_back(r);
-            }
-        }
-    }
-
-    if (!m_recipes.empty()) {
-        logf("Metal pipecache: loaded %zu recipes to warm before gameplay", m_recipes.size());
-    }
+void PipelineCache::serializeToDisk(){if(worker)dispatch_async(worker,^{@autoreleasepool{save();}});}
 }
-
-void PipelineCache::recordRecipe(const PipeRecipe &recipe) {
-    if (!m_recipesURL) return;
-    std::string line = "{\"key\":" + std::to_string(recipe.key) +
-                       ",\"vs\":\"" + recipe.vsHash + "\"" +
-                       ",\"ps\":\"" + recipe.psHash + "\"" +
-                       ",\"lay\":" + std::to_string(recipe.layoutOid) +
-                       ",\"topo\":" + std::to_string(recipe.topo) +
-                       ",\"pass\":" + std::to_string(recipe.passKey) +
-                       ",\"blend\":" + std::to_string(recipe.blendHash) + "}\n";
-
-    std::ofstream out(m_recipesURL.path.fileSystemRepresentation, std::ios::app);
-    if (out.is_open()) {
-        out << line;
-    }
-}
-
-void PipelineCache::warmPipelines(std::function<void(const PipeRecipe &)> compileCallback) {
-    if (m_recipes.empty() || !compileCallback) return;
-    logf("Metal pipecache: pre-warming %zu pipelines in background...", m_recipes.size());
-    dispatch_queue_t queue = dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0);
-    for (const auto &recipe : m_recipes) {
-        dispatch_async(queue, ^{
-            compileCallback(recipe);
-        });
-    }
-}
-
-} // namespace mr

@@ -11,6 +11,7 @@
 #include "MRPipelineCache.h"
 #include "MetalRenderer.h"
 #include "MRFrameReports.h"
+#include "MRFallbackTextures.h"
 #include "BCTextureDecoder.h"
 #include "NativeFrameRate.h"
 #import <UIKit/UIKit.h>
@@ -340,7 +341,7 @@ static void commit(CommitReason reason, id<CAMetalDrawable> drawable = nil) {
 	[cb addCompletedHandler:^(id<MTLCommandBuffer> done) {
 		if (done.status == MTLCommandBufferStatusError) logOnce("cmderr" + std::to_string(done.error.code), "Metal renderer: command buffer failed: %s", done.error.localizedDescription.UTF8String);
 		double gpu = done.GPUEndTime - done.GPUStartTime;
-		if (gpu > 0 && gpu < 1) { gGPUMicros += (uint64_t)(gpu * 1e6); gGPUFrames++; }
+		if (gpu > 0 && gpu < 1) { gGPUMicros += (uint64_t)(gpu * 1e6); if (reason == CPresent) gGPUFrames++; }
 		for (auto &f : *callbacks) f();
 		delete callbacks;
 		uint64_t prev = r->completed.load();
@@ -354,10 +355,7 @@ static void commit(CommitReason reason, id<CAMetalDrawable> drawable = nil) {
 	R->lastCommitMs = nowMs();
 	R->commits++;
 	R->commitReasons[reason]++;
-	static uint32_t pipecacheFlush = 0;
-	if (++pipecacheFlush % 300 == 0) {
-		PipelineCache::shared().serializeToDisk();
-	}
+
 }
 static void waitSerial(uint64_t s) {
 	while (R->completed.load() < s) dispatch_semaphore_wait(R->completion, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_MSEC));
@@ -443,16 +441,21 @@ static id<MTLTexture> dummyTexture(ResKind kind, TexDim dim, SampleKind sample) 
 	if (kind == RStorageTex) d.pixelFormat = MTLPixelFormatRGBA32Float;
 	d.width = d.height = 1;
 	d.usage = MTLTextureUsageShaderRead | (kind == RStorageTex ? MTLTextureUsageShaderWrite : 0) | (depth || ms ? MTLTextureUsageRenderTarget : 0);
-	d.storageMode = MTLStorageModePrivate;
+	d.storageMode = depth || ms ? MTLStorageModePrivate : MTLStorageModeShared;
 	switch (dim) {
 	case D1: d.textureType = MTLTextureType1D; break;
-	case D2Array: d.textureType = MTLTextureType2DArray; d.arrayLength = 1; break;
+	case D2Array: d.textureType = ms ? MTLTextureType2DMultisampleArray : MTLTextureType2DArray; d.arrayLength = 1; break;
 	case D3: d.textureType = MTLTextureType3D; break;
 	case DCube: d.textureType = MTLTextureTypeCube; break;
 	case DCubeArray: d.textureType = MTLTextureTypeCubeArray; d.arrayLength = 1; break;
 	default: d.textureType = ms ? MTLTextureType2DMultisample : MTLTextureType2D; if (ms) d.sampleCount = 4;
 	}
+	if (ms) d.sampleCount = 4;
 	id<MTLTexture> t = [R->device newTextureWithDescriptor:d];
+	if (!PGInitializeFallbackTexture(t, R->queue)) {
+		logOnce("dummy-failed" + std::to_string(key), "Metal renderer: could not initialize fallback texture (kind %u dimension %u sample %u)", (unsigned)kind, (unsigned)dim, (unsigned)sample);
+		return nil;
+	}
 	R->dummyTextures[key] = t;
 	return t;
 }
@@ -1022,7 +1025,7 @@ static Pipe *getPipeline(Shader *vs, Shader *ps, Layout *lay) {
 	ShaderInfo *vsi = vs->info, *psi = ps ? ps->info : nullptr;
 	pipe->label = vsi->label + " + " + (psi ? psi->label : "-");
 	id<MTLFunction> vfn = shaderFunction(vsi), pfn = psi ? shaderFunction(psi) : nil;
-	if (!vfn || (psi && !pfn)) { pipe->failed = true; return pipe; }
+	if (!vfn || (psi && !pfn)) { pipe->failed = true; pipe->ready.store(true, std::memory_order_release); return pipe; }
 	if (psi) for (uint32_t loc : psi->inputs) if (std::find(vsi->outputs.begin(), vsi->outputs.end(), loc) == vsi->outputs.end()) {
 		logOnce("varying" + pipe->label, "Metal renderer: %s reads varying %u that the vertex shader does not write", pipe->label.c_str(), loc);
 		break;
@@ -1090,29 +1093,13 @@ static Pipe *getPipeline(Shader *vs, Shader *ps, Layout *lay) {
 	d.alphaToCoverageEnabled = bw && bw[0] && psi && std::find(psi->outputs.begin(), psi->outputs.end(), 0u) != psi->outputs.end();
 	d.inputPrimitiveTopology = topologyClass(R->topo);
 	if (R->topo == 1) logOnce("points", "Metal renderer: point-list draws (%s): shaders do not write a point size", pipe->label.c_str());
-	PipelineCache::shared().attachToDescriptor(d);
 	R->pipesPending++; R->pipesMade++;
-	Renderer *r = R;
-	std::string label = pipe->label;
-	[R->device newRenderPipelineStateWithDescriptor:d completionHandler:^(id<MTLRenderPipelineState> s, NSError *error) {
+	Renderer *r = R; std::string label = pipe->label;
+	PipelineCache::shared().compile(d, ^(id<MTLRenderPipelineState> result, NSError *error) {
 		std::lock_guard<std::mutex> guard(r->pipeLock);
-		if (!s) { pipe->failed = true; logOnce("pipe" + label, "Metal renderer: pipeline failed (%s): %s", label.c_str(), error.localizedDescription.UTF8String); }
-		pipe->state = s;
-		pipe->ready.store(true, std::memory_order_release);
-		r->pipesPending--;
-		if (s) {
-			PipelineCache::shared().recordPipeline(d, key);
-			PipeRecipe rec;
-			rec.key = key;
-			rec.vsHash = vsi->hash;
-			rec.psHash = psi ? psi->hash : "";
-			rec.layoutOid = lay->oid;
-			rec.topo = r->topo;
-			rec.passKey = pi.key;
-			rec.blendHash = blend ? blend->hash : 0;
-			PipelineCache::shared().recordRecipe(rec);
-		}
-	}];
+		if (!result) { pipe->failed = true; logOnce("pipe" + label, "Metal renderer: pipeline failed (%s): %s", label.c_str(), error.localizedDescription.UTF8String); }
+		pipe->state = result; pipe->ready.store(true, std::memory_order_release); r->pipesPending--;
+	});
 	return pipe;
 }
 
@@ -1547,30 +1534,21 @@ static void drawInner(const uint32_t *p) {
 	if (!ensurePass()) { drawOutcome = "SKIP-norT"; R->skipped++; R->skipReasons[2]++; return; }
 	Pipe *pipe = R->lastPipe;
 	if (R->pipeDirty || !pipe) {
-		pipe = getPipeline(vs, ps, lay);
+		double p0 = nowMs(); pipe = getPipeline(vs, ps, lay); R->work.pipeline += nowMs() - p0;
 		R->lastPipe = pipe;
 		R->pipeDirty = false;
 	}
-	// With pipecache and MTLBinaryArchive, cached pipelines compile instantly.
-	// For rare unseen pipelines, wait briefly up to 16ms so geometry and textures never vanish.
+	// One bounded wait budget for the entire frame, never 16 ms per draw.
+	if (!pipe->ready.load(std::memory_order_acquire) && R->pipeWaitMs < 2.0) {
+		double start = nowMs(), budget = 2.0 - R->pipeWaitMs;
+		while (!pipe->ready.load(std::memory_order_acquire) && nowMs() - start < budget) usleep(50);
+		double elapsed = nowMs() - start; R->pipeWaitMs += elapsed; R->work.pipeline += elapsed;
+	}
 	if (!pipe->ready.load(std::memory_order_acquire)) {
-		double start = nowMs();
-		while (!pipe->ready.load(std::memory_order_acquire) && (nowMs() - start) < 16.0) usleep(100);
-		R->pipeWaitMs += nowMs() - start;
+		drawOutcome = "SKIP-pending"; R->pendingSkips++; R->skipped++; R->pipeDirty = true; return;
 	}
-	if (!pipe->ready.load(std::memory_order_acquire) || !pipe->state) {
-		// CRITICAL FIX FOR "MẤT TEXTURE":
-		// Instead of dropping the draw call (which renders walls/roads/cars invisible),
-		// fall back to currently applied pipeline so the geometry is drawn safely!
-		if (R->appliedPipe) {
-			[R->pass setRenderPipelineState:R->appliedPipe];
-			drawOutcome = "ok-fallback-pipeline";
-		} else {
-			drawOutcome = "SKIP-pending"; R->pendingSkips++; R->skipped++; R->pipeDirty = true; return;
-		}
-	} else if (pipe->state != R->appliedPipe) {
-		[R->pass setRenderPipelineState:pipe->state]; R->appliedPipe = pipe->state;
-	}
+	if (!pipe->state) { R->skipped++; R->skipReasons[3]++; return; }
+	if (pipe->state != R->appliedPipe) { [R->pass setRenderPipelineState:pipe->state]; R->appliedPipe = pipe->state; }
 	applyDynamicState();
 	bindStage(0, vs->info);
 	if (ps) bindStage(1, ps->info);
@@ -2428,7 +2406,7 @@ static void loop() {
 				// nobody is producing: queries the engine may be polling must reach the GPU
 				// (at most every 2 ms: the engine issues dozens of occlusion queries per frame between short ring gaps)
 				// PG_QUERY_COMMIT_MS=0 sends them at once (GTA-92 A/B: idle-query buffers separate 60-FPS from 35-FPS windows).
-				static double queryCommitMs = getenv("PG_QUERY_COMMIT_MS") ? atof(getenv("PG_QUERY_COMMIT_MS")) : 0;	// 0 since v1.4.3; 2 was the old wait
+				static double queryCommitMs = getenv("PG_QUERY_COMMIT_MS") ? atof(getenv("PG_QUERY_COMMIT_MS")) : 0; // preserve measured query completion behavior; batching needs device A/B
 				bool waiting = !R->pendingQueries.empty();
 				if (waiting && nowMs() - R->lastCommitMs >= queryCommitMs) { commit(CIdle); waiting = false; }
 				hdr[5].store(1);
@@ -2497,18 +2475,13 @@ static bool setup() {
 	PipelineCache::shared().initialize(R->device);
 	// Lite build (the app sets PG_LITE from its Info.plist); PG_LITE_TEXTURES=0 keeps textures whole there.
 	gSkipTopMip = getenv("PG_LITE") && strcmp(getenv("PG_LITE"), "0") && !(getenv("PG_LITE_TEXTURES") && !strcmp(getenv("PG_LITE_TEXTURES"), "0"));
-	// Textures of at least 512×512 texels lose their largest level where BC is decoded, a quarter of their
-	// memory (GTA-122; simulator: GPU textures −16%).
-	// On by default since v1.4.3 at 512×512 (Kevin, 2026-10-20); PG_BIG_MIP_SKIP=0 turns it off, another size changes it.
+	// Textures of at least 512Ã—512 texels lose their largest level where BC is decoded, a quarter of their
+	// memory (GTA-122; simulator: GPU textures âˆ’16%).
+	// On by default since v1.4.3 at 512Ã—512 (Kevin, 2026-10-20); PG_BIG_MIP_SKIP=0 turns it off, another size changes it.
 	{ const char *v = getenv("PG_BIG_MIP_SKIP"); long side = v ? atol(v) : 512; if (side >= 256 && side <= 8192 && !gNativeBC) gSkipBigTopMip = (uint64_t)side * side; }
 	R->borderColors = [R->device supportsFamily:MTLGPUFamilyApple7];
 	if (!loadShaderLibrary(R->device)) return false;
-	PipelineCache::shared().warmPipelines([](const PipeRecipe &rec) {
-		ShaderInfo *vsi = findShader(rec.vsHash);
-		ShaderInfo *psi = rec.psHash.empty() ? nullptr : findShader(rec.psHash);
-		if (vsi) shaderFunction(vsi);
-		if (psi) shaderFunction(psi);
-	});
+
 	R->zeroBuffer = [R->device newBufferWithLength:65536 options:MTLResourceStorageModeShared];
 	memset(R->zeroBuffer.contents, 0, 65536);
 	R->visibility = [R->device newBufferWithLength:OCCLUSION_SLOTS * 8 options:MTLResourceStorageModeShared];

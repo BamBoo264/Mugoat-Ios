@@ -10,7 +10,7 @@ SERVER=""
 MIRROR=""
 if [ "${1:-}" = "--mirror" ]; then MIRROR="$(cd "${2:?Usage: ./build_ipa.sh --mirror /path/to/game-folder [--paid]}" && pwd)"; shift 2
 else SERVER="${1:?Usage: ./build_ipa.sh https://your-server [--paid]  or  ./build_ipa.sh --mirror /path [--paid]}"; shift; fi
-ENTITLEMENTS=App/Free.entitlements
+ENTITLEMENTS=App/Full.entitlements
 [ "${1:-}" = "--paid" ] && ENTITLEMENTS=App/Full.entitlements
 cd "$(dirname "$0")/app"
 JOBS="${JOBS:-$(sysctl -n hw.ncpu)}"
@@ -54,16 +54,6 @@ printf '%s\n' "${GITHUB_SHA:-local}" > "$APP/iosvn-build-revision.txt"
 cp Resources/manifest.json "$APP/manifest.json"
 test -s "$APP/manifest.json"
 
-# 1. Build IPA for Free Apple ID (SideStore / AltStore standard)
-STAGE_FREE=Build/IPA-Free
-rm -rf "$STAGE_FREE"
-mkdir -p "$STAGE_FREE/Payload"
-ditto "$APP" "$STAGE_FREE/Payload/PlayGTA5Native.app"
-codesign --force --sign - --entitlements App/Free.entitlements --generate-entitlement-der "$STAGE_FREE/Payload/PlayGTA5Native.app"
-rm -f "$ROOT_DIR/Mugoat-AppleID-Free.ipa"
-(cd "$STAGE_FREE" && zip -qry "$ROOT_DIR/Mugoat-AppleID-Free.ipa" Payload)
-echo "Done (Free Apple ID): $ROOT_DIR/Mugoat-AppleID-Free.ipa"
-
 # 2. Build IPA for Paid Certificate / Developer Account (extra memory entitlements)
 STAGE_PAID=Build/IPA-Paid
 rm -rf "$STAGE_PAID"
@@ -72,6 +62,5 @@ ditto "$APP" "$STAGE_PAID/Payload/PlayGTA5Native.app"
 codesign --force --sign - --entitlements App/Full.entitlements --generate-entitlement-der "$STAGE_PAID/Payload/PlayGTA5Native.app"
 rm -f "$ROOT_DIR/Mugoat-Cert-Paid.ipa"
 (cd "$STAGE_PAID" && zip -qry "$ROOT_DIR/Mugoat-Cert-Paid.ipa" Payload)
-cp "$ROOT_DIR/Mugoat-Cert-Paid.ipa" "$ROOT_DIR/Mugoat.ipa"
 echo "Done (Paid Certificate): $ROOT_DIR/Mugoat-Cert-Paid.ipa"
 

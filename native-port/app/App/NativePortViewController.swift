@@ -559,12 +559,15 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             }
         }
         var effectiveManifest = path
+        PGSetManagedOpenRPFEnabled(false)
         if let data = localData {
             PGSetLocalGameFolder(data.path)
             let modsDir = ModManagerViewController.modsDirectory
             let runtimeDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("mod_runtime")
             var dlcData: Data? = nil
             let looseCandidates = [
+                data.appendingPathComponent("data/common/data/dlcList.xml"),
+                data.appendingPathComponent("data/common/data/dlclist.xml"),
                 data.appendingPathComponent("common/data/dlcList.xml"),
                 data.appendingPathComponent("common/data/dlclist.xml")
             ]
@@ -588,23 +591,14 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
                     }
                 }
             }
-            if dlcData == nil {
-                // Baseline dlclist.xml template so Add-on mods can always be registered into paths
-                let baseline = """
-                <?xml version="1.0" encoding="utf-8"?>
-                <Paths>
-                  <Item>platform:\\dlcPacks\\mppatchesng\\</Item>
-                  <Item>platform:\\dlcPacks\\mpchristmas2\\</Item>
-                  <Item>platform:\\dlcPacks\\mpheist\\</Item>
-                  <Item>platform:\\dlcPacks\\patchday1ng\\</Item>
-                  <Item>platform:\\dlcPacks\\patchday2ng\\</Item>
-                  <Item>platform:\\dlcPacks\\patchday3ng\\</Item>
-                </Paths>
-                """
-                dlcData = baseline.data(using: .utf8)
+            if dlcData == nil && !ModRuntime.catalog(modsDir).packs.isEmpty {
+                appendLog("ModRuntime: missing original common/data/dlcList.xml; refusing to replace the game's DLC list with a guessed template.")
             }
 
-            if let dlcData {
+            if MugoatOnlineEnabled() && !ModRuntime.catalog(modsDir).packs.isEmpty {
+                appendLog("ModRuntime: managed vehicle packs require Story offline; original online assets remain active.")
+            }
+            if let dlcData, !MugoatOnlineEnabled() {
                 do {
                     let baseManifestURL = URL(fileURLWithPath: path)
                     let (overlayManifestURL, catalog) = try ModRuntime.prepare(
@@ -615,6 +609,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
                     )
                     effectiveManifest = overlayManifestURL.path
                     if !catalog.packs.isEmpty {
+                        PGSetManagedOpenRPFEnabled(true)
                         appendLog("ModRuntime: Đã nạp \(catalog.packs.count) gói DLC mod (\(catalog.vehicleModels.count) xe: \(catalog.vehicleModels.joined(separator: ", "))).")
                     }
                     if !catalog.problems.isEmpty {

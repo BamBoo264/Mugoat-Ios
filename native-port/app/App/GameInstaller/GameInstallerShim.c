@@ -141,84 +141,52 @@ static long gi_extract_read_cb(void *context, const void **buffer) {
     return (long)n;
 }
 
+// This convenience extractor is only for staged mod imports (not the 20 GB game importer).
+static int gi_safe_relative_path(const char *path) {
+    if (!path || !*path || path[0]=='/' || strchr(path,'\\') || strchr(path,':')) return 0;
+    for (const char *p=path; *p;) {
+        const char *end=strchr(p,'/'); size_t n=end ? (size_t)(end-p) : strlen(p);
+        if (!n || (n==1 && p[0]=='.') || (n==2 && p[0]=='.' && p[1]=='.')) return 0;
+        if (!end) break; p=end+1;
+    }
+    return 1;
+}
 int gi_extract_archive(const char *archive_path, const char *dest_dir) {
     if (!archive_path || !dest_dir) return -1;
-    FILE *fp = fopen(archive_path, "rb");
-    if (!fp) return -1;
-
-    struct gi_extract_ctx ctx;
-    ctx.fp = fp;
-
-    gi_reader *reader = gi_reader_open(gi_extract_read_cb, &ctx);
-    if (!reader) {
-        fclose(fp);
-        return -1;
-    }
-
-    int files_extracted = 0;
+    FILE *fp=fopen(archive_path,"rb"); if(!fp)return -1;
+    struct gi_extract_ctx ctx={.fp=fp};
+    gi_reader *reader=gi_reader_open(gi_extract_read_cb,&ctx);
+    if(!reader){fclose(fp);return -1;}
+    int result=-1, files=0, count=0, status; int64_t total=0;
     gi_entry_info info;
-    while (gi_reader_next(reader, &info) == GI_OK) {
-        if (!info.path || !*info.path) continue;
-        if (strstr(info.path, "__MACOSX/") || strstr(info.path, "/.") || info.path[0] == '.') {
-            gi_reader_skip(reader);
-            continue;
+    while((status=gi_reader_next(reader,&info))!=GI_EOF) {
+        if((status!=GI_OK && status!=GI_WARN) || ++count>8192 ||
+           !gi_safe_relative_path(info.path) || info.encrypted ||
+           (info.kind!=GI_ENTRY_FILE && info.kind!=GI_ENTRY_DIRECTORY)) goto done;
+        if(strstr(info.path,"__MACOSX/") || strstr(info.path,"/.") || info.path[0]=='.') {
+            if(gi_reader_skip(reader)!=GI_OK)goto done; continue;
         }
-
-        char full_dest[1024];
-        snprintf(full_dest, sizeof(full_dest), "%s/%s", dest_dir, info.path);
-
-        if (info.kind == GI_ENTRY_DIRECTORY) {
-            char tmp[1024];
-            snprintf(tmp, sizeof(tmp), "%s", full_dest);
-            for (char *p = tmp + 1; *p; p++) {
-                if (*p == '/') {
-                    *p = '\0';
-                    mkdir(tmp, 0755);
-                    *p = '/';
-                }
-            }
-            mkdir(tmp, 0755);
-            continue;
+        if(info.size_known && (info.size<0 || info.size>1024LL*1024*1024-total))goto done;
+        char target[1024];
+        if(snprintf(target,sizeof target,"%s/%s",dest_dir,info.path)>=(int)sizeof target)goto done;
+        // Destination is a fresh private staging directory; links are never created.
+        for(char *q=target+strlen(dest_dir)+1;*q;q++)if(*q=='/') {
+            *q=0; if(mkdir(target,0700)!=0 && errno!=EEXIST)goto done; *q='/';
         }
-
-        if (info.kind == GI_ENTRY_FILE) {
-            char tmp[1024];
-            snprintf(tmp, sizeof(tmp), "%s", full_dest);
-            char *last_slash = strrchr(tmp, '/');
-            if (last_slash) {
-                *last_slash = '\0';
-                for (char *p = tmp + 1; *p; p++) {
-                    if (*p == '/') {
-                        *p = '\0';
-                        mkdir(tmp, 0755);
-                        *p = '/';
-                    }
-                }
-                mkdir(tmp, 0755);
-            }
-
-            int fd = open(full_dest, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-            if (fd >= 0) {
-                const void *buf = NULL;
-                size_t size = 0;
-                int64_t offset = 0;
-                while (gi_reader_data(reader, &buf, &size, &offset) == GI_OK) {
-                    if (size > 0 && buf) {
-                        write(fd, buf, size);
-                    }
-                }
-                close(fd);
-                files_extracted++;
-            } else {
-                gi_reader_skip(reader);
-            }
-        } else {
-            gi_reader_skip(reader);
+        if(info.kind==GI_ENTRY_DIRECTORY){if(mkdir(target,0700)!=0 && errno!=EEXIST)goto done;continue;}
+        int fd=open(target,O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW,0600); if(fd<0)goto done;
+        const void *buffer; size_t size; int64_t offset, written=0; int okay=1;
+        while((status=gi_reader_data(reader,&buffer,&size,&offset))==GI_OK) {
+            if(offset!=written || size>(uint64_t)(1024LL*1024*1024-total)){okay=0;break;}
+            size_t left=size;const char *b=buffer;
+            while(left){ssize_t n=write(fd,b,left);if(n<0 && errno==EINTR)continue;if(n<=0){okay=0;break;}b+=n;left-=(size_t)n;}
+            if(!okay)break;written+=(int64_t)size;total+=(int64_t)size;
         }
+        if(close(fd)!=0)okay=0;
+        if(!okay || status!=GI_EOF || (info.size_known && written!=info.size))goto done;
+        files++;
     }
-
-    gi_reader_close(reader);
-    fclose(fp);
-    return files_extracted;
+    result=files;
+done:
+    gi_reader_close(reader);fclose(fp);return result;
 }
-

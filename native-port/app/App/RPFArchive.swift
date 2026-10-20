@@ -35,7 +35,7 @@ struct RPFArchive {
         let count = Int(try word(4)), namesSize = Int(try word(8))
         guard count > 0, count <= 100_000, namesSize > 0, namesSize <= 8 * 1024 * 1024,
               16 + count * 16 + namesSize <= bytes.count else { throw ModError("Bảng tệp RPF bị hỏng.") }
-        guard try word(12) == 0x4e45504f else { throw ModError("Bảng RPF đã mã hóa. Hãy xuất gói mở bằng OpenIV trước khi nhập.") }
+        guard try word(12) == 0x4e45504f || word(12) == 0 else { throw ModError("Bảng RPF đã mã hóa. Hãy xuất gói mở bằng OpenIV trước khi nhập.") }
         let namesStart = 16 + count * 16
         func name(_ offset: Int) throws -> String {
             guard offset >= 0, offset < namesSize else { throw ModError("Tên tệp RPF không hợp lệ.") }
@@ -118,48 +118,39 @@ final class ModXML: NSObject, XMLParserDelegate {
 struct ModPack {
     let name: String
     let url: URL
-    /// Every name the pack defines (vehicles, peds, texture and model files): used to detect clashes.
     let models: [String]
-    /// Only the <modelName> entries of its vehicles.meta: the names that can be spawned as vehicles.
     let vehicleModels: [String]
     let archive: RPFArchive
     static func validName(_ name: String) -> Bool {
-        !name.isEmpty && name.utf8.count <= 63 && name.utf8.allSatisfy { (97...122).contains($0) || (48...57).contains($0) || $0 == 95 }
+        !name.isEmpty && name.utf8.count<=63 && name.utf8.allSatisfy{(97...122).contains($0)||(48...57).contains($0)||$0==95}
     }
     init(url: URL) throws {
-        let archive = try RPFArchive(url: url)
-        guard let setup = archive.entries.first(where: { $0.path == "setup2.xml" }),
-              archive.entries.contains(where: { $0.path == "content.xml" }) else { throw ModError("Gói DLC thiếu setup2.xml hoặc content.xml.") }
-        let xml = try ModXML.read(archive.metadata(setup))
-        guard let device = xml.values["deviceName"]?.first?.lowercased(), device.hasPrefix("dlc_"), Self.validName(String(device.dropFirst(4))) else { throw ModError("Gói DLC không có deviceName hợp lệ.") }
-        name = String(device.dropFirst(4)); self.url = url; self.archive = archive
-        var models = Set<String>()
-        for entry in archive.entries where entry.path.hasSuffix("vehicles.meta") {
-            for model in (try? ModXML.read(archive.metadata(entry)).values["modelName"]) ?? [] {
-                let model = model.lowercased(); guard Self.validName(model) else { throw ModError("Tên model không hợp lệ: \(model)") }; models.insert(model)
-            }
-        }
-        // Texture dictionaries (…_mods, vehshare…) and ped names are not vehicles: listing them in the
-        // spawner made most "Xe Mod" rows fail while NPCs drove the real model.
-        self.vehicleModels = models.sorted()
-        for entry in archive.entries where entry.path.hasSuffix("peds.meta") {
-            let meta = try? ModXML.read(archive.metadata(entry))
-            for model in (meta?.values["ModelName"] ?? []) + (meta?.values["Name"] ?? []) {
-                let model = model.lowercased(); if Self.validName(model) { models.insert(model) }
-            }
-        }
-        for entry in archive.entries where entry.path.hasSuffix(".rpf") {
-            let nested = try archive.nested(entry)
-            for resource in nested.entries where resource.path.hasSuffix(".yft") || resource.path.hasSuffix(".ytd") || resource.path.hasSuffix(".ydd") {
-                let expected = resource.path.hasSuffix(".yft") ? 162 : resource.path.hasSuffix(".ytd") ? 13 : 165
-                guard resource.resourceVersion == expected else { throw ModError("Gói \(name) dùng tài nguyên Enhanced không tương thích. Hãy dùng bản Legacy.") }
-                let base = (resource.path as NSString).lastPathComponent.components(separatedBy: ".").first?.lowercased() ?? ""
-                if !base.isEmpty && Self.validName(base) && !base.hasSuffix("_hi") {
-                    models.insert(base)
+        let archive=try RPFArchive(url:url)
+        guard let setup=archive.entries.first(where:{$0.path=="setup2.xml"}),archive.entries.contains(where:{$0.path=="content.xml"}) else {throw ModError("DLC thiếu setup2.xml hoặc content.xml.")}
+        let xml=try ModXML.read(archive.metadata(setup))
+        guard let device=xml.values["deviceName"]?.first?.lowercased(),device.hasPrefix("dlc_"),Self.validName(String(device.dropFirst(4))) else {throw ModError("DLC không có deviceName hợp lệ.")}
+        name=String(device.dropFirst(4));self.url=url;self.archive=archive
+        var vehicles=Set<String>(),peds=Set<String>(),fragments=Set<String>(),total=0
+        func scan(_ rpf:RPFArchive,_ depth:Int) throws {
+            guard depth<=4 else {throw ModError("DLC lồng archive quá sâu.")}
+            for e in rpf.entries {
+                if e.path.hasSuffix("vehicles.meta") {
+                    for m in try ModXML.read(rpf.metadata(e)).values["modelName"] ?? [] {let n=m.lowercased();guard Self.validName(n) else {throw ModError("Model không hợp lệ: \(n)")};vehicles.insert(n)}
+                } else if e.path.hasSuffix("peds.meta") {
+                    let data=try ModXML.read(rpf.metadata(e));for m in (data.values["ModelName"] ?? [])+(data.values["Name"] ?? []) {if Self.validName(m.lowercased()){peds.insert(m.lowercased())}}
+                } else if e.path.hasSuffix(".rpf") {
+                    total+=e.size;guard total<=512*1024*1024 else {throw ModError("Archive lồng vượt giới hạn 512 MiB.")};try scan(rpf.nested(e),depth+1)
+                } else if e.path.hasSuffix(".yft") || e.path.hasSuffix(".ytd") || e.path.hasSuffix(".ydd") {
+                    let expected=e.path.hasSuffix(".yft") ? 162:e.path.hasSuffix(".ytd") ? 13:165
+                    guard e.resourceVersion==expected else {throw ModError("\(e.path): tài nguyên Enhanced hoặc version không hỗ trợ; cần bản Legacy.")}
+                    if e.path.hasSuffix(".yft") {let n=String((e.path as NSString).lastPathComponent.dropLast(4));if !n.hasSuffix("_hi"){fragments.insert(n)}}
                 }
             }
         }
-        guard !models.isEmpty else { throw ModError("DLC chưa có model xe hoặc nhân vật hợp lệ.") }
-        self.models = models.sorted()
+        try scan(archive,0)
+        if vehicles.isEmpty {vehicles=fragments} // replacement pack: engine already owns model metadata
+        guard !vehicles.isEmpty || !peds.isEmpty else {throw ModError("DLC không chứa model có thể nạp.")}
+        guard vehicles.isSubset(of:fragments) else {throw ModError("DLC khai báo xe nhưng thiếu YFT: \(vehicles.subtracting(fragments).sorted().joined(separator:", "))")}
+        vehicleModels=vehicles.sorted();models=vehicles.union(peds).sorted()
     }
 }

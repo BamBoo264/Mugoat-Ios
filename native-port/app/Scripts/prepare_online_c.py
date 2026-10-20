@@ -80,7 +80,8 @@ if __name__ == '__main__':
     (generated/'MugoatCommands.c').write_text(source)
     injections = {'script': f'mugoat_script_tick(instance,var_p0,*{tls}(instance));',
                   'explosion': 'mugoat_explosion(var_p0);',
-                  'timewarp': 'var_p1=mugoat_time_warp(var_p1);'}
+                  'timewarp': 'var_p1=mugoat_time_warp(var_p1);',
+                  'open_rpf': 'if (var_p0 == 0x4e45504fu && PGManagedOpenRPFEnabled()) { FUNC_EPILOGUE; return; }'}
     for key, index in metadata['hooks'].items():
         matches = []
         for path in generated.glob('game_*.c'):

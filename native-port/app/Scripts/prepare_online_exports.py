@@ -12,6 +12,7 @@ HOOKS = {
     'script': 'GtaThread::Update(int)',
     'explosion': 'CExplosionManager::AddExplosion(CExplosionManager::CExplosionArgs&, CProjectile*, bool)',
     'timewarp': 'CTimeWarper::SetTargetTimeWarp(TW_Dir)',
+    'open_rpf': 'rage::AES::Decrypt(unsigned int, unsigned int, void*, unsigned int)',
 }
 
 def leb(value):

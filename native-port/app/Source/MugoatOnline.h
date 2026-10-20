@@ -15,6 +15,10 @@ uint32_t mugoat_time_warp(uint32_t direction);
 bool MugoatOnlineConfigure(const char *server, const char *name, const char *room, int32_t mode);
 size_t MugoatOnlineStatus(char *output, size_t capacity);
 bool MugoatOnlineEnabled(void);
+// Only validated managed offline mods may bypass AES for the literal OPEN marker.
+// All other encryption keys retain the original engine decryption path.
+void PGSetManagedOpenRPFEnabled(bool enabled);
+bool PGManagedOpenRPFEnabled(void);
 void MugoatOnlineShutdown(void);
 
 // Voice Chat (Loa & Mic)

@@ -57,6 +57,14 @@ jobs:
           cp Resources/Localizations.json "$RUNNER_TEMP/Localizations.json"
           swiftc App/Localization.swift App/SaveStore.swift Tests/save_store.swift -o "$RUNNER_TEMP/save-store"
           "$RUNNER_TEMP/save-store"
+          clang -std=c11 -I Source Source/ManagedOpenRPF.c Tests/managed_open_rpf.c -o "$RUNNER_TEMP/open-rpf"
+          "$RUNNER_TEMP/open-rpf"
+          clang -c -I App/GameInstaller Source/NativeRPFInflate.c -o "$RUNNER_TEMP/rpf-inflate.o"
+          clang -c -I Vendor/libarchive.xcframework/macos-arm64/Headers -I App/GameInstaller App/GameInstaller/GameInstallerShim.c -o "$RUNNER_TEMP/archive-shim.o"
+          swiftc -import-objc-header App/GameInstaller/GameInstallerShim.h App/ModFiles.swift App/RPFArchive.swift App/ModRuntime.swift App/VehicleInstaller.swift Tests/vehicle_installer.swift "$RUNNER_TEMP/rpf-inflate.o" "$RUNNER_TEMP/archive-shim.o" Vendor/libarchive.xcframework/macos-arm64/libarchive.a -lz -lbz2 -o "$RUNNER_TEMP/vehicle-installer"
+          "$RUNNER_TEMP/vehicle-installer"
+          clang++ -std=c++20 -fobjc-arc -I Source Tests/pipeline_cache.mm -framework Foundation -framework Metal -framework QuartzCore -o "$RUNNER_TEMP/pipeline-cache"
+          "$RUNNER_TEMP/pipeline-cache"
       - name: Install Apple build tools
         run: |
           brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
@@ -82,19 +90,16 @@ jobs:
         env:
           PG_REUSE_PREPARED: ${{ steps.prepared.outputs.cache-hit == 'true' && '1' || '0' }}
         run: bash native-port/build_ipa.sh --mirror "$RUNNER_TEMP/game-files"
-      - name: Verify both IPA variants
+      - name: Verify Paid Cert IPA
         working-directory: native-port
         run: |
-          python3 app/Scripts/verify_native_ipa.py Mugoat-AppleID-Free.ipa --revision "$GITHUB_SHA" > validation-free.json
           python3 app/Scripts/verify_native_ipa.py Mugoat-Cert-Paid.ipa --revision "$GITHUB_SHA" > validation-full.json
-          codesign --verify --deep --strict app/Build/IPA-Free/Payload/PlayGTA5Native.app
           codesign --verify --deep --strict app/Build/IPA-Paid/Payload/PlayGTA5Native.app
-          shasum -a 256 Mugoat-AppleID-Free.ipa Mugoat-Cert-Paid.ipa > SHA256SUMS.txt
+          shasum -a 256 Mugoat-Cert-Paid.ipa > SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: Mugoat-iOS-Recovery-IPAs
+          name: Mugoat-iOS-v3-Paid-Cert
           path: |
-            native-port/Mugoat-AppleID-Free.ipa
             native-port/Mugoat-Cert-Paid.ipa
             native-port/validation-*.json
             native-port/SHA256SUMS.txt

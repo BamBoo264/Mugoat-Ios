@@ -28,7 +28,7 @@ def verify(path, revision=None):
         if (minimum or 0) < 0x0f0000 or (minimum or 0) > 0x100000 or platform != 2: raise ValueError(f'Wrong binary deployment: {version(minimum or 0)}, platform {platform}')
         if info.get('MinimumOSVersion') not in ('15.0', '16.0'): raise ValueError(f"Wrong bundle minimum OS: {info.get('MinimumOSVersion')}")
         if info['CFBundleIdentifier']!='vn.iosvn.mugoat.recovery': raise ValueError('Save-preserving bundle ID changed')
-        if info['CFBundleShortVersionString']!='2.1' or info['CFBundleVersion']!='21': raise ValueError('Old build/version')
+        if info['CFBundleShortVersionString']!='2.2' or info['CFBundleVersion']!='22': raise ValueError('Old build/version')
         if prefix+'manifest.json' not in package.namelist(): raise ValueError('Missing manifest.json in app bundle')
         if any(name.startswith(prefix) and name.endswith(('.wasm','.cwasm')) for name in package.namelist()): raise ValueError('Unexpected VM game payload')
         for forbidden in [b'wasmtime_runtime',b'wgpu_core',b'wasmtime::']:
@@ -45,7 +45,7 @@ def verify(path, revision=None):
         if not icon_files: raise ValueError('Missing Springboard app icon')
         return {'ipa':str(path),'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),
                 'architecture':'ARM64 native','binary_minimum_os':version(minimum),'bundle_minimum_os':info['MinimumOSVersion'],
-                'bundle_id':info['CFBundleIdentifier'],'version':'2.1 (21)','revision':actual_revision,'metal_library':True,
+                'bundle_id':info['CFBundleIdentifier'],'version':'2.2 (22)','revision':actual_revision,'metal_library':True,
                 'water_shader_programs':len(water),
                 'vm_game_payload':False,'old_vm_graphics_runtime':False,'app_icon_files':icon_files}
 

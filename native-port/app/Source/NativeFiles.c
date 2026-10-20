@@ -28,114 +28,41 @@ static int guestError(int e) {
   }
 }
 static u32 failure(void) { return (u32)-guestError(errno); }
+static void ensure_parent_dirs(const char *path) {
+  char temp[PATH_MAX];
+  strncpy(temp, path, sizeof(temp) - 1);
+  temp[sizeof(temp) - 1] = '\0';
+  char *slash = strrchr(temp, '/');
+  if (!slash) return;
+  *slash = '\0';
+  for (char *p = temp + 1; *p; p++) {
+    if (*p == '/') {
+      *p = '\0';
+      mkdir(temp, 0755);
+      *p = '/';
+    }
+  }
+  mkdir(temp, 0755);
+}
 void pg_files_init(const char *root) {
   snprintf(filesRoot,sizeof filesRoot,"%s",root);
   mkdir(root,0700);
   for(int i=0;i<PG_FDS;i++) descriptors[i].native=-1;
-  const char *paths[]={"/tmp","/home","/home/web_user","/dev","/proc","/proc/self","/proc/self/fd"};
+  const char *paths[]={
+    "/tmp","/home","/home/web_user","/dev","/proc","/proc/self","/proc/self/fd",
+    "/userdata","/userdata/Documents",
+    "/userdata/Documents/Rockstar Games",
+    "/userdata/Documents/Rockstar Games/GTA V",
+    "/userdata/Documents/Rockstar Games/GTA V/Profiles",
+    "/sandbox","/sandbox/Documents"
+  };
   for(size_t i=0;i<sizeof paths/sizeof *paths;i++) {
-    char path[PATH_MAX]; snprintf(path,sizeof path,"%s%s",root,paths[i]); mkdir(path,0700);
+    char path[PATH_MAX]; snprintf(path,sizeof path,"%s%s",root,paths[i]); mkdir(path,0755);
   }
 }
 static int nativeFD(u32 fd) { if(fd>=PG_FDS||descriptors[fd].native<0){errno=EBADF;return -1;}return descriptors[fd].native; }
-
-__attribute__((weak)) const char *pg_mods_folder_path(void) {
-  static char path[PATH_MAX];
-  if (!path[0]) {
-    const char *env = getenv("PG_MODS_FOLDER");
-    if (env && *env) snprintf(path, sizeof path, "%s", env);
-    else {
-      const char *home = getenv("HOME");
-      if (home && *home) snprintf(path, sizeof path, "%s/Documents/Mods", home);
-    }
-  }
-  return path[0] ? path : NULL;
-}
-
-__attribute__((weak)) const char *pg_local_data_root_path(void) {
-  static char path[PATH_MAX];
-  if (!path[0]) {
-    const char *env = getenv("PG_LOCAL_DATA_ROOT");
-    if (env && *env) snprintf(path, sizeof path, "%s", env);
-    else {
-      const char *home = getenv("HOME");
-      if (home && *home) snprintf(path, sizeof path, "%s/Documents", home);
-    }
-  }
-  return path[0] ? path : NULL;
-}
-
-static bool tryDirectCandidate(const char *candidate, char *physical, char *virtualPath, const char *vPath) {
-  if (!candidate || !*candidate) return false;
-  struct stat st;
-  if (stat(candidate, &st) == 0 && S_ISREG(st.st_mode) && st.st_size > 16) {
-    FILE *f = fopen(candidate, "rb");
-    if (f) {
-      uint32_t magic = 0;
-      size_t readCount = fread(&magic, sizeof(magic), 1, f);
-      fclose(f);
-      if (readCount == 1 && (magic == 0x52504637 || magic == 0x37465052 || magic == 0x37435352)) {
-        strncpy(physical, candidate, PATH_MAX - 1);
-        physical[PATH_MAX - 1] = 0;
-        if (virtualPath) {
-          strncpy(virtualPath, vPath, PATH_MAX - 1);
-          virtualPath[PATH_MAX - 1] = 0;
-        }
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
 static int pathAt(struct w2c_env *host,u32 fd,u64 address,char *physical,char *virtualPath) {
   const char *input=pg_string(host,address);
-  if (!input) { errno = EFAULT; return -1; }
-
-  // Check DLC pack / mod VFS redirection for platform:/dlcPacks/..., dlcpacks:/..., and update/x64/dlcpacks/
-  const char *dlcMarker = NULL;
-  if ((dlcMarker = strcasestr(input, "dlcPacks/")) || (dlcMarker = strcasestr(input, "dlcPacks\\")) ||
-      (dlcMarker = strcasestr(input, "dlcpacks/")) || (dlcMarker = strcasestr(input, "dlcpacks\\"))) {
-    const char *sub = dlcMarker + 9;
-    char packName[128] = {0};
-    size_t pi = 0;
-    while (sub[pi] && sub[pi] != '/' && sub[pi] != '\\' && pi < sizeof(packName) - 1) {
-      packName[pi] = sub[pi];
-      pi++;
-    }
-    packName[pi] = 0;
-
-    if (packName[0]) {
-      const char *mods = pg_mods_folder_path();
-      const char *localData = pg_local_data_root_path();
-      char candidate[PATH_MAX];
-
-      // 1. Mods/update/x64/dlcpacks/<pack>/dlc.rpf
-      if (mods && *mods) {
-        snprintf(candidate, sizeof(candidate), "%s/update/x64/dlcpacks/%s/dlc.rpf", mods, packName);
-        if (tryDirectCandidate(candidate, physical, virtualPath, input)) return 0;
-
-        // 2. Mods/<pack>/dlc.rpf
-        snprintf(candidate, sizeof(candidate), "%s/%s/dlc.rpf", mods, packName);
-        if (tryDirectCandidate(candidate, physical, virtualPath, input)) return 0;
-
-        // 3. Mods/dlcpacks/<pack>/dlc.rpf
-        snprintf(candidate, sizeof(candidate), "%s/dlcpacks/%s/dlc.rpf", mods, packName);
-        if (tryDirectCandidate(candidate, physical, virtualPath, input)) return 0;
-      }
-
-      // 4. localDataRoot/update/x64/dlcpacks/<pack>/dlc.rpf
-      if (localData && *localData) {
-        snprintf(candidate, sizeof(candidate), "%s/update/x64/dlcpacks/%s/dlc.rpf", localData, packName);
-        if (tryDirectCandidate(candidate, physical, virtualPath, input)) return 0;
-
-        // 5. localDataRoot/x64/dlcPacks/<pack>/dlc.rpf
-        snprintf(candidate, sizeof(candidate), "%s/x64/dlcPacks/%s/dlc.rpf", localData, packName);
-        if (tryDirectCandidate(candidate, physical, virtualPath, input)) return 0;
-      }
-    }
-  }
-
   char merged[PATH_MAX];
   if(input[0]=='/') {
     if(strlen(input)>=sizeof merged){errno=ENAMETOOLONG;return -1;}
@@ -173,7 +100,14 @@ u32 w2c_env_0x5F_syscall_openat(struct w2c_env *host,u32 fd,u64 name,u32 flags,u
   pthread_mutex_lock(&filesLock);
   if(pathAt(host,fd,name,path,virtualPath)<0){u32 e=failure();pthread_mutex_unlock(&filesLock);return e;}
   int mode=args?*(u32 *)pg_pointer(host,args,4):0666;
+  if(flags&64) {
+    ensure_parent_dirs(path);
+  }
   int n=!strcmp(virtualPath,"/dev/null")?open("/dev/null",openFlags(flags),mode):open(path,openFlags(flags),mode);
+  if(n<0 && (flags&64)) {
+    ensure_parent_dirs(path);
+    n=open(path,openFlags(flags),mode);
+  }
   if(n<0){u32 e=failure();pthread_mutex_unlock(&filesLock);return e;}
   for(int i=3;i<PG_FDS;i++)if(descriptors[i].native<0){descriptors[i].native=n;strcpy(descriptors[i].path,virtualPath);pthread_mutex_unlock(&filesLock);return i;}
   close(n);pthread_mutex_unlock(&filesLock);return (u32)-33;
@@ -194,10 +128,10 @@ u32 w2c_env_0x5F_syscall_newfstatat(struct w2c_env *h,u32 fd,u64 name,u64 out,u3
 u32 w2c_env_0x5F_syscall_stat64(struct w2c_env *h,u64 name,u64 out){return w2c_env_0x5F_syscall_newfstatat(h,-100,name,out,0);}
 u32 w2c_env_0x5F_syscall_lstat64(struct w2c_env *h,u64 name,u64 out){return w2c_env_0x5F_syscall_newfstatat(h,-100,name,out,256);}
 u32 w2c_env_0x5F_syscall_getcwd(struct w2c_env *h,u64 out,u64 size){if(size<2)return (u32)-68;memcpy(pg_pointer(h,out,2),"/",2);return 2;}
-u32 w2c_env_0x5F_syscall_mkdirat(struct w2c_env *h,u32 fd,u64 name,u32 mode){char p[PATH_MAX];if(pathAt(h,fd,name,p,NULL)<0||mkdir(p,mode)<0)return failure();return 0;}
+u32 w2c_env_0x5F_syscall_mkdirat(struct w2c_env *h,u32 fd,u64 name,u32 mode){char p[PATH_MAX];if(pathAt(h,fd,name,p,NULL)<0)return failure();ensure_parent_dirs(p);if(mkdir(p,mode)<0 && errno!=EEXIST)return failure();return 0;}
 u32 w2c_env_0x5F_syscall_unlinkat(struct w2c_env *h,u32 fd,u64 name,u32 flags){char p[PATH_MAX];if(pathAt(h,fd,name,p,NULL)<0||(flags&512?rmdir(p):unlink(p))<0)return failure();return 0;}
 u32 w2c_env_0x5F_syscall_rmdir(struct w2c_env *h,u64 name){return w2c_env_0x5F_syscall_unlinkat(h,-100,name,512);}
-u32 w2c_env_0x5F_syscall_renameat(struct w2c_env *h,u32 a,u64 old,u32 b,u64 new){char p[PATH_MAX],q[PATH_MAX];if(pathAt(h,a,old,p,NULL)<0||pathAt(h,b,new,q,NULL)<0||rename(p,q)<0)return failure();return 0;}
+u32 w2c_env_0x5F_syscall_renameat(struct w2c_env *h,u32 a,u64 old,u32 b,u64 new){char p[PATH_MAX],q[PATH_MAX];if(pathAt(h,a,old,p,NULL)<0||pathAt(h,b,new,q,NULL)<0)return failure();ensure_parent_dirs(q);if(rename(p,q)<0)return failure();return 0;}
 u32 w2c_env_0x5F_syscall_ftruncate64(struct w2c_env *h,u32 fd,u64 length){int n=nativeFD(fd);if(n<0||ftruncate(n,(int64_t)length)<0)return failure();return 0;}
 u32 w2c_wasi__snapshot__preview1_fd_close(struct w2c_wasi__snapshot__preview1 *h,u32 fd){
   if(fd<3)return 0;pthread_mutex_lock(&filesLock);int n=nativeFD(fd);if(n<0){pthread_mutex_unlock(&filesLock);return 8;}
@@ -255,3 +189,7 @@ u32 w2c_env_0x5F_syscall_statfs64(struct w2c_env *h,u64 path,u64 size,u64 out) {
   *(u64 *)(p+40)=s.f_files;*(u64 *)(p+48)=s.f_ffree;
   *(u32 *)(p+56)=s.f_fsid;*(u32 *)(p+64)=s.f_namemax;*(u32 *)(p+80)=s.f_flag;return 0;
 }
+u32 w2c_env_0x5F_syscall_fsync(struct w2c_env *h,u32 fd){int n=nativeFD(fd);if(n<0)return failure();return fsync(n)<0?failure():0;}
+u32 w2c_env_0x5F_syscall_fdatasync(struct w2c_env *h,u32 fd){return w2c_env_0x5F_syscall_fsync(h,fd);}
+u32 w2c_wasi__snapshot__preview1_fd_sync(struct w2c_wasi__snapshot__preview1 *h,u32 fd){int n=nativeFD(fd);if(n<0)return 8;return fsync(n)<0?guestError(errno):0;}
+u32 w2c_wasi__snapshot__preview1_fd_datasync(struct w2c_wasi__snapshot__preview1 *h,u32 fd){return w2c_wasi__snapshot__preview1_fd_sync(h,fd);}

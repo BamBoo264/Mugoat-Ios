@@ -1,13 +1,14 @@
 import UIKit
 import UniformTypeIdentifiers
 
-/// Dedicated Mod Manager screen: manage installed mods, import mod archives/files (.zip, .rpf, .meta, .asi),
+/// Manage validated Legacy vehicle packs, imported from files or folders,
 /// and spawn installed add-on/DLC vehicles and iconic GTA V vehicles directly into the game.
 final class ModManagerViewController: UITableViewController, UIDocumentPickerDelegate {
     private let engineRunning: Bool
     private let fileManager = FileManager.default
     private var modFiles: [ModFile] = []
     private var dlcCatalog: ModRuntime.Catalog = ModRuntime.Catalog()
+    private var scanGeneration = 0
     /// Set by the game screen: spawns through it (with progress and failure messages on the game view).
     var spawnHandler: ((String) -> Void)?
 
@@ -53,10 +54,16 @@ final class ModManagerViewController: UITableViewController, UIDocumentPickerDel
     }
 
     private func scanMods() {
-        modFiles = ModFiles.scan(Self.modsDirectory)
-        dlcCatalog = ModRuntime.catalog(Self.modsDirectory)
-        tableView.reloadData()
-        refreshControl?.endRefreshing()
+        scanGeneration += 1
+        let generation = scanGeneration, directory = Self.modsDirectory
+        DispatchQueue.global(qos: .utility).async {
+            let files = ModFiles.scan(directory), catalog = ModRuntime.catalog(directory)
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.scanGeneration == generation else { return }
+                self.modFiles = files; self.dlcCatalog = catalog
+                self.tableView.reloadData(); self.refreshControl?.endRefreshing()
+            }
+        }
     }
 
     // MARK: - Table view data source
@@ -84,7 +91,7 @@ final class ModManagerViewController: UITableViewController, UIDocumentPickerDel
     override func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
         switch section {
         case 0:
-            return L10n.text("Chép tệp mod (.rpf, .meta, .yft, .ytd) vào Tệp › Trên iPhone › Mugoat › mods. Với tệp nén, bấm Nhập Mod để giải nén. Tệp hướng dẫn .txt không được tính là mod.")
+            return "Nhập folder, ZIP hoặc DLC RPF xe Legacy. Có thể chọn cùng lúc YFT/YTD và metadata đi kèm. Cài/bật/tắt trước khi vào Story offline; khởi động lại game để áp dụng. Không hỗ trợ ASI hay asset Enhanced."
         case 2:
             return L10n.text("Bấm vào phương tiện để triệu hồi ngay trước mặt nhân vật. Có thể nhập tên model bất kỳ từ bản mod hoặc GTA V gốc.")
         default: return nil
@@ -101,7 +108,7 @@ final class ModManagerViewController: UITableViewController, UIDocumentPickerDel
         switch indexPath.section {
         case 0:
             let titles = [
-                L10n.text("Nhập Mod từ tệp (.zip, .rpf, .meta)"),
+                "Nhập Mod từ tệp / thư mục",
                 L10n.text("Vị trí thư mục Mod"),
                 L10n.text("Làm mới danh sách Mod")
             ]
@@ -200,74 +207,47 @@ final class ModManagerViewController: UITableViewController, UIDocumentPickerDel
     // MARK: - Mod File Actions
 
     private func pickModFile() {
-        let types = ModFiles.importExtensions.sorted().map {
-            UTType(filenameExtension: $0) ?? UTType(importedAs: "vn.iosvn.mugoat.mod.\($0)", conformingTo: .data)
+        guard !engineRunning else { showAlert("Cần khởi động lại", "Thoát game về launcher trước khi cài hoặc đổi mod."); return }
+        let sheet=UIAlertController(title:"Nhập xe Legacy",message:"Chọn ZIP/RPF, thư mục xe hoặc nhiều tệp YFT/YTD/meta cùng lúc.",preferredStyle:.actionSheet)
+        for (label,folder) in [("Chọn tệp ZIP/RPF hoặc YFT/YTD/meta",false),("Chọn thư mục xe",true)] {
+            sheet.addAction(UIAlertAction(title:label,style:.default){[weak self] _ in
+                let picker=UIDocumentPickerViewController(forOpeningContentTypes:folder ? [.folder]:[.data,.archive],asCopy:!folder)
+                picker.delegate=self;picker.allowsMultipleSelection=true;self?.present(picker,animated:true)
+            })
         }
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
-        picker.delegate = self
-        picker.allowsMultipleSelection = true
-        present(picker, animated: true)
+        sheet.addAction(UIAlertAction(title:"Hủy",style:.cancel));sheet.popoverPresentationController?.sourceView=view
+        present(sheet,animated:true)
     }
-
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-        let destDir = Self.modsDirectory
-        var extractedCount = 0
-        var copiedCount = 0
-        var rejected: [String] = []
-
-        for url in urls {
-            let ext = url.pathExtension.lowercased()
-            guard ModFiles.importExtensions.contains(ext),
-                  (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else {
-                rejected.append(url.lastPathComponent)
-                continue
-            }
-            if ModFiles.archiveExtensions.contains(ext) {
-                let count = gi_extract_archive(url.path, destDir.path)
-                if count > 0 {
-                    extractedCount += Int(count)
-                } else {
-                    rejected.append(url.lastPathComponent)
-                }
-            } else if ext == "rpf" {
+        guard !engineRunning else {return}
+        let dest=Self.modsDirectory, game=GameFolder.open()
+        view.isUserInteractionEnabled=false
+        let progress=UIActivityIndicatorView(style:.large);progress.center=view.center;view.addSubview(progress);progress.startAnimating()
+        DispatchQueue.global(qos:.userInitiated).async {
+            var reports:[String]=[],errors:[String]=[],base=Set<String>()
+            if let game,let data=try? Data(contentsOf:game.appendingPathComponent("common/data/levels/gta5/vehicles.meta")),let xml=try? ModXML.read(data) {base=Set((xml.values["modelName"] ?? []).map{$0.lowercased()})}
+            let fm=FileManager.default, group=fm.temporaryDirectory.appendingPathComponent("loose-car-"+UUID().uuidString)
+            defer {try? fm.removeItem(at:group)}
+            var loose=false
+            for u in urls {
+                let scoped=u.startAccessingSecurityScopedResource();defer{if scoped{u.stopAccessingSecurityScopedResource()}}
                 do {
-                    _ = try ModRuntime.importPack(url, into: destDir)
-                    copiedCount += 1
-                } catch {
-                    let target = destDir.appendingPathComponent(url.lastPathComponent)
-                    try? fileManager.removeItem(at: target)
-                    if (try? fileManager.copyItem(at: url, to: target)) != nil {
-                        copiedCount += 1
-                    } else {
-                        rejected.append("\(url.lastPathComponent): \(error.localizedDescription)")
-                    }
-                }
-            } else {
-                let target = destDir.appendingPathComponent(url.lastPathComponent)
-                try? fileManager.removeItem(at: target)
-                if (try? fileManager.copyItem(at: url, to: target)) != nil {
-                    copiedCount += 1
-                } else {
-                    rejected.append(url.lastPathComponent)
-                }
+                    if ["yft","ytd","meta"].contains(u.pathExtension.lowercased()) {
+                        try fm.createDirectory(at:group,withIntermediateDirectories:true)
+                        try fm.copyItem(at:u,to:group.appendingPathComponent(u.lastPathComponent));loose=true
+                    } else {reports += try VehicleInstaller.install(u,into:dest,baseModels:base)}
+                } catch {errors.append(u.lastPathComponent+": "+error.localizedDescription)}
+            }
+            if loose {do {reports += try VehicleInstaller.install(group,into:dest,baseModels:base)} catch {errors.append(error.localizedDescription)}}
+            DispatchQueue.main.async {[weak self] in
+                guard let self else{return};progress.removeFromSuperview();self.view.isUserInteractionEnabled=true;self.scanMods()
+                self.showAlert("Kết quả cài xe",([reports.isEmpty ? "": "Đã cài:\n"+reports.joined(separator:"\n"),errors.isEmpty ? "":"Không cài được:\n"+errors.joined(separator:"\n"),"Khởi động game sau khi cài. Tệp gốc không bị thay đổi."].filter{!$0.isEmpty}).joined(separator:"\n\n"))
             }
         }
-        scanMods()
-        var messages: [String] = []
-        if extractedCount > 0 {
-            messages.append(String(format: L10n.text("Đã giải nén %d tệp vào thư mục mods. Tệp hướng dẫn không được tính là mod."), extractedCount))
-        }
-        if copiedCount > 0 {
-            messages.append(String(format: L10n.text("Đã thêm %d tệp mod."), copiedCount))
-        }
-        if !rejected.isEmpty {
-            messages.append(L10n.text("Không thể nhập các tệp sau (định dạng không hỗ trợ hoặc không đọc/giải nén được):") + "\n" + rejected.joined(separator: "\n"))
-        }
-        guard !messages.isEmpty else { return }
-        showAlert(L10n.text("Kết quả nhập Mod"), messages.joined(separator: "\n\n"))
     }
 
     private func toggleMod(at index: Int) {
+        guard !engineRunning else {showAlert("Cần khởi động lại", "Chỉ bật/tắt/xóa mod trước khi vào game.");return}
         let mod = modFiles[index]
         let sheet = UIAlertController(title: mod.name, message: L10n.text("Chọn thao tác cho bản mod này:"), preferredStyle: .actionSheet)
         let toggleTitle = mod.isEnabled ? L10n.text("Tắt Mod này (.disabled)") : L10n.text("Bật lại Mod này")
