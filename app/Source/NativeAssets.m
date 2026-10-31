@@ -332,7 +332,7 @@ static NSArray *applyMods(NSArray *files,NSDictionary *manifest){
     if(candidate.count<4&&PGModFileProblem(full.fileSystemRepresentation,why,sizeof why)){
       char line[PATH_MAX+300];snprintf(line,sizeof line,"Mods: %s is %s; ignored, or the game would stop.",original.UTF8String,why);pg_log(line);continue;
     }
-    modCount++;
+    if(candidate.count<4)modCount++;
     NSString *relative=modTranslate(original),*lower=relative.lowercaseString;
     // A bare add-on pack: "dlc.rpf" dropped into Mods or a mod folder, or "dlc 2.rpf" when the Files app
     // renamed a second one. It becomes a pack of its own, named after its folder or file (GTA-138).
