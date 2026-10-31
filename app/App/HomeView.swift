@@ -143,7 +143,7 @@ final class HomeView: UIView {
             column.heightAnchor.constraint(greaterThanOrEqualTo: scroll.frameLayoutGuide.heightAnchor, constant: -24),
             width,
             column.widthAnchor.constraint(lessThanOrEqualToConstant: 440),
-            column.widthAnchor.constraint(greaterThanOrEqualToConstant: 320),
+            column.widthAnchor.constraint(greaterThanOrEqualToConstant: 260),
             secondary.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -20),
             // Long translations (Russian, German) must not run over the title column.
             secondary.leadingAnchor.constraint(greaterThanOrEqualTo: scroll.trailingAnchor, constant: 12),

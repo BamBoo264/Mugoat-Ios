@@ -35,7 +35,7 @@ NSArray *PGNovaPackCandidates(NSString *path) {
  }
 }
 NSString *PGNovaVietnamesePath(void){
- NSUserDefaults *d=NSUserDefaults.standard;
+ NSUserDefaults *d=NSUserDefaults.standardUserDefaults;
  NSInteger mode=[d objectForKey:@"NewGenVietnameseMode"]?[d integerForKey:@"NewGenVietnameseMode"]:1;
  if(mode!=1&&mode!=2)return nil;
  return [NSBundle.mainBundle pathForResource:mode==1?@"VietnameseAccented":@"VietnamesePlain" ofType:@"nvp"];
