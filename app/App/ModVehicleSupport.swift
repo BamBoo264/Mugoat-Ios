@@ -2,10 +2,20 @@ import Foundation
 /// Only mod metadata is inspected, before engine startup. No model/texture conversion.
 enum ModVehicleSupport {
  static func vehicles()->[String] {
-  ModInstaller.installed().filter{$0.enabled}.flatMap{mod -> [String] in
-   guard let b=try? Data(contentsOf:mod.url.appendingPathComponent(".mulone-vehicles.json")),let v=try? JSONSerialization.jsonObject(with:b) as? [String] else{return []}
-   return v.filter{ModPack.validName($0)}
-  }.sorted()
+  let fm=FileManager.default
+  var result=Set<String>()
+  for mod in ModInstaller.installed() where mod.enabled {
+   if let b=try? Data(contentsOf:mod.url.appendingPathComponent(".mulone-vehicles.json")),let v=try? JSONSerialization.jsonObject(with:b) as? [String] {result.formUnion(v.filter{ModPack.validName($0)})}
+   // Replacements have no DLC vehicles.meta. Include their installed stock model,
+   // but never a ped YFT, a high-detail companion, or a still-unplaced file.
+   if let walk=fm.enumerator(at:mod.url,includingPropertiesForKeys:nil,options:.skipsHiddenFiles){
+    for case let url as URL in walk where url.pathExtension.lowercased()=="yft" {
+     let path=url.path.lowercased(),name=url.deletingPathExtension().lastPathComponent.lowercased()
+     if path.contains("/vehicles.rpf/") && !name.hasSuffix("_hi") && ModPack.validName(name){result.insert(name)}
+    }
+   }
+  }
+  return result.sorted()
  }
  /// Fix an author-template placeholder only when its directory has one real archive.
  /// Ambiguous references are retained; no geometry, texture or handling is changed.

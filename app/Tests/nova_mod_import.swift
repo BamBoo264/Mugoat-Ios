@@ -18,6 +18,8 @@ import Foundation
   var index=ModInstaller.GameIndex();for name in ["pcj.yft","pcj_hi.yft","pcj.ytd"]{index.byName[name]=["x64/levels/gta5/vehicles.rpf/"+name]}
   let plan=ModInstaller.plan(folder:unpacked,name:"Nova Synthetic Car",index:index)
   precondition(plan.items.count==3 && !plan.unsupported && !plan.items.contains{$0.target.contains(".pending")})
+  let installed=try ModInstaller.install(plan);defer{try? fm.removeItem(at:installed)}
+  precondition(ModVehicleSupport.vehicles().contains("pcj"),"Replacement must appear in mod vehicle and sound pickers")
   // The pack writer and actual parser must agree on binary and resource entries.
   let archiveURL=root.appendingPathComponent("dlc.rpf"),meta=Data("<root>metadata</root>".utf8),geometry=try resource(162)
   try VehicleInstaller.pack(["vehicles.meta":meta,"models/pcj.yft":geometry]).write(to:archiveURL)

@@ -41,13 +41,14 @@ jobs:
       - name: Production vehicle, skin and audio importer tests
         run: |
           python3 tools/prepare_ci_archive.py "$RUNNER_TEMP/host-archive"
+          export PG_HOST_ARCHIVE="$PWD/app/Vendor/libarchive.xcframework/macos-arm64"
           python3 tools/extract_compatibility_test.py "$RUNNER_TEMP/compat.c"
           cd app
           clang -c App/GameInstaller/GameInstallerShim.c -I "$PG_HOST_ARCHIVE/Headers" -o "$RUNNER_TEMP/archive.o"
           clang -c Source/SoundInflate.c -o "$RUNNER_TEMP/inflate.o"
           clang -c Tests/SoundTestStubs.c -o "$RUNNER_TEMP/stubs.o"
           clang -c "$RUNNER_TEMP/compat.c" -o "$RUNNER_TEMP/compat.o"
-          swiftc -import-objc-header Tests/SoundTestBridge.h -I App/GameInstaller App/ModInstaller.swift App/SoundArchive.swift App/SoundInstaller.swift App/SkinInstaller.swift App/BundledMenyoo.swift Tests/SoundTestStubs.swift Tests/nova_mod_import.swift "$RUNNER_TEMP/archive.o" "$RUNNER_TEMP/inflate.o" "$RUNNER_TEMP/stubs.o" "$RUNNER_TEMP/compat.o" "$PG_HOST_ARCHIVE/libarchive.a" -lz -lbz2 -o "$RUNNER_TEMP/nova-mod-import"
+          swiftc -import-objc-header Tests/SoundTestBridge.h -I App/GameInstaller App/ModInstaller.swift App/SoundArchive.swift App/SoundInstaller.swift App/SkinInstaller.swift App/ModVehicleSupport.swift App/BundledMenyoo.swift Tests/SoundTestStubs.swift Tests/nova_mod_import.swift "$RUNNER_TEMP/archive.o" "$RUNNER_TEMP/inflate.o" "$RUNNER_TEMP/stubs.o" "$RUNNER_TEMP/compat.o" "$PG_HOST_ARCHIVE/libarchive.a" -lz -lbz2 -o "$RUNNER_TEMP/nova-mod-import"
           "$RUNNER_TEMP/nova-mod-import"
       - name: Assemble checked original engine inputs
         if: inputs.build_ipa
