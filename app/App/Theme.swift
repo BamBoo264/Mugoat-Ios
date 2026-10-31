@@ -5,7 +5,7 @@ import UIKit
 enum Theme {
     /// The app's version as players should quote it in reports, e.g. "v1.3 (6)".
     /// The community: official releases, help and announcements.
-    static let telegramURL = URL(string: "https://t.me/fivestarport")!
+    static let telegramURL = URL(string: "https://github.com/tolie206/Regeneration")!
     static let appVersion: String = {
         let info = Bundle.main.infoDictionary
         // Each release has one build number, so the marketing version alone identifies it.
@@ -14,8 +14,8 @@ enum Theme {
     /// The Lite build for iPhones with little memory: Info.plist PGLiteMode (build_ipa.sh --lite), or PG_LITE=1.
     static let isLite: Bool = (Bundle.main.object(forInfoDictionaryKey: "PGLiteMode") as? Bool ?? false)
         || (ProcessInfo.processInfo.environment["PG_LITE"].map { $0 != "0" } ?? false)
-    static let accent = UIColor(red: 1.0, green: 0.62, blue: 0.18, alpha: 1)        // sunset orange
-    static let accentDeep = UIColor(red: 0.95, green: 0.36, blue: 0.16, alpha: 1)
+    static let accent = UIColor(red: 0.22, green: 0.88, blue: 0.83, alpha: 1)        // sunset orange
+    static let accentDeep = UIColor(red: 0.08, green: 0.53, blue: 0.60, alpha: 1)
     static let ok = UIColor(red: 0.30, green: 0.85, blue: 0.47, alpha: 1)
     static let warning = UIColor(red: 1.0, green: 0.78, blue: 0.26, alpha: 1)
     static let problem = UIColor(red: 1.0, green: 0.42, blue: 0.38, alpha: 1)

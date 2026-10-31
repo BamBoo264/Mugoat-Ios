@@ -186,3 +186,12 @@ uint64_t PGMemoryBudgetEvictions(void);
 void PGAssetHealth(uint64_t out[6]);
 void PGStreamingHealth(uint64_t out[6]);		// NativeStreamingHealth.c (GTA-116)
 double PGGPUFrameMilliseconds(void);		// MRRenderer.mm
+
+#include "TurboModel.h"
+PGTurboConfig PGTurboDefaultConfig(void);
+bool PGSetTurboConfig(PGTurboConfig config);
+bool PGTurboTelemetry(float *rpm,float *boost,unsigned *gear);
+bool PGLoadSceneActive(void);
+void PGEnableSoundMods(bool enabled);
+uint32_t PGCurrentSoundVehicle(void);
+bool PGSelectVehicleSound(uint32_t model,const char *profile);

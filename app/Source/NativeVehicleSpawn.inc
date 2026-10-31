@@ -21,6 +21,9 @@ u32 PG_FN_CREATE_VEHICLE(w2c_game*, u32, u64, f32, u32, u32, u32);
 void PG_FN_SET_PED_INTO_VEHICLE(w2c_game*, u32, u32, u32);
 u32 PG_FN_GROUND_VEHICLE(w2c_game*, u32, f32);
 u32 PG_FN_ENTITY_EXISTS(w2c_game*, u32);
+u32 PG_FN_GET_ENTITY_MODEL(w2c_game*, u32);
+u32 PG_FN_SPAWN_ENTITY_VISIBLE(w2c_game*, u32);
+u32 PG_FN_SPAWN_ENTITY_ALPHA(w2c_game*, u32);
 u32 PG_FN_ENTITY_OWNED(w2c_game*, u32, u32);
 void PG_FN_DELETE_VEHICLE(w2c_game*, u64);
 u32 PG_FN_VEHICLE_OCCUPANT(w2c_game*, u32, u32, u32);
@@ -190,6 +193,7 @@ static void pg_vehicle_menu_step(w2c_game *instance, u64 vector) {
   static double began;
   static bool requested;
   static u64 requestOwner;
+  static double loadingReported;
   pthread_mutex_lock(&vehicleMenuLock);
   PGVehicleSpawnStatus status = vehicleSpawnStatus;
   uint32_t model = vehicleSpawnModel;
@@ -205,8 +209,13 @@ static void pg_vehicle_menu_step(w2c_game *instance, u64 vector) {
     began = 0; pg_vehicle_spawn_status(PGVehicleSpawnNotReady); return;
   }
   // Settings closes the pause menu; wait for the game to really be playing again.
-  bool ready = !PGPauseMenuActive() && PGGameStatus() == 0 && PGLoadSceneSeconds() == 0;
-  if (!requested && !ready) return;
+  bool ready = !PGPauseMenuActive() && PGGameStatus() == 0 && !PGLoadSceneActive();
+  if (!requested && !ready) {
+    static double reported;static uint32_t lastState;
+    uint32_t state=PGGameStatus()|(PGPauseMenuActive()?0x100:0)|(PGLoadSceneActive()?0x200:0);
+    if(state!=lastState||now-reported>=2000){char line[160];snprintf(line,sizeof line,"Vehicle wait: model 0x%08x, %.1f s, gameplay/pause/scene bits 0x%x; model request has not started.",model,(now-queuedAt)/1000,state);pg_log(line);reported=now;lastState=state;}
+    return;
+  }
   u64 previous = pg_asi_enter_script(instance);
   u64 active = *(u64 *)pg_pointer(&env, instance->w2c_g1 + 3088, 8);
   u64 owner = active ? PG_FN_CURRENT_SCRIPT_HANDLER(instance) : 0;
@@ -225,11 +234,12 @@ static void pg_vehicle_menu_step(w2c_game *instance, u64 vector) {
     else if (!pg_vehicle_memory_available()) result = PGVehicleSpawnLowMemory;
     else {
       pg_log("Vehicle menu: loading the model.");
-      PG_FN_REQUEST_MODEL(instance, model); requested = true; requestOwner = owner; began = now;
+      PG_FN_REQUEST_MODEL(instance, model); loadingReported = now; requested = true; requestOwner = owner; began = now;
       pg_vehicle_spawn_status(PGVehicleSpawnLoading);
     }
   }
   if (requested) {
+    if(now-loadingReported>=5000){char line[160];snprintf(line,sizeof line,"Vehicle model wait: 0x%08x, %.1f s since REQUEST_MODEL, gameplay 0x%x.",model,(now-began)/1000,PGGameStatus());pg_log(line);loadingReported=now;}
     if (!ready) result = PGVehicleSpawnNotReady;
     else if (now - began > 30000) result = PGVehicleSpawnTimedOut;
     else if (!pg_vehicle_memory_available()) result = PGVehicleSpawnLowMemory;
@@ -247,8 +257,13 @@ static void pg_vehicle_menu_step(w2c_game *instance, u64 vector) {
         v[0] -= sinf(angle) * distance; v[2] += cosf(angle) * distance; v[4] += 0.5f;
         pg_log("Vehicle menu: model loaded; creating the vehicle.");
         u32 vehicle = PG_FN_CREATE_VEHICLE(instance, model, vector, heading, 0, 0, 1);
-        result = vehicle ? PGVehicleSpawnSucceeded : PGVehicleSpawnFailed;
-        if (vehicle) {
+        bool exists = vehicle && PG_FN_ENTITY_EXISTS(instance, vehicle);
+        uint32_t actualModel = exists ? PG_FN_GET_ENTITY_MODEL(instance, vehicle) : 0;
+        result = exists && actualModel == model ? PGVehicleSpawnSucceeded : PGVehicleSpawnFailed;
+        char verification[256];
+        snprintf(verification,sizeof verification,"Vehicle spawn verification: requested 0x%08x, handle %u, exists %d, actual model 0x%08x, visible flag %u, alpha %u. Engine state only; rendered pixels not verified.",model,vehicle,exists,actualModel,exists?PG_FN_SPAWN_ENTITY_VISIBLE(instance,vehicle):0,exists?PG_FN_SPAWN_ENTITY_ALPHA(instance,vehicle):0);
+        pg_log(verification);
+        if (exists && actualModel == model) {
           // Boats keep the height they were created at (on the water).
           if (category != PG_CLASS_BOAT) PG_FN_GROUND_VEHICLE(instance, vehicle, 5.0f);
           if (enter && PG_FN_VEHICLE_SEATS(instance, model) > 0) PG_FN_SET_PED_INTO_VEHICLE(instance, ped, vehicle, (u32)-1);

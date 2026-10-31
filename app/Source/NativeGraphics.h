@@ -18,3 +18,5 @@ void PGSetSharperUpscaling(int on);
 #ifdef __cplusplus
 }
 #endif
+
+void PGSetNovaOutput(uint32_t width,uint32_t height);

@@ -1,102 +1,73 @@
-# Builds YOUR unsigned IPA from YOUR game files.
-# Run it from the Actions tab of your own PRIVATE copy of this repository
-# (or let the website builder start it for you).
-name: Build my IPA
-
+name: Build Mugoat Nova
 on:
   workflow_dispatch:
     inputs:
-      game_files:
-        description: "Where the build gets your game files"
-        type: choice
-        options:
-          - my server (Tailscale)
-          - uploaded with the website builder
-        default: my server (Tailscale)
-      paid_account:
-        description: "Ask for extra memory (on by default; untick only if your installer refuses the app)"
+      build_ipa:
+        description: Build Release IPA after all checks
         type: boolean
         default: true
-
 permissions:
-  contents: write
-
+  contents: read
+concurrency:
+  group: mugoat-nova-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
-  build:
-    runs-on: macos-15
-    timeout-minutes: 240
-    env:
-      FROM_UPLOAD: ${{ inputs.game_files == 'uploaded with the website builder' }}
+  release:
+    runs-on: macos-26
+    timeout-minutes: 150
     steps:
-      - name: Refuse to build in a public repository
-        if: ${{ !github.event.repository.private }}
-        run: |
-          echo "::error::Make your copy of this repository PRIVATE first. The app you build contains the game engine from your own files, and public build results can be downloaded by anyone."
-          exit 1
-
       - uses: actions/checkout@v4
-
-      - name: Get the files you uploaded with the website builder
-        if: ${{ env.FROM_UPLOAD == 'true' }}
-        uses: actions/checkout@v4
-        with:
-          ref: build-inputs
-          path: uploaded-inputs
-
-      - name: Join your tailnet (to reach your game-file server)
-        if: ${{ env.FROM_UPLOAD != 'true' }}
-        uses: tailscale/github-action@v4
-        with:
-          authkey: ${{ secrets.TS_AUTHKEY }}
-
-      - name: Check your server answers
-        if: ${{ env.FROM_UPLOAD != 'true' }}
-        env:
-          SERVER: ${{ secrets.GAME_SERVER_URL }}
+      - name: Confirm native Apple Silicon toolchain
         run: |
-          for i in $(seq 1 30); do
-            if curl -sfI "$SERVER/data/manifest.json" > /dev/null; then echo "Server reachable."; exit 0; fi
-            sleep 5
-          done
-          echo "::error::Can't reach $SERVER/data/manifest.json from the build machine. Is your server running and is GAME_SERVER_URL right?"
-          exit 1
-
-      - name: Install build tools
-        run: brew install xcodegen
-
-      - name: Use this repository's prebuilt shader translator, if it has one
-        env:
-          GH_TOKEN: ${{ github.token }}
+          test "$(uname -m)" = arm64
+          xcodebuild -version
+          python3 tools/test_nova_integrity.py
+      - name: Type-check all production Swift against the iPhone SDK
         run: |
-          if gh release download shadertool-1 --repo "${{ github.repository }}" --pattern pgmsl-macos-arm64.tar.gz --dir "$RUNNER_TEMP" 2>/dev/null; then
-            echo "PGMSL_PREBUILT_URL=file://$RUNNER_TEMP/pgmsl-macos-arm64.tar.gz" >> "$GITHUB_ENV"
-          fi
-
-      - name: Make sure the Metal shader compiler is installed
-        run: xcrun -sdk iphoneos metal --version > /dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain
-
-      - name: Build the IPA (about 25 minutes)
-        env:
-          SERVER: ${{ secrets.GAME_SERVER_URL }}
-          JOBS: "2"
+          xcrun swiftc -typecheck -parse-as-library -target arm64-apple-ios16.0 -sdk "$(xcrun --sdk iphoneos --show-sdk-path)" -import-objc-header app/Source/Native-Bridging-Header.h -I app/Source -I app/App/GameInstaller app/App/*.swift app/App/GameInstaller/*.swift
+      - name: Production PAD layout and spatial scaling tests
         run: |
-          if [ "$FROM_UPLOAD" = "true" ]; then
-            /usr/bin/python3 app/Scripts/assemble_inputs.py --inputs uploaded-inputs --out "$RUNNER_TEMP/game-files"
-            ./build_ipa.sh --mirror "$RUNNER_TEMP/game-files" ${{ !inputs.paid_account && '--free' || '' }}
-          else
-            ./build_ipa.sh "$SERVER" ${{ !inputs.paid_account && '--free' || '' }}
-          fi
-
+          python3 tools/test_manual_layout.py "$RUNNER_TEMP"
+          python3 tools/test_nova_scale.py "$RUNNER_TEMP"
+      - name: Production language pack reader with memory sanitizers
+        if: hashFiles('app/Resources/VietnameseAccented.nvp') != ''
+        run: |
+          clang -fobjc-arc -fsanitize=address,undefined -framework Foundation app/Source/NovaLanguagePack.m app/Tests/nova_pack.m -o "$RUNNER_TEMP/nova-pack"
+          "$RUNNER_TEMP/nova-pack" "$PWD/app/Resources"
+      - name: Assemble checked original engine inputs
+        if: inputs.build_ipa
+        run: python3 app/Scripts/assemble_inputs.py --inputs . --out "$RUNNER_TEMP/game-files"
+      - name: Install Xcode project generator and Metal compiler
+        if: inputs.build_ipa
+        run: |
+          command -v xcodegen || brew install xcodegen
+          xcrun -sdk iphoneos metal --version > /dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain
+          echo "PGMSL_PREBUILT_URL=file://$PWD/build-tools/pgmsl-macos-arm64.tar.gz" >> "$GITHUB_ENV"
+      - name: Release IPA from original 1.4.4 native renderer
+        if: inputs.build_ipa
+        env:
+          JOBS: "3"
+        run: bash build_ipa.sh --mirror "$RUNNER_TEMP/game-files"
+      - name: Verify paid-cert entitlements and Nova pack resources
+        if: inputs.build_ipa
+        run: |
+          APP=app/Build/Release/Build/Products/Release-iphoneos/PlayGTA5Native.app
+          codesign -d --entitlements :- "$APP" 2>&1 | tee "$RUNNER_TEMP/entitlements.txt"
+          test -s "$APP/VietnameseAccented.nvp"
+          test -s "$APP/BundledMenyoo.zip"
+          test -d "$APP/TurboSounds"
+          shasum -a 256 Mugoat-Nova-N001.ipa
       - uses: actions/upload-artifact@v4
+        if: success() && inputs.build_ipa
         with:
-          name: GTA5Port-ipa
-          path: GTA5Port.ipa
-          retention-days: 3
-
-      - name: Publish the IPA as a release in this private repository (easy to download on a phone)
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release delete latest-ipa --repo "${{ github.repository }}" --yes --cleanup-tag 2>/dev/null || true
-          gh release create latest-ipa GTA5Port.ipa --repo "${{ github.repository }}" --title "Your app (built $(date -u +%Y-%m-%d))" \
-            --notes "Download GTA5Port.ipa and open it with SideStore or AltStore. This release is private like the repository."
+          name: Mugoat-Nova-N001
+          path: Mugoat-Nova-N001.ipa
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: Nova-build-diagnostics
+          path: |
+            app/Build/xcodebuild.log
+            app/Generated/*.tsv
+          retention-days: 7

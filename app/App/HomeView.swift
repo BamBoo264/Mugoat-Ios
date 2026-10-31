@@ -8,6 +8,7 @@ final class HomeView: UIView {
 
     let playButton = Theme.primaryButton(AppLanguage.choose("Play"), symbol: "play.fill")
     let settingsButton = Theme.glassButton(AppLanguage.choose("Settings"), symbol: "gearshape.fill")
+    let modsButton = Theme.glassButton("Quản lý mod", symbol: "shippingbox.fill")
     let layoutButton = Theme.glassButton(AppLanguage.choose("Controls layout"), symbol: "hand.tap.fill")
     let telegramButton = Theme.glassButton(AppLanguage.choose("Telegram"), symbol: "paperplane.fill")
     let preloadLabel = UILabel()
@@ -44,13 +45,13 @@ final class HomeView: UIView {
         icon.widthAnchor.constraint(equalToConstant: 52).isActive = true
         icon.heightAnchor.constraint(equalToConstant: 52).isActive = true
         let title = brandTitle
-        title.text = AppLanguage.choose("GTA V Port")
-        title.font = Theme.display(30)
+        title.text = "MUGOAT NOVA"
+        title.font = Theme.display(34)
         title.textColor = Theme.text
         title.adjustsFontSizeToFitWidth = true
         title.minimumScaleFactor = 0.7
         let subtitle = brandSubtitle
-        subtitle.text = AppLanguage.choose("Fan project · plays your own game files") + " · \(Theme.appVersion)"
+        subtitle.text = "Nền tảng gốc · Trải nghiệm mới" + " · \(Theme.appVersion)"
         subtitle.font = Theme.body(14, .medium)
         subtitle.textColor = Theme.secondaryText
         subtitle.numberOfLines = 2		// long translations keep the version visible
@@ -77,29 +78,20 @@ final class HomeView: UIView {
         modeDetail.adjustsFontSizeToFitWidth = true
         modeDetail.minimumScaleFactor = 0.8
 
-        telegramButton.addAction(UIAction { _ in UIApplication.shared.open(Theme.telegramURL) }, for: .touchUpInside)
-        telegramButton.accessibilityLabel = AppLanguage.choose("Five Star Port on Telegram")
-        let secondary = self.secondary
-        // Icons only, in every language; the names stay for VoiceOver.
-        settingsButton.accessibilityLabel = AppLanguage.choose("Settings")
-        layoutButton.accessibilityLabel = AppLanguage.choose("Controls layout")
-        for button in [telegramButton, layoutButton, settingsButton] { button.configuration?.title = nil }
-        secondary.addArrangedSubviews([telegramButton, layoutButton, settingsButton])
-        secondary.spacing = 10
-        secondary.translatesAutoresizingMaskIntoConstraints = false
-        for label in [preloadLabel, controllerLabel] {
-            label.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
-            label.textColor = Theme.tertiaryText
-            label.numberOfLines = 0
-        }
-        preloadLabel.isHidden = true
+        settingsButton.accessibilityLabel="Cài đặt"
+        layoutButton.accessibilityLabel="Bố trí điều khiển"
+        secondary.addArrangedSubviews([modsButton,layoutButton,settingsButton])
+        secondary.spacing=10;secondary.axis = .vertical
+        secondary.translatesAutoresizingMaskIntoConstraints=false
+        for label in [preloadLabel,controllerLabel]{label.font = .monospacedSystemFont(ofSize:12,weight:.medium);label.textColor=Theme.secondaryText;label.numberOfLines=0}
+        preloadLabel.isHidden=true
 
         let mapLabel = mapTitle
         mapLabel.text = AppLanguage.choose("Map")
         mapLabel.font = Theme.body(13, .semibold)
         mapLabel.textColor = Theme.secondaryText
         mapRow.addArrangedSubview(mapLabel)
-        for (index, title) in GameSettings.sandboxMapTitles.enumerated() {
+        for (index, title) in GameSettings.sandboxMapTitles.prefix(1).enumerated() {
             var config = UIButton.Configuration.gray()
             config.title = title
             config.cornerStyle = .capsule
@@ -136,7 +128,7 @@ final class HomeView: UIView {
         addSubview(log)
         addSubview(secondary)
         let guide = safeAreaLayoutGuide
-        let width = column.widthAnchor.constraint(equalTo: guide.widthAnchor, multiplier: 0.44)
+        let width = column.widthAnchor.constraint(equalTo: guide.widthAnchor, multiplier: 0.53)
         width.priority = .defaultHigh
         NSLayoutConstraint.activate([
             scroll.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 28),
@@ -155,11 +147,11 @@ final class HomeView: UIView {
             secondary.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -20),
             // Long translations (Russian, German) must not run over the title column.
             secondary.leadingAnchor.constraint(greaterThanOrEqualTo: scroll.trailingAnchor, constant: 12),
-            secondary.topAnchor.constraint(equalTo: guide.topAnchor, constant: 14),
+            secondary.bottomAnchor.constraint(equalTo: guide.bottomAnchor, constant: -24),
             log.leadingAnchor.constraint(equalTo: scroll.trailingAnchor, constant: 20),
             log.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -16),
-            log.topAnchor.constraint(equalTo: secondary.bottomAnchor, constant: 12),
-            log.bottomAnchor.constraint(equalTo: guide.bottomAnchor, constant: -16)
+            log.topAnchor.constraint(equalTo: guide.topAnchor, constant: 16),
+            log.bottomAnchor.constraint(equalTo: secondary.topAnchor, constant: -12)
         ])
         column.distribution = .fill
         // Spare height goes above and below the column's content rather than into it.
@@ -172,14 +164,18 @@ final class HomeView: UIView {
             view.setContentCompressionResistancePriority(.required, for: .vertical)
         }
     }
+    override func didMoveToWindow(){
+        super.didMoveToWindow()
+        if window != nil && !UIAccessibility.isReduceMotionEnabled {alpha=0;UIView.animate(withDuration:0.25){self.alpha=1}}
+    }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     /// Update language-specific titles in place without touching downloaded game files or layout.
     private let scroll = UIScrollView()
     private let secondary = UIStackView()
     func refreshLanguage() {
-        brandTitle.text = AppLanguage.choose("GTA V Port")
-        brandSubtitle.text = AppLanguage.choose("Fan project · plays your own game files") + " · \(Theme.appVersion)"
+        brandTitle.text = "MUGOAT NOVA"
+        brandSubtitle.text = "Nền tảng gốc · Trải nghiệm mới" + " · \(Theme.appVersion)"
         mapTitle.text = AppLanguage.choose("Map")
         playButton.configuration?.title = AppLanguage.choose("Play")
         // The top-right buttons are icons in every language (long titles overlapped the column, GTA-47);
@@ -324,6 +320,10 @@ private final class ModeCard: UIControl {
         isAccessibilityElement = true
         accessibilityLabel = title
         update()
+    }
+    override func didMoveToWindow(){
+        super.didMoveToWindow()
+        if window != nil && !UIAccessibility.isReduceMotionEnabled {alpha=0;UIView.animate(withDuration:0.25){self.alpha=1}}
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 

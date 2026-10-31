@@ -281,7 +281,18 @@ final class TouchControlsView: UIView {
     /// Airplanes retain throttle when the right thumb lifts; rudder recentres.
     private var planeThrottle: CGFloat = 0
     private var planeStickEnabled: Bool {
-        context == .plane && GameSettings.shared.airplaneRightStick && !phoneDock && !promptActive && !editing
+        !manualPadEnabled && context == .plane && GameSettings.shared.airplaneRightStick && !phoneDock && !promptActive && !editing
+    }
+    private var manualPadEnabled = false
+    var utilityOnly = false { didSet { if utilityOnly != oldValue { reset(publish:false); updateVisibility() } } }
+    private let manualPad = ControlButton("manualPad", icon: "text:PAD", label: "Bật/tắt tay cầm đầy đủ")
+    private let manualL3 = ControlButton("manualL3", icon: "text:L3", label: "Nhấn analog trái L3")
+    private let manualR3 = ControlButton("manualR3", icon: "text:R3", label: "Nhấn analog phải R3")
+    private let manualMoveHandle=ControlButton("leftStick",icon:"text:LS",label:"Analog trái")
+    private let manualLookHandle=ControlButton("lookStick",icon:"text:RS",label:"Analog phải")
+    func setManualPadPreview(_ enabled:Bool) {
+        guard editing else{return}
+        reset(publish:false);manualPadEnabled=enabled;manualPad.active=enabled;updateVisibility();setNeedsLayout()
     }
     private let lookStick = FloatingStick()
     /// Where a finger pressed Aim/Fire; dragging from there works as a stick.
@@ -295,7 +306,7 @@ final class TouchControlsView: UIView {
         context != .menu && !phoneDock && !gamePhoneOut && !promptActive && !context.flying && !hints.phoneBrowser && !helpAsksRightStick
     }
     private var swipeCameraEnabled: Bool {
-        GameSettings.shared.cameraTouchMode != .stick && cameraSwipeAvailable
+        !manualPadEnabled && GameSettings.shared.cameraTouchMode != .stick && cameraSwipeAvailable
     }
     private func isSelectionWheel(_ role: Role) -> Bool {
         switch role {
@@ -303,9 +314,13 @@ final class TouchControlsView: UIView {
         default: return false
         }
     }
+    private var effectiveCameraMode: GameSettings.CameraTouchMode {
+        let settings = GameSettings.shared
+        return settings.cameraTouchMode == .swipeMouse && aiming && settings.targetingMode < 3 ? .swipePad : settings.cameraTouchMode
+    }
     /// Only the experimental mouse path needs pointer focus/lock.
     var experimentalMouseLookActive: Bool {
-        swipeCameraEnabled && GameSettings.shared.cameraTouchMode == .swipeMouse && !has(isSelectionWheel)
+        swipeCameraEnabled && effectiveCameraMode == .swipeMouse && !has(isSelectionWheel)
     }
     private func clearCameraTravel() {
         pendingCameraTravel = .zero
@@ -321,7 +336,7 @@ final class TouchControlsView: UIView {
     /// the pad. The mouse path feeds native mouse deltas but does not replace
     /// the virtual pad, so we can observe whether the game still grants aim assist.
     private func flushCameraTravel() {
-        let mode = GameSettings.shared.cameraTouchMode
+        let mode = effectiveCameraMode
         if mode != lastCameraMode { clearCameraTravel(); lastCameraMode = mode }
         guard swipeCameraEnabled, !has(isSelectionWheel) else {
             clearCameraTravel()
@@ -448,7 +463,7 @@ final class TouchControlsView: UIView {
     private let pause = ControlButton("pause", icon: "pause", label: AppLanguage.choose("Pause menu"))
     private let settings = ControlButton("settings", icon: "settings", label: AppLanguage.choose("Settings"))
     /// Script mods (GTA-69): shown while one runs; opens the mod tray (ModKeysView).
-    private let mods = ControlButton("mods", icon: "mods", label: AppLanguage.choose("Mods"))
+    private let mods = ControlButton("mods", icon: "mods", label: "Plugin")
     var modsActive = false { didSet { if modsActive != oldValue { updateVisibility(); setNeedsLayout() } } }
     var openMods: (() -> Void)?
     /// Where the Mods control is, for the tray that opens from it.
@@ -543,7 +558,7 @@ final class TouchControlsView: UIView {
     private let tabRight = ControlButton("tabRight", icon: "tab_right", label: AppLanguage.choose("Next tab"))
 
     private var allButtons: [ControlButton] {
-        missionButtons.map(\.button) + [fire, aim, leftFire, jump, sprint, enter, weapons, reload, cover, crouch, switcher, special, interact, detonate, zoomIn, zoomOut,
+        [manualPad, manualL3, manualR3, manualMoveHandle, manualLookHandle] + missionButtons.map(\.button) + [fire, aim, leftFire, jump, sprint, enter, weapons, reload, cover, crouch, switcher, special, interact, detonate, zoomIn, zoomOut,
          weaponPrev, weaponNext, gas, brake, handbrake, steerLeft, steerRight, driveBy, driveAim, duck, horn, lookBack,
          vehicleWeapon, towHook, towArmUp, towArmDown, roof, detachTrailer, dive, surface, airFire, gear, throttleUp, throttleDown, yawLeft, yawRight, camera, phone, pause, settings, mods, lights, radio,
          up, down, left, right, accept, back, phoneOption, taxiHurry, taxiStop, tabLeft, tabRight, promptOption, bothTriggers]
@@ -591,7 +606,7 @@ final class TouchControlsView: UIView {
             "phone": AppLanguage.choose("Phone"),
             "pause": AppLanguage.choose("Pause menu"),
             "settings": AppLanguage.choose("Settings"),
-            "mods": AppLanguage.choose("Mods"),
+            "mods": "Plugin",
             "lights": AppLanguage.choose("Headlights"),
             "radio": AppLanguage.choose("Radio"),
             "up": AppLanguage.choose("Up"),
@@ -647,8 +662,12 @@ final class TouchControlsView: UIView {
     }
 
     private func computeVisible() -> [ControlButton] {
+        if utilityOnly { return [settings, mods] }
+        if manualPadEnabled {
+            return [camera, phone, pause, settings, mods, manualPad] + missionButtons.filter { $0.input != 230 && $0.input != 231 }.map(\.button) + [manualL3, manualR3, up, down, left, right] + (editing ? [manualMoveHandle,manualLookHandle] : [])
+        }
         var list = baseVisible()
-        if (modsActive || editing) && list.contains(settings) { list.append(mods) }
+        if list.contains(settings) { list += [mods, manualPad] }
         if !editing { list += shownMissionButtons(besides: list) }
         let playing = !phoneDock && !promptActive && context != .menu
         // A prompt that waits for a character switch gets the switch button (a tap is the game's quick switch). In
@@ -801,7 +820,7 @@ final class TouchControlsView: UIView {
     var showingPrompt: Bool { promptActive }
 
     /// The saved-layout group for the current controls: on foot, or any vehicle.
-    var layoutGroup: String { context == .onFoot ? "foot" : "vehicle" }
+    var layoutGroup: String { manualPadEnabled ? "manual" : context == .onFoot ? "foot" : "vehicle" }
     private func hiddenByPlayer(_ button: ControlButton) -> Bool {
         context != .menu && !phoneDock && (ControlsLayout.entry(group: layoutGroup, name: button.name)?.hidden ?? false)
     }
@@ -812,7 +831,7 @@ final class TouchControlsView: UIView {
             planeThrottle = 0
             roles = roles.filter { if case .planeStick = $0.value { return false }; return true }
         }
-        visible = computeVisible().filter { editing || !hiddenByPlayer($0) }
+        visible = computeVisible().filter { utilityOnly || $0 === manualPad || editing || !hiddenByPlayer($0) }
         // With the phone out, the game's own hints name pad buttons ("Take Photo A", "Exit B", "Send X"): the dock's
         // buttons show those letters then, so players find the camera's shutter and send (TG reports 1061, 1128).
         let letters = phoneDock && gamePhoneOut
@@ -847,6 +866,18 @@ final class TouchControlsView: UIView {
         super.layoutSubviews()
         let safe = bounds.inset(by: safeAreaInsets)
         guard safe.width > 0, safe.height > 0 else { return }
+        if manualPadEnabled || utilityOnly {
+            let defaults=ManualPadLayout.frames(in:safe,utilityOnly:utilityOnly)
+            let frames=utilityOnly ? defaults : (ControlsLayout.manualFrames(in:safe) ?? defaults)
+            for button in visible { if let frame=frames[button.name] {button.frame=frame} }
+            moveStick.frame=bounds; lookStick.frame=bounds; rightStick.frame=bounds
+            moveStick.baseDiameter=frames["leftStick"]?.width ?? 108; lookStick.baseDiameter=frames["lookStick"]?.width ?? 108
+            moveStick.travel=moveStick.baseDiameter*0.4; lookStick.travel=lookStick.baseDiameter*0.4; rightStick.idleOrigin=nil
+            moveStick.idleOrigin=utilityOnly ? nil : frames["leftStick"].map {CGPoint(x:$0.midX,y:$0.midY)}
+            lookStick.idleOrigin=utilityOnly ? nil : frames["lookStick"].map {CGPoint(x:$0.midX,y:$0.midY)}
+            return
+        }
+        moveStick.idleOrigin=nil; lookStick.idleOrigin=nil
         let scale = max(0.8, min(1.25, min(safe.width / 832, safe.height / 407))) * CGFloat(GameSettings.shared.controlScale)
         func point(_ fx: CGFloat, _ fy: CGFloat) -> CGPoint { CGPoint(x: safe.minX + fx * safe.width, y: safe.minY + fy * safe.height) }
         func place(_ button: ControlButton, _ fx: CGFloat, _ fy: CGFloat, _ size: CGFloat) {
@@ -867,11 +898,14 @@ final class TouchControlsView: UIView {
         rightStick.idleOrigin = planeStickEnabled ? point(0.80, 0.60) : nil
 
         // Utility bar, top centre: rare actions in the hard-to-reach zone.
-        let order = [radio, lights, camera, phone, pause, settings, mods]
+        let order = [radio, lights, camera, phone, pause, settings, mods, manualPad]
         let bar = order.filter { visible.contains($0) }
+        let barStep=min(max(52,54*scale),(safe.width-48)/CGFloat(max(1,bar.count-1)))
         for (i, button) in bar.enumerated() {
-            let offset = (CGFloat(i) - CGFloat(bar.count - 1) / 2) * 54 * scale / safe.width
+            let offset = (CGFloat(i) - CGFloat(bar.count - 1) / 2) * barStep / safe.width
             place(button, 0.5 + offset, 0.08, 40)
+            let d=min(max(44,40*scale),max(44,barStep-8))
+            button.bounds.size=CGSize(width:d,height:d)
         }
 
         // On foot: the primary action sits under the resting right thumb.
@@ -991,7 +1025,9 @@ final class TouchControlsView: UIView {
     }
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-        isHidden ? nil : self
+        if isHidden {return nil}
+        if utilityOnly {return button(at:point) == nil ? nil : self}
+        return self
     }
 
     // MARK: Touches
@@ -1018,7 +1054,7 @@ final class TouchControlsView: UIView {
     private func beginTouch(_ id: ObjectIdentifier, at point: CGPoint) {
         // A quick tap on the game's minimap (wherever Settings put it) opens the full-screen map; a drag
         // that starts there still moves the stick.
-        if context != .menu, !phoneDock, button(at: point) == nil,
+        if !manualPadEnabled, !utilityOnly, context != .menu, !phoneDock, button(at: point) == nil,
            MinimapGeometry.rect(Self.minimapLayout, in: bounds).insetBy(dx: -8, dy: -8).contains(point) {
             mapTaps[id] = (CACurrentMediaTime(), point)
         }
@@ -1026,6 +1062,11 @@ final class TouchControlsView: UIView {
         let leftZone = point.x < safe.minX + safe.width * 0.45
         if let button = button(at: point) {
             press(button, id: id, at: point)
+        } else if utilityOnly {
+            return
+        } else if manualPadEnabled {
+            if leftZone {if !has(isStick) {roles[id] = .moveStick;moveStick.begin(at:point)}}
+            else if !has(isLook) {roles[id] = .look;lookStick.begin(at:point)}
         } else if context == .menu, leftZone {
             // Pause menu: the left side is the controller's left stick, which moves the map
             // cursor so any spot can get a waypoint.
@@ -1071,7 +1112,7 @@ final class TouchControlsView: UIView {
         case switcher:
             clearCameraTravel()
             roles[id] = .characterWheel(start: point, current: point)
-        case fire, driveBy:
+        case fire, driveBy, driveAim:
             roles[id] = .fireLook(button)
             fireStartedAt = now
             lastFireTime = now
@@ -1107,6 +1148,10 @@ final class TouchControlsView: UIView {
             }
             lastDockInput = now
             updateVisibility()
+        case manualPad:
+            reset(publish:false);manualPadEnabled.toggle();manualPad.active=manualPadEnabled
+            updateVisibility();setNeedsLayout()
+            GameFolder.log("Touch manual controller: \(manualPadEnabled ? "on" : "off")")
         case settings:
             DispatchQueue.main.async { self.openSettings?() }
         case mods:
@@ -1273,7 +1318,7 @@ final class TouchControlsView: UIView {
     // MARK: Output
 
     /// Whether the player is aiming; gyro aim runs only then by default.
-    var aiming: Bool { aimActive || fire.pressed || leftFire.pressed || driveBy.pressed }
+    var aiming: Bool { aimActive || fire.pressed || leftFire.pressed || driveBy.pressed || driveAim.pressed }
     /// The plane's right thumb controls throttle/rudder rather than gyro aiming.
     var flyingWithRightStick: Bool { has(isPlaneStick) }
 
@@ -1366,6 +1411,30 @@ final class TouchControlsView: UIView {
             (state.rightX, state.rightY) = Self.cameraStick(look, speed: speed)
         }
 
+        if utilityOnly { return PGPadState() }
+        if manualPadEnabled {
+            state.leftX=Float(moveStick.value.x);state.leftY=Float(moveStick.value.y)
+            state.rightX=Float(look.x);state.rightY=Float(look.y)
+            for mission in missionButtons where mission.button.pressed {
+                if let pad=mission.pad {held.insert(pad)}
+                if mission.trigger==1 {state.leftTrigger=1}
+                if mission.trigger==2 {state.rightTrigger=1}
+            }
+            if manualL3.pressed {held.insert(.l3)};if manualR3.pressed {held.insert(.r3)}
+            if up.pressed {held.insert(.up)};if down.pressed {held.insert(.down)}
+            if left.pressed {held.insert(.left)};if right.pressed {held.insert(.right)}
+            if pause.pressed {held.insert(.start)}
+            if camera.pressed {held.insert(.select)};if phone.pressed {held.insert(.up)}
+            pulses.removeAll {$0.until <= now};for pulse in pulses {held.formUnion(pulse.buttons)}
+            let raw=held
+            for bit in 0..<16 {
+                let value=UInt32(1)<<UInt32(bit)
+                if raw.rawValue & value != 0 && lastHeld.rawValue & value == 0 {pressedAt[value]=now}
+                if raw.rawValue & value == 0,let at=pressedAt[value],now-at<Self.minimumPress {held.insert(PadButtons(rawValue:value))}
+            }
+            lastHeld=raw
+            state.padButtons=held;sendKeyboardMouseEquivalents(state);return state
+        }
         switch context {
         case .onFoot:
             state.leftX = Float(moveStick.value.x); state.leftY = Float(moveStick.value.y)

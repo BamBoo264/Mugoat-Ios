@@ -72,6 +72,9 @@ targets:
       - path: Tools/wabt-1.0.42/share/wabt/wasm2c/wasm-rt-exceptions-impl.c
       - path: Resources
         buildPhase: resources
+      - path: TurboSounds
+        type: folder
+        buildPhase: resources
       - path: GeneratedResources
         buildPhase: resources
         optional: true
@@ -90,7 +93,7 @@ targets:
       - sdk: libbz2.tbd
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: io.github.playgta5ios.app
+        PRODUCT_BUNDLE_IDENTIFIER: vn.gta.newgen.nova
         PRODUCT_NAME: PlayGTA5Native
         TARGETED_DEVICE_FAMILY: "1,2"
         # Paid Apple developer accounts can use App/Full.entitlements (more
@@ -99,9 +102,9 @@ targets:
     info:
       path: App/Info.plist
       properties:
-        CFBundleDisplayName: GTA V Port
+        CFBundleDisplayName: Mugoat Nova
         CFBundleDevelopmentRegion: en
-        CFBundleShortVersionString: "1.4.4"
+        CFBundleShortVersionString: "1.0.0"
         # Your game-file server may be a plain-http address on your tailnet.
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
@@ -112,7 +115,7 @@ targets:
         # The app folder (logs) is visible in the Files app.
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
-        CFBundleVersion: "14"
+        CFBundleVersion: "1"
         UILaunchScreen: {}
         UIRequiresFullScreen: true
         # Lets the game present above 60 FPS on ProMotion iPhones when the frame rate is unlocked.

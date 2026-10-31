@@ -43,3 +43,6 @@ void PGNoteTextureRatio(int64_t gpuBytes, int64_t gameBytes) {
 	NSInteger old = [defaults integerForKey:textureRatioKey()];
 	[defaults setInteger:old >= 100 && old <= 400 ? (old * 3 + ratio) / 4 : ratio forKey:textureRatioKey()];
 }
+
+extern "C" void PGMetalRendererSetNovaOutput(uint32_t,uint32_t);
+void PGSetNovaOutput(uint32_t w,uint32_t h){PGMetalRendererSetNovaOutput(w,h);}

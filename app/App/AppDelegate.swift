@@ -6,6 +6,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // The Lite build (PGLiteMode in Info.plist, build_ipa.sh --lite): the engine and renderer read PG_LITE.
         if Theme.isLite && getenv("PG_LITE") == nil { setenv("PG_LITE", "1", 1) }
+        UserDefaults.standard.register(defaults: ["cameraTouchMode": 2, "gtaPortAppLanguage": "vi", "NovaVietnameseEnabled": true])
         GameSettings.applyExperimentalSwitches()
         ModInstaller.applyPending()
         #if targetEnvironment(simulator)
@@ -18,7 +19,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             }
         }
         #endif
-        Analytics.shared.start()
+        // Nova does not send telemetry to the upstream author service.
         let window = UIWindow(frame: UIScreen.main.bounds)
         window.rootViewController = NativePortViewController()
         window.makeKeyAndVisible()

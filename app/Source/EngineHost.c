@@ -364,6 +364,10 @@ static int64_t heapCeilingBudget(int64_t result){
 // the player waits: holds made respawns take minutes (GTA-50), so the nudge comes after 0.25 s and frees
 // 96 MB at a time.
 static _Atomic double loadSceneSince;		// CLOCK_MONOTONIC ms when a load scene started, 0 none
+bool PGLoadSceneActive(void){
+ if(env.memory.size>23389293 && atomic_load_explicit((const _Atomic unsigned char *)((const unsigned char *)(void *)env.memory.data+23389293),memory_order_relaxed))return true;
+ return atomic_load(&loadSceneSince)!=0;
+}
 int PGLoadSceneSeconds(void){
  double since=atomic_load(&loadSceneSince);if(since==0)return 0;
  double s=(timeMS(CLOCK_MONOTONIC)-since)/1000;
@@ -1830,6 +1834,8 @@ static void pg_asi_leave_script(w2c_game *instance, uint64_t previous) {
 // pg_cheats_menu_tick from pg_asi_script_tick below.
 #include "NativeCheats.inc"
 #include "NativeVehicleSpawn.inc"
+#include "NativeSoundMods.inc"
+#include "NativeSandboxMap.inc"
 // Keys for mods: the Mod keys pad (and a hardware keyboard) set them from the main thread; mods read
 // them on the game thread, and keyboard handlers get each change there.
 static _Atomic uint8_t pg_asi_keys[256];
@@ -2314,6 +2320,7 @@ static uint64_t pg_wasm_text(uint64_t *slot, const char *text) {
   return *slot;
 }
 static uint64_t pg_f32_arg(float value) { uint32_t bits; memcpy(&bits, &value, 4); return bits; }
+#include "NativeTurbo.inc"
 static void pg_trackify_tick(w2c_game *instance) {
   static double lastData, lastPing; static bool wasOpen;
   if (PGGameStatus() & 16) return;
@@ -2378,6 +2385,9 @@ void pg_asi_script_tick(w2c_game *instance, u64 thread) {
   pg_trailer_tick(instance);
   pg_submarine_depth_tick(instance);
   pg_cheats_menu_tick(instance);
+  pg_sound_mod_tick(instance);
+  pg_sandbox_map_tick(instance);
+  pg_turbo_tick(instance);
   pg_trackify_tick(instance);
 #if TARGET_OS_SIMULATOR
   pg_debug_tick(instance, true);
@@ -3255,11 +3265,13 @@ static int pg_audio_rel_walk(uint64_t entries,uint64_t names,unsigned shift,uint
  }
  return renamed;
 }
+#include "NativeLargeResources.inc"
 void pg_packfile_mounted(w2c_game *instance,u64 packfile,u64 name,u32 result){
  (void)instance;
  if(!result)return;
  const char *label=pg_string(&env,name);
  pg_game_index(label,packfile);
+ pg_large_archive_mounted(packfile,label);
  size_t labelLength=strlen(label);
  if(labelLength>8&&!strcasecmp(label+labelLength-7,"dlc.rpf")&&(label[labelLength-8]=='/'||label[labelLength-8]=='\\')){   // "platform:\dlcPacks\<pack>\dlc.rpf"
   uint64_t entries=*(uint64_t *)pg_pointer(&env,packfile+32,8),names=*(uint64_t *)pg_pointer(&env,packfile+16,8);

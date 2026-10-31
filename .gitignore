@@ -10,3 +10,6 @@ app/Resources/wgpu_worker.js
 app/*.xcodeproj
 *.ipa
 .DS_Store
+
+.local-tools/
+__pycache__/

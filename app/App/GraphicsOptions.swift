@@ -184,7 +184,9 @@ enum GraphicsConfiguration {
     /// Pass the chosen settings to the engine. Call before PGStartEngine.
     static func apply(_ settings: GameSettings, screen: CGSize, tv: Bool = false) -> String {
         let preset = settings.graphicsPreset
-        let (width, height) = size(for: preset, renderHeight: settings.renderHeight, screen: screen, matchScreenShape: tv || settings.matchScreenShape)
+        let (outputWidth, outputHeight) = size(for: preset, renderHeight: settings.renderHeight, screen: screen, matchScreenShape: tv || settings.matchScreenShape)
+        let (width,height)=NovaUpscaling.renderSize(width:outputWidth,height:outputHeight,mode:NovaUpscaling.mode)
+        PGSetNovaOutput(NovaUpscaling.mode > 0 ? UInt32(outputWidth):0,NovaUpscaling.mode > 0 ? UInt32(outputHeight):0)
         // The player's own details replace the preset's (GTA-84).
         let overrides = settings.graphicsOverrides
         let options = preset.engineOptions.map { option -> String in
@@ -195,7 +197,7 @@ enum GraphicsConfiguration {
         // The engine and renderer read PG_LITE when they start, after this. The Lite build always sets it.
         if preset == .lite { setenv("PG_LITE", "1", 1) } else if !Theme.isLite { unsetenv("PG_LITE") }
         PGSetMemoryCap(Int32(settings.memoryCapMB))
-        PGSetSharperUpscaling(settings.sharperUpscaling ? 1 : 0)
+        PGSetSharperUpscaling((NovaUpscaling.mode > 0 || settings.sharperUpscaling) ? 1 : 0)
         var pointers = options.map { strdup($0) }
         defer { pointers.forEach { free($0) } }
         pointers.withUnsafeMutableBufferPointer { buffer in
@@ -203,6 +205,6 @@ enum GraphicsConfiguration {
                 PGConfigureEngine($0, UInt32(buffer.count), Int32(width), Int32(height), settings.frameRateCap == 0 ? 0 : settings.frameRateCap == 60 ? 1 : 2)
             }
         }
-        return "\(preset.title) \(width)×\(height) at \(GameSettings.frameRateTitle(settings.frameRateCap))" + (own.isEmpty ? "" : ", own settings: " + own.joined(separator: ", "))
+        return "Nova SR \(NovaUpscaling.mode): internal \(width)×\(height), output \(outputWidth)×\(outputHeight); \(preset.title) at \(GameSettings.frameRateTitle(settings.frameRateCap))" + (own.isEmpty ? "" : ", own settings: " + own.joined(separator: ", "))
     }
 }

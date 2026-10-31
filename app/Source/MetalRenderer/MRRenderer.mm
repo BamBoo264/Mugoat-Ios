@@ -2027,6 +2027,10 @@ static void capture(Texture *t, const std::string &name, id<MTLRenderPipelineSta
 // Sharper upscaling (GTA-10): instead of the screen stretching the picture, MetalFX's spatial scaler
 // brings it to the screen's own resolution (up to 3 times the render size) with edge-aware sharpening.
 static std::atomic<bool> gUpscale{false};
+static std::atomic<uint32_t> gNovaOutW{0},gNovaOutH{0};
+extern "C" void PGMetalRendererSetNovaOutput(uint32_t w,uint32_t h) {
+ gNovaOutW.store(w);gNovaOutH.store(h);
+}
 extern "C" void PGMetalRendererSetUpscaling(int on) { gUpscale.store(on != 0); }
 #if PG_METALFX
 static struct { id<MTLFXSpatialScaler> scaler; id<MTLTexture> out; uint32_t inW, inH, outW, outH; MTLPixelFormat format; bool unsupported; } FX;
@@ -2035,6 +2039,7 @@ static id<MTLTexture> upscaled(Texture *t) {
 	if (![MTLFXSpatialScalerDescriptor supportsDevice:R->device]) { FX.unsupported = true; pg_log("Sharper upscaling: MetalFX isn't available on this device."); return nil; }
 	CGSize screen = R->layer.bounds.size; CGFloat scale = R->layer.contentsScale;
 	uint32_t outW = (uint32_t)std::min<double>(screen.width * scale, t->width * 3.0), outH = (uint32_t)std::min<double>(screen.height * scale, t->height * 3.0);
+	if(gNovaOutW.load() && gNovaOutH.load()){outW=gNovaOutW.load();outH=gNovaOutH.load();}
 	if (outW < t->width * 1.05 || outH < t->height * 1.05) return nil;		// the picture is already about screen size
 	if (!FX.scaler || FX.inW != t->width || FX.inH != t->height || FX.outW != outW || FX.outH != outH || FX.format != t->tex.pixelFormat) {
 		MTLFXSpatialScalerDescriptor *d = [MTLFXSpatialScalerDescriptor new];

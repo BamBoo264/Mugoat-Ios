@@ -232,6 +232,11 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         NotificationCenter.default.addObserver(self, selector: #selector(languageChanged), name: AppLanguage.changed, object: nil)
         home.settingsButton.addAction(UIAction { [weak self] _ in self?.showSettings() }, for: .touchUpInside)
         home.layoutButton.addAction(UIAction { [weak self] _ in self?.showLayoutEditor() }, for: .touchUpInside)
+        home.modsButton.addAction(UIAction { [weak self] _ in
+            let page=ModsViewController();let nav=UINavigationController(rootViewController:page)
+            page.navigationItem.rightBarButtonItem=UIBarButtonItem(title:"Đóng",primaryAction:UIAction{[weak nav] _ in nav?.dismiss(animated:true)})
+            nav.modalPresentationStyle = .formSheet;self?.present(nav,animated:true)
+        },for:.touchUpInside)
         home.onFiles = { [weak self] in self?.showGameFiles() }
         home.onMap = { [weak self] index in
             guard let self, !self.engineStarted else { return }
@@ -364,7 +369,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         }
         try? Data().write(to: logFile!)
         LogWriter.shared.open(logFile!)
-        appendLog("GTA V Port \(Theme.appVersion) on iOS \(UIDevice.current.systemVersion)")
+        appendLog("Mugoat Nova \(Theme.appVersion) on iOS \(UIDevice.current.systemVersion)")
         appendLog("Native UIKit + Metal host. Engine compiled into the app; no WebView or JIT.")
         appendLog("Metal device: \(device?.name ?? "unavailable")")
         GameFolder.log = { [weak self] line in self?.appendLog(line) }
@@ -395,7 +400,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         // A newer release on GitHub: say so once per version, pointing to the Telegram group.
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
             guard let self else { return }
-            UpdateCheck.run(from: self) { [weak self] line in DispatchQueue.main.async { self?.appendLog(line) } }
+            self.appendLog("Mugoat Nova: local diagnostics enabled; upstream update/analytics disabled.")
         }
         if let recovery = GameSettings.shared.recoverFromFailedBoot() {
             appendLog("Previous launch on \(recovery.failed.title) did not finish; lowered to \(recovery.fallback.title)\(recovery.resetHeight.map { ", resolution \($0)p back to Auto" } ?? "").")
@@ -599,6 +604,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         PGAttachMetalLayer(Unmanaged.passUnretained(metalView.layer).toOpaque())
         DispatchQueue.main.async { [weak self] in self?.updateExternalDisplay(resize: false) }
         launchButton.isEnabled = false
+        home.modsButton.isHidden = true
         home.settingsButton.isHidden = true
         home.layoutButton.isHidden = true
         engineStarted = true
@@ -625,6 +631,14 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         launchButton.setTitle(AppLanguage.choose("Loading…"), for: .disabled); launchButton.setNeedsUpdateConfiguration()
         appendLog("Native touch controls support held buttons, sprint and weapon selection.")
         installModsForTest()
+        do { try BundledMenyoo.prepare() } catch { appendLog("Menyoo: " + error.localizedDescription) }
+        do {try SkinInstaller.updateMenyooList()} catch {appendLog("Skin list: " + error.localizedDescription)}
+        ModVehicleSupport.prepare(manifestPath: path, log: { self.appendLog($0) })
+        ModVehicleSupport.prepareLargeResources(log: { self.appendLog($0) })
+        SoundAssignments.resolveDuplicatePacks(log: { self.appendLog($0) })
+        SoundAssignments.configure()
+        _ = TurboSettings.apply()
+        appendLog("Nova baseline: original 1.4.4 PCM/DSP/Opus, streaming and memory guard; custom sound assignments only.")
         noticeMods()
         startAudio()
         let (root, rootNote) = EnginePaths.filesRoot()
@@ -1584,7 +1598,9 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         let pcControls = keyboardMouse && KeyboardMouse.shared.hasKeyboard && KeyboardMouse.shared.hasMouse
         let previewing = ProcessInfo.processInfo.arguments.contains("--touch-controls-preview")
         let touchActive = touchControlsAvailable && stoppedPanel == nil && (previewing || !((hasController || pcControls) && GameSettings.shared.hideTouchWithController))
-        touchControls.isHidden = !touchActive
+        // External input hides gameplay controls, never the Settings/Plugin shortcuts.
+        touchControls.utilityOnly = ManualPadLayout.utilityOnly(external: hasController || pcControls, hide: GameSettings.shared.hideTouchWithController, preview: previewing)
+        touchControls.isHidden = !ManualPadLayout.overlayVisible(available: touchControlsAvailable, stopped: stoppedPanel != nil)
         var vehicle = touchActive ? PGCurrentTouchContext() : 0
         var pauseMenu = PGPauseMenuActive()
         // Debug: --preview-context <vehicle type + 1 | menu> to review a layout.

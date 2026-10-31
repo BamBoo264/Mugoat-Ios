@@ -271,6 +271,12 @@
             "state": "translated",
             "value": "\n⚠︎ Más exigente que la configuración recomendada para este teléfono: puede quedarse sin memoria o sobrecalentarse."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\n⚠︎ Cao hơn mức khuyến nghị của điện thoại này: có thể hết bộ nhớ hoặc quá nhiệt."
+          }
         }
       }
     },
@@ -353,6 +359,12 @@
           "stringUnit": {
             "state": "translated",
             "value": " (jugando ahora)"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " (đang chơi)"
           }
         }
       }
@@ -437,6 +449,12 @@
             "state": "translated",
             "value": " (recomendado)"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " (khuyên dùng)"
+          }
         }
       }
     },
@@ -519,6 +537,12 @@
           "stringUnit": {
             "state": "translated",
             "value": " Cierra y vuelve a abrir la app para jugar en {arg0}."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " Đóng rồi mở lại ứng dụng để chơi {arg0}."
           }
         }
       }
@@ -603,6 +627,12 @@
             "state": "translated",
             "value": " Los preajustes por encima del recomendado pueden quedarse sin memoria o sobrecalentar este teléfono; si falla un inicio, el juego vuelve a uno inferior automáticamente."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " Cấu hình cao hơn mức khuyến nghị có thể làm điện thoại hết bộ nhớ hoặc quá nhiệt; nếu khởi động thất bại, game sẽ tự giảm cấu hình."
+          }
         }
       }
     },
@@ -686,6 +716,12 @@
             "state": "translated",
             "value": " Eliminar los archivos también borra el conjunto de inicio; se volverá a preparar la próxima vez que toques Jugar."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " Xóa tệp cũng xóa bộ dữ liệu khởi động; lần bấm Chơi tiếp theo sẽ chuẩn bị lại."
+          }
         }
       }
     },
@@ -768,6 +804,12 @@
           "stringUnit": {
             "state": "translated",
             "value": " Hay que reiniciar para aplicar {arg0}."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " Cần khởi động lại để áp dụng {arg0}."
           }
         }
       }
@@ -1137,6 +1179,12 @@
             "state": "translated",
             "value": " · cambia al instante"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " · áp dụng ngay"
+          }
         }
       }
     },
@@ -1315,6 +1363,12 @@
             "state": "translated",
             "value": "1080p con shaders, sombras y reflejos altos"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1080p với shader, bóng đổ và phản chiếu cao"
+          }
         }
       }
     },
@@ -1397,6 +1451,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Apuntar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ngắm"
           }
         }
       }
@@ -1481,6 +1541,12 @@
             "state": "translated",
             "value": "Apuntar y disparar desde el vehículo"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ngắm và bắn trên xe"
+          }
         }
       }
     },
@@ -1563,6 +1629,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Velocidad de vista al apuntar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tốc độ nhìn khi ngắm"
           }
         }
       }
@@ -1647,6 +1719,12 @@
             "state": "translated",
             "value": "瞄準搖桿速度"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tốc độ cần ngắm"
+          }
         }
       }
     },
@@ -1729,6 +1807,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Todos los archivos en el dispositivo"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tất cả tệp trên thiết bị"
           }
         }
       }
@@ -1813,6 +1897,12 @@
             "state": "translated",
             "value": "Todos los archivos del juego en el dispositivo"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toàn bộ tệp game trên thiết bị"
+          }
         }
       }
     },
@@ -1895,6 +1985,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Siempre a pie"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luôn bật khi đi bộ"
           }
         }
       }
@@ -1979,6 +2075,12 @@
             "state": "translated",
             "value": "應用程式語言"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ngôn ngữ ứng dụng"
+          }
         }
       }
     },
@@ -2061,6 +2163,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Asistencia"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hỗ trợ"
           }
         }
       }
@@ -2145,6 +2253,12 @@
             "state": "translated",
             "value": "輔助瞄準"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hỗ trợ ngắm"
+          }
         }
       }
     },
@@ -2227,6 +2341,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Apuntado libre asistido"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ngắm tự do có hỗ trợ"
           }
         }
       }
@@ -2311,6 +2431,12 @@
             "state": "translated",
             "value": "Auto ({arg0}p)"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tự động ({arg0}p)"
+          }
         }
       }
     },
@@ -2393,6 +2519,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Disponible después de reiniciar la app"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Có sau khi khởi động lại ứng dụng"
           }
         }
       }
@@ -2477,6 +2609,12 @@
             "state": "translated",
             "value": "Atrás"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quay lại"
+          }
         }
       }
     },
@@ -2559,6 +2697,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "平衡"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cân bằng"
           }
         }
       }
@@ -2643,6 +2787,12 @@
             "state": "translated",
             "value": "省電"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiết kiệm pin"
+          }
         }
       }
     },
@@ -2725,6 +2875,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Frenar y reversa"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phanh và lùi"
           }
         }
       }
@@ -2809,6 +2965,12 @@
             "state": "translated",
             "value": "Opacidad de los botones"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Độ trong suốt của nút"
+          }
         }
       }
     },
@@ -2891,6 +3053,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tamaño de los botones"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kích thước nút"
           }
         }
       }
@@ -2975,6 +3143,12 @@
             "state": "translated",
             "value": "鏡頭搖桿速度"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tốc độ cần camera"
+          }
         }
       }
     },
@@ -3057,6 +3231,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "No se puede descargar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không tải xuống được"
           }
         }
       }
@@ -3141,6 +3321,12 @@
             "state": "translated",
             "value": "No se pueden eliminar los archivos"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không xóa tệp được"
+          }
         }
       }
     },
@@ -3223,6 +3409,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "取消"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Huỷ"
           }
         }
       }
@@ -3307,6 +3499,12 @@
             "state": "translated",
             "value": "Cancelar descarga"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hủy tải xuống"
+          }
         }
       }
     },
@@ -3389,6 +3587,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cambiar cámara"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đổi camera"
           }
         }
       }
@@ -3473,6 +3677,12 @@
             "state": "translated",
             "value": "Los cambios se aplican la próxima vez que inicies el juego. "
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thay đổi áp dụng ở lần khởi động game tiếp theo. "
+          }
         }
       }
     },
@@ -3555,6 +3765,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Verificando tamaño"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang kiểm tra dung lượng"
           }
         }
       }
@@ -3924,6 +4140,12 @@
             "state": "translated",
             "value": "No se pudo conectar con el servidor del juego. Verifica que Tailscale esté conectado y luego reanuda."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không kết nối được máy chủ game. Kiểm tra kết nối Tailscale rồi tiếp tục."
+          }
         }
       }
     },
@@ -4006,6 +4228,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "No se pudo enviar el registro"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không gửi được nhật ký"
           }
         }
       }
@@ -4090,6 +4318,12 @@
             "state": "translated",
             "value": "Personalizado"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã tùy chỉnh"
+          }
         }
       }
     },
@@ -4172,6 +4406,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nivel de detalle, predeterminado {arg0}p · "
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mức chi tiết, mặc định {arg0}p · "
           }
         }
       }
@@ -4256,6 +4496,12 @@
             "state": "translated",
             "value": "Bucear"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lặn"
+          }
         }
       }
     },
@@ -4338,6 +4584,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "完成"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xong"
           }
         }
       }
@@ -4517,6 +4769,12 @@
             "state": "translated",
             "value": "下載"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tải xuống"
+          }
         }
       }
     },
@@ -4599,6 +4857,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Descargar todos los archivos del juego"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tải toàn bộ tệp game"
           }
         }
       }
@@ -4683,6 +4947,12 @@
             "state": "translated",
             "value": "¿Descargar todos los archivos del juego?"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tải toàn bộ tệp game?"
+          }
         }
       }
     },
@@ -4765,6 +5035,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Descarga en pausa"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã tạm dừng tải"
           }
         }
       }
@@ -4849,6 +5125,12 @@
             "state": "translated",
             "value": "Progreso de la descarga"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiến độ tải xuống"
+          }
         }
       }
     },
@@ -4931,6 +5213,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Descarga detenida"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã dừng tải"
           }
         }
       }
@@ -5015,6 +5303,12 @@
             "state": "translated",
             "value": "Descargando archivos del juego"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang tải tệp game"
+          }
         }
       }
     },
@@ -5097,6 +5391,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Descargando archivos del juego: {arg0}% ({arg1} de {arg2})"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang tải tệp game: {arg0}% ({arg1} trên {arg2})"
           }
         }
       }
@@ -5181,6 +5481,12 @@
             "state": "translated",
             "value": "Las descargas no están disponibles aquí."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không hỗ trợ tải xuống tại đây."
+          }
         }
       }
     },
@@ -5263,6 +5569,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Arrastra un botón para moverlo · pellizca para cambiar su tamaño"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kéo nút để di chuyển · chụm hai ngón để đổi kích thước"
           }
         }
       }
@@ -5347,6 +5659,12 @@
             "state": "translated",
             "value": "編輯按鍵配置"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chỉnh bố trí điều khiển"
+          }
         }
       }
     },
@@ -5430,6 +5748,12 @@
             "state": "translated",
             "value": "Subir al vehículo"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lên xe"
+          }
         }
       }
     },
@@ -5512,6 +5836,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Salir del vehículo"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xuống xe"
           }
         }
       }
@@ -5600,7 +5930,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dự án fan làm - chơi bằng file game của bạn"
+            "value": "Bản iOS · sử dụng dữ liệu game của bạn"
           }
         },
         "ar": {
@@ -5691,6 +6021,12 @@
             "state": "translated",
             "value": "填滿螢幕"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lấp đầy màn hình"
+          }
         }
       }
     },
@@ -5773,6 +6109,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Disparar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bắn"
           }
         }
       }
@@ -5857,6 +6199,12 @@
             "state": "translated",
             "value": "Disparar arma de la aeronave"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bắn vũ khí máy bay"
+          }
         }
       }
     },
@@ -5939,6 +6287,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Disparar también apunta"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bắn đồng thời ngắm"
           }
         }
       }
@@ -6023,6 +6377,12 @@
             "state": "translated",
             "value": "Disparar fija primero el blanco, como en los GTA clásicos para celular"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Khóa mục tiêu trước khi bắn, giống các bản GTA di động cổ điển"
+          }
         }
       }
     },
@@ -6105,6 +6465,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Disparar, mano izquierda"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bắn bằng tay trái"
           }
         }
       }
@@ -6189,6 +6555,12 @@
             "state": "translated",
             "value": "幀率"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giới hạn FPS"
+          }
         }
       }
     },
@@ -6271,6 +6643,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "自由瞄準"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ngắm tự do"
           }
         }
       }
@@ -6355,6 +6733,12 @@
             "state": "translated",
             "value": "Explora libremente todo el mapa con todas las armas. Sin misiones."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Khám phá bản đồ với đầy đủ vũ khí. Không có nhiệm vụ."
+          }
         }
       }
     },
@@ -6437,6 +6821,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Libera {arg0}"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giải phóng {arg0}"
           }
         }
       }
@@ -6521,6 +6911,12 @@
             "state": "translated",
             "value": "Libera {arg0}. El juego volverá a cargarse en streaming desde el servidor."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giải phóng {arg0}. Game sẽ đọc dữ liệu từ máy chủ trở lại."
+          }
         }
       }
     },
@@ -6603,6 +6999,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Giro máximo a {arg0}°"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đánh hết lái ở {arg0}°"
           }
         }
       }
@@ -6691,7 +7093,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "GTA V Port"
+            "value": "Mugoat NewGen"
           }
         },
         "ar": {
@@ -6782,6 +7184,12 @@
             "state": "translated",
             "value": "Descarga de archivos del juego en pausa al {arg0}%"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã tạm dừng tải tệp game ở {arg0}%"
+          }
         }
       }
     },
@@ -6865,6 +7273,12 @@
             "state": "translated",
             "value": "遊戲資料伺服器"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máy chủ tệp game"
+          }
         }
       }
     },
@@ -6947,6 +7361,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "遊戲檔案"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dữ liệu game"
           }
         }
       }
@@ -7221,6 +7641,12 @@
             "state": "translated",
             "value": "遊戲模式"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chế độ chơi"
+          }
         }
       }
     },
@@ -7304,6 +7730,12 @@
             "state": "translated",
             "value": "Acelerar"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ga"
+          }
         }
       }
     },
@@ -7386,6 +7818,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "畫質"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đồ hoạ"
           }
         }
       }
@@ -7565,6 +8003,12 @@
             "state": "translated",
             "value": "陀螺儀"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Con quay hồi chuyển"
+          }
         }
       }
     },
@@ -7647,6 +8091,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sensibilidad del giroscopio"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Độ nhạy con quay hồi chuyển"
           }
         }
       }
@@ -7731,6 +8181,12 @@
             "state": "translated",
             "value": "Freno de mano"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phanh tay"
+          }
         }
       }
     },
@@ -7813,6 +8269,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Faros"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đèn pha"
           }
         }
       }
@@ -7897,6 +8359,12 @@
             "state": "translated",
             "value": "Mantenido"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang giữ"
+          }
         }
       }
     },
@@ -7979,6 +8447,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "隱藏"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ẩn"
           }
         }
       }
@@ -8063,6 +8537,12 @@
             "state": "translated",
             "value": "Ocultar controles táctiles con control"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ẩn điều khiển cảm ứng khi dùng tay cầm"
+          }
         }
       }
     },
@@ -8145,6 +8625,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ocultar al conectar un control"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ẩn khi kết nối tay cầm"
           }
         }
       }
@@ -8229,6 +8715,12 @@
             "state": "translated",
             "value": "Texturas, efectos y distancia de dibujado con más detalle"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texture, hiệu ứng và tầm nhìn chi tiết hơn"
+          }
         }
       }
     },
@@ -8311,6 +8803,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Más alto consume más batería y calienta más; 30 FPS es lo más estable. Sin límite llega hasta 120 en iPhone con ProMotion."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mức cao hơn tốn pin và nóng máy hơn; 30 FPS ổn định nhất. Không giới hạn có thể lên 120 FPS trên iPhone ProMotion."
           }
         }
       }
@@ -8395,6 +8893,12 @@
             "state": "translated",
             "value": "Mantén para salir de la aeronave"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giữ để rời máy bay"
+          }
         }
       }
     },
@@ -8477,6 +8981,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bocina"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Còi"
           }
         }
       }
@@ -8561,6 +9071,12 @@
             "state": "translated",
             "value": "駕駛"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trên xe"
+          }
         }
       }
     },
@@ -8643,6 +9159,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Invertir eje vertical"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đảo chiều dọc"
           }
         }
       }
@@ -8727,6 +9249,12 @@
             "state": "translated",
             "value": "Invertir eje vertical del giroscopio"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đảo chiều dọc con quay hồi chuyển"
+          }
         }
       }
     },
@@ -8809,6 +9337,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Saltar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhảy"
           }
         }
       }
@@ -8893,6 +9427,12 @@
             "state": "translated",
             "value": "Conserva lo ya descargado"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giữ lại phần đã tải xuống"
+          }
         }
       }
     },
@@ -8975,6 +9515,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tren de aterrizaje"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Càng đáp"
           }
         }
       }
@@ -9059,6 +9605,12 @@
             "state": "translated",
             "value": "語言"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ngôn ngữ"
+          }
         }
       }
     },
@@ -9141,6 +9693,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "主選單、設定及按鍵介面語言"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ngôn ngữ menu và cài đặt"
           }
         }
       }
@@ -9415,6 +9973,12 @@
             "state": "translated",
             "value": "Registro enviado, ¡gracias!"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã gửi nhật ký, cảm ơn bạn!"
+          }
         }
       }
     },
@@ -9497,6 +10061,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mirar atrás"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhìn phía sau"
           }
         }
       }
@@ -9581,6 +10151,12 @@
             "state": "translated",
             "value": "Velocidad de vista"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tốc độ nhìn"
+          }
         }
       }
     },
@@ -9663,6 +10239,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Menor carga, más tiempo de juego"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tải thấp nhất, chơi lâu hơn"
           }
         }
       }
@@ -9747,6 +10329,12 @@
             "state": "translated",
             "value": "最高"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tối đa"
+          }
         }
       }
     },
@@ -9829,6 +10417,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mueve el teléfono para afinar la mira; al girar el cuerpo, gira la cámara. La dirección por inclinación usa el teléfono como un volante: Asistencia agrega control fino a la dirección táctil, Inclinar para girar la reemplaza. El ángulo recto es como sostengas el teléfono al subir al vehículo."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Di chuyển điện thoại để tinh chỉnh ngắm; xoay người để xoay camera. Nghiêng lái dùng điện thoại như vô lăng: Hỗ trợ tinh chỉnh thêm cho điều khiển cảm ứng, còn Nghiêng để lái thay thế điều khiển đó. Góc thẳng được lấy theo tư thế cầm điện thoại lúc lên xe."
           }
         }
       }
@@ -9913,6 +10507,12 @@
             "state": "translated",
             "value": "Mueve, cambia el tamaño u oculta botones"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Di chuyển, đổi kích thước hoặc ẩn nút"
+          }
         }
       }
     },
@@ -9995,6 +10595,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nativa ({arg0}p)"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Độ phân giải gốc ({arg0}p)"
           }
         }
       }
@@ -10079,6 +10685,12 @@
             "state": "translated",
             "value": "Resolución casi nativa, texturas altas y distancia de dibujado completa (los Pro más recientes)"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gần độ phân giải gốc, texture cao và tầm nhìn tối đa (dòng Pro mới)"
+          }
         }
       }
     },
@@ -10161,6 +10773,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pestaña siguiente"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thẻ tiếp theo"
           }
         }
       }
@@ -10245,6 +10863,12 @@
             "state": "translated",
             "value": "Siguiente arma del vehículo"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vũ khí xe tiếp theo"
+          }
         }
       }
     },
@@ -10327,6 +10951,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "¿Sin conexión a internet? Vuelve a intentarlo o usa Compartir registro."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không có mạng? Thử lại hoặc dùng Chia sẻ nhật ký."
           }
         }
       }
@@ -10411,6 +11041,12 @@
             "state": "translated",
             "value": "Aún no hay registro"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa có nhật ký"
+          }
         }
       }
     },
@@ -10493,6 +11129,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "No hay suficiente espacio libre. El resto del juego necesita {arg0} más {arg1} de margen, pero solo hay {arg2} libres. Libera {arg3} y vuelve a intentarlo."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không đủ dung lượng trống. Phần game còn lại cần {arg0} và dự phòng {arg1}, nhưng chỉ còn {arg2}. Giải phóng {arg3} rồi thử lại."
           }
         }
       }
@@ -10577,6 +11219,12 @@
             "state": "translated",
             "value": "OK"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đồng ý"
+          }
         }
       }
     },
@@ -10659,6 +11307,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "關閉"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tắt"
           }
         }
       }
@@ -10743,6 +11397,12 @@
             "state": "translated",
             "value": "Activado"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bật"
+          }
         }
       }
     },
@@ -10825,6 +11485,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "步行"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đi bộ"
           }
         }
       }
@@ -10909,6 +11575,12 @@
             "state": "translated",
             "value": "Un toque. Ayuda a solucionar cierres y problemas de carga"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lưu nhật ký để gửi cho nhóm tester"
+          }
         }
       }
     },
@@ -10991,6 +11663,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "暫停"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tạm dừng"
           }
         }
       }
@@ -11075,6 +11753,12 @@
             "state": "translated",
             "value": "Menú de pausa"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menu tạm dừng"
+          }
         }
       }
     },
@@ -11157,6 +11841,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "En pausa porque este iPhone casi no tiene almacenamiento libre."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã tạm dừng vì iPhone gần hết dung lượng lưu trữ."
           }
         }
       }
@@ -11241,6 +11931,12 @@
             "state": "translated",
             "value": "效能"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hiệu năng"
+          }
         }
       }
     },
@@ -11323,6 +12019,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Teléfono"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Điện thoại"
           }
         }
       }
@@ -11591,6 +12293,12 @@
             "state": "translated",
             "value": "Los cambios de preajuste y de fotogramas por segundo se aplican la próxima vez que inicies el juego."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thay đổi cấu hình và tốc độ khung hình áp dụng ở lần khởi động game tiếp theo."
+          }
         }
       }
     },
@@ -11673,6 +12381,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Los preajustes se aplican al tocar Jugar."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cấu hình áp dụng khi bạn bấm Chơi."
           }
         }
       }
@@ -11757,6 +12471,12 @@
             "state": "translated",
             "value": "Pestaña anterior"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thẻ trước"
+          }
         }
       }
     },
@@ -11839,6 +12559,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "高畫質"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chất lượng"
           }
         }
       }
@@ -11923,6 +12649,12 @@
             "state": "translated",
             "value": "Radio"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đài phát thanh"
+          }
         }
       }
     },
@@ -12005,6 +12737,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Referencia: {arg0}. Menciónala si también pides ayuda en la comunidad."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mã tham chiếu: {arg0}. Cung cấp mã này khi cần cộng đồng hỗ trợ."
           }
         }
       }
@@ -12089,6 +12827,12 @@
             "state": "translated",
             "value": "Recargar"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nạp đạn"
+          }
         }
       }
     },
@@ -12171,6 +12915,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Eliminar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gỡ bỏ"
           }
         }
       }
@@ -12255,6 +13005,12 @@
             "state": "translated",
             "value": "移除已下載檔案"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xóa tệp đã tải"
+          }
         }
       }
     },
@@ -12337,6 +13093,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "¿Eliminar los archivos descargados?"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xóa tệp đã tải?"
           }
         }
       }
@@ -12421,6 +13183,12 @@
             "state": "translated",
             "value": "Eliminando archivos…"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang xóa tệp…"
+          }
         }
       }
     },
@@ -12503,6 +13271,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Renderiza con la forma de la pantalla en vez de estirar 16:9"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kết xuất theo tỷ lệ màn hình thay vì kéo giãn khung hình 16:9"
           }
         }
       }
@@ -12587,6 +13361,12 @@
             "state": "translated",
             "value": "Renderiza a {arg0}×{arg1}"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kết xuất ở {arg0}×{arg1}"
+          }
         }
       }
     },
@@ -12669,6 +13449,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "重設"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đặt lại"
           }
         }
       }
@@ -12753,6 +13539,12 @@
             "state": "translated",
             "value": "解析度"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Độ phân giải"
+          }
         }
       }
     },
@@ -12835,6 +13627,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Los cambios de resolución se aplican al instante. "
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đổi độ phân giải có hiệu lực ngay. "
           }
         }
       }
@@ -13014,6 +13812,12 @@
             "state": "translated",
             "value": "Reinicia la app para eliminar los archivos; el juego los está usando."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Khởi động lại ứng dụng để xóa tệp; game đang sử dụng chúng."
+          }
         }
       }
     },
@@ -13096,6 +13900,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Reanudar descarga"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiếp tục tải xuống"
           }
         }
       }
@@ -13275,6 +14085,12 @@
             "state": "translated",
             "value": "沙盒模式"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tự do"
+          }
         }
       }
     },
@@ -13357,6 +14173,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Guarda o envía tú mismo el registro de esta sesión y el de la anterior"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lưu hoặc chia sẻ nhật ký lần chạy hiện tại và lần trước"
           }
         }
       }
@@ -13441,6 +14263,12 @@
             "state": "translated",
             "value": "Seleccionar"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chọn"
+          }
         }
       }
     },
@@ -13523,6 +14351,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Enviar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gửi"
           }
         }
       }
@@ -13607,6 +14441,12 @@
             "state": "translated",
             "value": "Enviar registro al desarrollador"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hỗ trợ và nhật ký"
+          }
         }
       }
     },
@@ -13689,6 +14529,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Enviando…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang gửi…"
           }
         }
       }
@@ -13773,6 +14619,12 @@
             "state": "translated",
             "value": "Envía el registro del juego de esta sesión y de la anterior: el modelo de tu iPhone, la versión de iOS, la configuración de la app y lo que mostró el juego. Sin datos personales, fotos ni contactos."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gửi nhật ký lần chơi này và lần trước: mẫu iPhone, phiên bản iOS, cài đặt ứng dụng và thông báo game. Không gồm dữ liệu cá nhân, ảnh hay danh bạ."
+          }
         }
       }
     },
@@ -13856,6 +14708,12 @@
             "state": "translated",
             "value": "Sensibilidad %.1f×"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Độ nhạy %.1f×"
+          }
         }
       }
     },
@@ -13938,6 +14796,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Primero configura tu servidor de archivos (pantalla Jugar)."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy đặt máy chủ tệp game trước (màn hình Chơi)."
           }
         }
       }
@@ -14121,7 +14985,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chia sẻ log"
+            "value": "Chia sẻ nhật ký"
           }
         },
         "ar": {
@@ -14212,6 +15076,12 @@
             "state": "translated",
             "value": "Imagen y sombras más nítidas"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hình ảnh và bóng đổ sắc nét hơn"
+          }
         }
       }
     },
@@ -14294,6 +15164,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "顯示"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hiện"
           }
         }
       }
@@ -14378,6 +15254,12 @@
             "state": "translated",
             "value": "Tamaño del botón seleccionado"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kích thước nút đang chọn"
+          }
         }
       }
     },
@@ -14460,6 +15342,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Inicia el juego una vez y vuelve a intentarlo."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Khởi động game một lần rồi thử lại."
           }
         }
       }
@@ -14544,6 +15432,12 @@
             "state": "translated",
             "value": "Sigilo"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ẩn nấp"
+          }
         }
       }
     },
@@ -14626,6 +15520,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Aún se están eliminando archivos. Vuelve a intentarlo en un momento."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vẫn đang xóa tệp. Vui lòng đợi một lát rồi thử lại."
           }
         }
       }
@@ -14710,6 +15610,12 @@
             "state": "translated",
             "value": "Primero detén la descarga."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy dừng tải xuống trước."
+          }
         }
       }
     },
@@ -14792,6 +15698,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Detenida porque no se pudieron guardar los archivos. Libera almacenamiento y luego reanuda."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã dừng vì không lưu được tệp. Giải phóng dung lượng rồi tiếp tục."
           }
         }
       }
@@ -14876,6 +15788,12 @@
             "state": "translated",
             "value": "劇情模式"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cốt truyện"
+          }
         }
       }
     },
@@ -14958,6 +15876,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Las partidas del Modo historia se guardan en este teléfono entre sesiones. Sandbox tiene sus propios archivos aparte."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save cốt truyện được giữ trên điện thoại qua các lần mở. Chế độ tự do dùng dữ liệu riêng."
           }
         }
       }
@@ -15042,6 +15966,12 @@
             "state": "translated",
             "value": "Emerger"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nổi lên"
+          }
         }
       }
     },
@@ -15124,6 +16054,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cambiar de personaje"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đổi nhân vật"
           }
         }
       }
@@ -15208,6 +16144,12 @@
             "state": "translated",
             "value": "Cubrirse"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Núp"
+          }
         }
       }
     },
@@ -15290,6 +16232,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Modo de apuntado"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chế độ ngắm"
           }
         }
       }
@@ -15374,6 +16322,12 @@
             "state": "translated",
             "value": "La app no pudo recordar esa carpeta: {arg0}"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ứng dụng không lưu được quyền truy cập thư mục: {arg0}"
+          }
         }
       }
     },
@@ -15456,6 +16410,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "La app no tiene permiso para abrir esa carpeta. Mejor mueve la carpeta del juego a Archivos › En mi iPhone › GTA V Port; la app la encontrará ahí sola."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ứng dụng không được phép mở thư mục đó. Hãy chuyển thư mục game vào Tệp › Trên iPhone › GTA V Port; ứng dụng sẽ tự tìm tại đó."
           }
         }
       }
@@ -15540,6 +16500,12 @@
             "state": "translated",
             "value": "Falta la lista de archivos del juego de la app."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thiếu danh sách tệp game của ứng dụng."
+          }
         }
       }
     },
@@ -15622,6 +16588,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "La campaña con misiones. Continúa tu última partida guardada o empieza desde el Prólogo."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chơi nhiệm vụ cốt truyện. Tiếp tục bản lưu gần nhất hoặc bắt đầu từ phần mở đầu."
           }
         }
       }
@@ -15706,6 +16678,12 @@
             "state": "translated",
             "value": "No se pudo iniciar la descarga."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không bắt đầu tải xuống được."
+          }
         }
       }
     },
@@ -15788,6 +16766,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "No se pudieron eliminar los archivos."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không xóa được các tệp."
           }
         }
       }
@@ -15961,6 +16945,12 @@
             "state": "translated",
             "value": "Los archivos del juego ya están en este iPhone (carpeta \"{arg0}\"), así que no hace falta descargar nada."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tệp game đã có trên iPhone (thư mục \"{arg0}\"), không cần tải thêm."
+          }
         }
       }
     },
@@ -16048,7 +17038,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Thư mục game đã bị di chuyển hoặc xoá. Đặt nó lại ở Tệp > iPhone của tôi > GTA V Port, hoặc chọn lại."
+            "value": "Thư mục game đã bị di chuyển hoặc xoá. Đặt nó lại ở Tệp > iPhone của tôi > Mugoat NewGen, hoặc chọn lại."
           }
         }
       }
@@ -16133,6 +17123,12 @@
             "state": "translated",
             "value": "El juego lee todo desde este iPhone. Al eliminar los archivos se libera el espacio y el juego vuelve a usar streaming."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Game đọc toàn bộ dữ liệu trên iPhone. Xóa các tệp sẽ giải phóng dung lượng; sau đó game đọc từ máy chủ trở lại."
+          }
         }
       }
     },
@@ -16215,6 +17211,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "El simulador lee directamente los archivos del juego de la Mac. Inícialo con --stream-assets para probar las descargas."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trình giả lập đọc trực tiếp tệp game trên Mac. Chạy với --stream-assets để thử tải xuống."
           }
         }
       }
@@ -16299,6 +17301,12 @@
             "state": "translated",
             "value": "此裝置"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thiết bị này"
+          }
         }
       }
     },
@@ -16381,6 +17389,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Esto guarda {arg0} más en este iPhone ({arg1} libres). Se recomienda Wi-Fi y Tailscale."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lưu thêm {arg0} trên iPhone này (còn trống {arg1}). Nên dùng Wi-Fi và Tailscale."
           }
         }
       }
@@ -16465,6 +17479,12 @@
             "state": "translated",
             "value": "Inclinación para giro completo"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Góc nghiêng để đánh hết lái"
+          }
         }
       }
     },
@@ -16547,6 +17567,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dirección por inclinación"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lái bằng nghiêng máy"
           }
         }
       }
@@ -16631,6 +17657,12 @@
             "state": "translated",
             "value": "Inclinar para girar"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nghiêng để lái"
+          }
         }
       }
     },
@@ -16713,6 +17745,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Configuración probada actual para iPhone de 6 GB"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cấu hình thử nghiệm cho iPhone RAM 6 GB"
           }
         }
       }
@@ -16797,6 +17835,12 @@
             "state": "translated",
             "value": "觸控按鍵"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Điều khiển cảm ứng"
+          }
         }
       }
     },
@@ -16879,6 +17923,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Los controles táctiles vuelven en cuanto se desconecta el control"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Điều khiển cảm ứng hiện lại ngay khi ngắt tay cầm"
           }
         }
       }
@@ -17052,6 +18102,12 @@
             "state": "translated",
             "value": "Fijado de blanco clásico"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Khoá mục tiêu truyền thống"
+          }
         }
       }
     },
@@ -17134,6 +18190,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Inténtalo más tarde o usa Compartir registro."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thử lại sau hoặc dùng Chia sẻ nhật ký."
           }
         }
       }
@@ -17307,6 +18369,12 @@
             "state": "translated",
             "value": "極高"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siêu cao"
+          }
         }
       }
     },
@@ -17389,6 +18457,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "不限制"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không giới hạn"
           }
         }
       }
@@ -17562,6 +18636,12 @@
             "state": "translated",
             "value": "Rueda de armas"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vòng chọn vũ khí"
+          }
         }
       }
     },
@@ -17644,6 +18724,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "¿Qué pasó? (opcional)"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã xảy ra chuyện gì? (không bắt buộc)"
           }
         }
       }
@@ -17728,6 +18814,12 @@
             "state": "translated",
             "value": "Al apuntar"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Khi ngắm"
+          }
         }
       }
     },
@@ -17810,6 +18902,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Abriste la carpeta \"{arg0}\". Sube uno o dos niveles, elige la carpeta que contiene \"data\" y \"b\" y toca Abrir ahí."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn đã mở thư mục \"{arg0}\". Lùi lên một hoặc hai cấp và chọn thư mục chứa cả \"data\" lẫn \"b\", rồi bấm Mở tại đó."
           }
         }
       }
@@ -17894,6 +18992,12 @@
             "state": "translated",
             "value": "quedan unos {arg0}"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "còn khoảng {arg0}"
+          }
         }
       }
     },
@@ -17977,6 +19081,12 @@
             "state": "translated",
             "value": "respondió {arg0}; ¿la dirección es la carpeta con data/ y b/?"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "trả về {arg0}; địa chỉ có trỏ đến thư mục chứa data/ và b/ không?"
+          }
         }
       }
     },
@@ -18059,6 +19169,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "no se puede conectar ({arg0})"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "không kết nối được ({arg0})"
           }
         }
       }
@@ -18410,6 +19526,12 @@
             "state": "translated",
             "value": "queda menos de un minuto"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "còn dưới một phút"
+          }
         }
       }
     },
@@ -18492,6 +19614,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "{arg0} · se juega sin streaming"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{arg0} · chơi bằng dữ liệu cục bộ"
           }
         }
       }
@@ -18576,6 +19704,12 @@
             "state": "translated",
             "value": "{arg0} · {arg1} ya en este iPhone"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{arg0} · {arg1} đã có trên iPhone"
+          }
         }
       }
     },
@@ -18658,6 +19792,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "{arg0}% · {arg1} de {arg2}"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{arg0}% · {arg1} trên {arg2}"
           }
         }
       }
@@ -18742,6 +19882,12 @@
             "state": "translated",
             "value": "Aeronave"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máy bay"
+          }
         }
       }
     },
@@ -18824,6 +19970,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mapa de prueba de GTA VI"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bản đồ GTA VI thử nghiệm"
           }
         }
       }
@@ -19090,7 +20242,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Layout điều khiển"
+            "value": "Bố trí điều khiển"
           }
         }
       }
@@ -19175,6 +20327,12 @@
             "state": "translated",
             "value": "正在開始…"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang khởi động…"
+          }
         }
       }
     },
@@ -19257,6 +20415,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "完成：所有遊戲檔案皆已解壓縮並檢查"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hoàn tất giải nén và kiểm tra toàn bộ dữ liệu game"
           }
         }
       }
@@ -19341,6 +20505,12 @@
             "state": "translated",
             "value": "無法完成"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể hoàn tất"
+          }
         }
       }
     },
@@ -19423,6 +20593,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "遊戲檔案連結"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đường dẫn dữ liệu game"
           }
         }
       }
@@ -19507,6 +20683,12 @@
             "state": "translated",
             "value": "Mostrar todos los problemas"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xem toàn bộ lỗi"
+          }
         }
       }
     },
@@ -19589,6 +20771,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Jugar de todos modos"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vẫn chơi"
           }
         }
       }
@@ -19673,6 +20861,12 @@
             "state": "translated",
             "value": "Continuar"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiếp tục"
+          }
         }
       }
     },
@@ -19755,6 +20949,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "重新檢查所有檔案"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kiểm tra lại toàn bộ tệp"
           }
         }
       }
@@ -19839,6 +21039,12 @@
             "state": "translated",
             "value": "重新尋找"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tìm lại"
+          }
         }
       }
     },
@@ -19921,6 +21127,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Elegir una carpeta…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chọn thư mục…"
           }
         }
       }
@@ -20005,6 +21217,12 @@
             "state": "translated",
             "value": "Elegir un archivo comprimido…"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chọn tệp nén…"
+          }
         }
       }
     },
@@ -20087,6 +21305,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Descomprimir"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giải nén"
           }
         }
       }
@@ -20171,6 +21395,12 @@
             "state": "translated",
             "value": "請點按網頁上的下載按鈕，App 會自動接手下載並解壓縮。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bấm nút tải xuống trên trang. Ứng dụng sẽ tự tiếp nhận tải và giải nén."
+          }
         }
       }
     },
@@ -20253,6 +21483,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已接手下載，正在開始…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã nhận yêu cầu tải. Đang bắt đầu…"
           }
         }
       }
@@ -20337,6 +21573,12 @@
             "state": "translated",
             "value": "Mapa de Sandbox"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bản đồ chế độ tự do"
+          }
         }
       }
     },
@@ -20419,6 +21661,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Teclado y mouse"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bàn phím và chuột"
           }
         }
       }
@@ -20503,6 +21751,12 @@
             "state": "translated",
             "value": "Juega con los controles de PC (WASD, mirar con el mouse). Con ambos conectados, los controles táctiles se ocultan"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chơi bằng điều khiển PC (WASD, chuột xoay camera). Khi kết nối cả hai, điều khiển cảm ứng sẽ ẩn"
+          }
         }
       }
     },
@@ -20586,6 +21840,12 @@
             "state": "translated",
             "value": "El nivel de prueba incluido en los archivos del juego"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Màn thử nghiệm đi kèm bộ dữ liệu game"
+          }
         }
       }
     },
@@ -20668,6 +21928,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "El mapa completo de GTA V"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toàn bộ bản đồ GTA V"
           }
         }
       }
@@ -20934,7 +22200,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Trong thư mục GTA V Port"
+            "value": "Trong thư mục Mugoat NewGen"
           }
         }
       }
@@ -21642,6 +22908,12 @@
             "state": "translated",
             "value": "En streaming desde tu servidor"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đọc dữ liệu từ máy chủ của bạn"
+          }
         }
       }
     },
@@ -21724,6 +22996,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Habilidad especial"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kỹ năng đặc biệt"
           }
         }
       }
@@ -21808,6 +23086,12 @@
             "state": "translated",
             "value": "Interactuar"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tương tác"
+          }
         }
       }
     },
@@ -21890,6 +23174,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Detonar bombas lapa"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kích nổ bom dính"
           }
         }
       }
@@ -21974,6 +23264,12 @@
             "state": "translated",
             "value": "Acercar"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phóng to"
+          }
         }
       }
     },
@@ -22056,6 +23352,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Alejar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thu nhỏ"
           }
         }
       }
@@ -22140,6 +23442,12 @@
             "state": "translated",
             "value": "Arma anterior de esta ranura"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vũ khí trước trong ô này"
+          }
         }
       }
     },
@@ -22222,6 +23530,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Arma siguiente de esta ranura"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vũ khí tiếp theo trong ô này"
           }
         }
       }
@@ -22306,6 +23620,12 @@
             "state": "translated",
             "value": "Más potencia, ascender"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tăng ga, bay lên"
+          }
         }
       }
     },
@@ -22388,6 +23708,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Menos potencia, descender"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giảm ga, hạ xuống"
           }
         }
       }
@@ -22472,6 +23798,12 @@
             "state": "translated",
             "value": "Timón a la izquierda"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bánh lái trái"
+          }
         }
       }
     },
@@ -22554,6 +23886,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Timón a la derecha"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bánh lái phải"
           }
         }
       }
@@ -22638,6 +23976,12 @@
             "state": "translated",
             "value": "Joystick derecho virtual"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cần phải ảo"
+          }
         }
       }
     },
@@ -22720,6 +24064,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Deslizar (estilo control)"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vuốt (tay cầm)"
           }
         }
       }
@@ -22804,6 +24154,12 @@
             "state": "translated",
             "value": "Deslizar (experimento con mouse)"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vuốt (chuột thử nghiệm)"
+          }
         }
       }
     },
@@ -22886,6 +24242,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sensibilidad de cámara al deslizar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Độ nhạy vuốt nhìn"
           }
         }
       }
@@ -22970,6 +24332,12 @@
             "state": "translated",
             "value": "Sensibilidad de apuntado al deslizar"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Độ nhạy vuốt ngắm"
+          }
         }
       }
     },
@@ -23053,6 +24421,12 @@
             "state": "translated",
             "value": "Dispositivo de entrada (prueba en vivo)"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thiết bị nhập (kiểm tra trực tiếp)"
+          }
         }
       }
     },
@@ -23134,6 +24508,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dotyk"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cảm ứng"
           }
         }
       }
@@ -23305,6 +24685,12 @@
             "state": "translated",
             "value": "Sterowanie kamerą"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Điều khiển camera"
+          }
         }
       }
     },
@@ -23387,6 +24773,12 @@
             "state": "translated",
             "value": "Przesuń palcem, aby obrócić kamerę"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vuốt để xoay camera"
+          }
         }
       }
     },
@@ -23468,6 +24860,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Przełączanie kart zmienia sterowanie kamerą i ustawienia, ale nie blokuje ikon przycisków w grze."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đổi thẻ sẽ đổi cách điều khiển camera và cài đặt bên dưới. Thao tác này không ép game đổi biểu tượng nút gợi ý."
           }
         }
       }
@@ -23552,6 +24950,12 @@
             "state": "translated",
             "value": "（遊戲中隱藏）"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " (ẩn trong game)"
+          }
         }
       }
     },
@@ -23634,6 +25038,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "遊戲檔案正常"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tệp game hợp lệ"
           }
         }
       }
@@ -23718,6 +25128,12 @@
             "state": "translated",
             "value": "全部 {arg0} 個遊戲檔案皆已就緒且完整。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đủ {arg0} tệp game và tất cả đều hoàn chỉnh."
+          }
         }
       }
     },
@@ -23800,6 +25216,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "有 1 個檔案只在 iCloud，不在此 iPhone 上（例如 {arg0}）。遊戲無法從 iCloud 讀取：請將遊戲資料夾移到「檔案 › 我的 iPhone › GTA V Port」。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 tệp chỉ có trên iCloud, chưa có trên iPhone (ví dụ {arg0}). Game không đọc được từ đó: chuyển thư mục game vào Tệp › Trên iPhone › GTA V Port."
           }
         }
       }
@@ -23884,6 +25306,12 @@
             "state": "translated",
             "value": "有 {arg0} 個檔案只在 iCloud，不在此 iPhone 上（例如 {arg1}）。遊戲無法從 iCloud 讀取：請將遊戲資料夾移到「檔案 › 我的 iPhone › GTA V Port」。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{arg0} tệp chỉ có trên iCloud, chưa có trên iPhone (ví dụ {arg1}). Game không đọc được từ đó: chuyển thư mục game vào Tệp › Trên iPhone › GTA V Port."
+          }
         }
       }
     },
@@ -23966,6 +25394,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "缺少 1 個檔案（共 {arg0}），例如 {arg1}。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thiếu 1 tệp (tổng cộng {arg0}), ví dụ {arg1}."
           }
         }
       }
@@ -24050,6 +25484,12 @@
             "state": "translated",
             "value": "缺少 {arg0} 個檔案（共 {arg1}），例如 {arg2}。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thiếu {arg0} tệp (tổng cộng {arg1}), ví dụ {arg2}."
+          }
         }
       }
     },
@@ -24132,6 +25572,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "此資料夾內沒有任何遊戲檔案。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thư mục này không có tệp game nào."
           }
         }
       }
@@ -24216,6 +25662,12 @@
             "state": "translated",
             "value": " 解壓縮或複製可能在完成前就中斷了，最常見的原因是 iPhone 儲存空間不足。請釋出空間、刪除此資料夾，再重新解壓縮遊戲。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " Quá trình giải nén hoặc sao chép có thể đã dừng giữa chừng, thường do iPhone hết dung lượng. Giải phóng dung lượng, xóa thư mục này rồi giải nén game lại."
+          }
         }
       }
     },
@@ -24298,6 +25750,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "有 1 個檔案大小不符，例如 {arg0}（{arg1}，應為 {arg2}）。這些檔案已損毀（通常是下載或解壓縮中斷所致），或來自不同版本的遊戲。請刪除資料夾後重新解壓縮遊戲。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 tệp sai kích thước, ví dụ {arg0} ({arg1} thay vì {arg2}). Tệp có thể bị hỏng do tải hoặc giải nén gián đoạn, hoặc thuộc phiên bản game khác. Xóa thư mục rồi giải nén game lại."
           }
         }
       }
@@ -24382,6 +25840,12 @@
             "state": "translated",
             "value": "有 {arg0} 個檔案大小不符，例如 {arg1}（{arg2}，應為 {arg3}）。這些檔案已損毀（通常是下載或解壓縮中斷所致），或來自不同版本的遊戲。請刪除資料夾後重新解壓縮遊戲。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{arg0} tệp sai kích thước, ví dụ {arg1} ({arg2} thay vì {arg3}). Tệp có thể bị hỏng do tải hoặc giải nén gián đoạn, hoặc thuộc phiên bản game khác. Xóa thư mục rồi giải nén game lại."
+          }
         }
       }
     },
@@ -24464,6 +25928,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "遊戲檔案在 iCloud 中"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tệp game đang ở iCloud"
           }
         }
       }
@@ -24548,6 +26018,12 @@
             "state": "translated",
             "value": "部分遊戲檔案已損毀"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Một số tệp game bị hỏng"
+          }
         }
       }
     },
@@ -24630,6 +26106,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "部分遊戲檔案遺失"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thiếu một số tệp game"
           }
         }
       }
@@ -24714,6 +26196,12 @@
             "state": "translated",
             "value": "{arg0}及{arg1}"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{arg0} và {arg1}"
+          }
         }
       }
     },
@@ -24796,6 +26284,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已在此 iPhone 上"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã có trên iPhone này"
           }
         }
       }
@@ -24880,6 +26374,12 @@
             "state": "translated",
             "value": "最簡單的方法：在「檔案」App 中，將解壓縮後的遊戲資料夾移到「我的 iPhone › GTA V Port」。無論放在多深的位置，App 都能自動找到。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cách dễ nhất: trong ứng dụng Tệp, chuyển thư mục game đã giải nén vào Trên iPhone của tôi › Mugoat NewGen. Ứng dụng sẽ tự tìm game."
+          }
         }
       }
     },
@@ -24962,6 +26462,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "放在其他地方？選擇它上層的任一資料夾（甚至是「我的 iPhone」本身），App 就會搜尋其中所有內容。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Game ở nơi khác? Chọn thư mục cấp trên bất kỳ, kể cả Trên iPhone; ứng dụng sẽ tìm mọi thư mục bên trong."
           }
         }
       }
@@ -25046,6 +26552,12 @@
             "state": "translated",
             "value": "透過連結"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Từ đường dẫn"
+          }
         }
       }
     },
@@ -25128,6 +26640,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "貼上遊戲壓縮檔（zip 或 rar）的直接連結：App 會邊下載邊解壓縮、檢查每個檔案，並刪除壓縮檔。只需約 {arg0} 可用空間，不必兩倍。處理期間請保持 App 開啟。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dán liên kết trực tiếp tới gói game (ZIP hoặc RAR): ứng dụng vừa tải vừa giải nén, kiểm tra từng tệp rồi xóa gói nén. Cần khoảng {arg0} dung lượng trống. Giữ ứng dụng mở khi thực hiện."
           }
         }
       }
@@ -25212,6 +26730,12 @@
             "state": "translated",
             "value": "需要先點按「下載」的下載頁面也可以：頁面會在這裡的瀏覽器中開啟，App 會接手下載。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trang tải có nút Tải xuống cũng dùng được: trang mở trong ứng dụng và ứng dụng sẽ tiếp nhận tải."
+          }
         }
       }
     },
@@ -25294,6 +26818,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "也可以輸入你自己的遊戲伺服器位址（例如透過 Tailscale 連線的電腦）：遊戲會從那裡串流檔案。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hoặc nhập địa chỉ máy chủ game của bạn (ví dụ máy tính qua Tailscale): game sẽ đọc dữ liệu từ đó."
           }
         }
       }
@@ -25378,6 +26908,12 @@
             "state": "translated",
             "value": "從「檔案」中的壓縮檔"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Từ tệp nén trong ứng dụng Tệp"
+          }
         }
       }
     },
@@ -25460,6 +26996,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "「檔案」中有遊戲的 .zip 或 .rar（或分卷壓縮檔的所有部分）嗎？App 會直接解壓縮到自己的資料夾，並檢查每個檔案。不需要另外安裝解壓縮 App。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Có ZIP hoặc RAR của game (hoặc đủ các phần của gói nhiều phần) trong Tệp? Ứng dụng sẽ giải nén thẳng vào thư mục riêng rồi kiểm tra từng tệp. Không cần ứng dụng giải nén khác."
           }
         }
       }
@@ -25544,6 +27086,12 @@
             "state": "translated",
             "value": "正在檢查遊戲檔案…"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang kiểm tra dữ liệu game…"
+          }
         }
       }
     },
@@ -25626,6 +27174,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "GTA V Port 資料夾中的「{arg0}」：已檢查全部 {arg1} 個遊戲檔案（{arg2}）。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\"{arg0}\" trong thư mục GTA V Port: đã kiểm tra đủ {arg1} tệp game ({arg2})."
           }
         }
       }
@@ -25710,6 +27264,12 @@
             "state": "translated",
             "value": "此 iPhone 上的「{arg0}」：已檢查全部 {arg1} 個遊戲檔案（{arg2}）。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\"{arg0}\" trên iPhone: đã kiểm tra đủ {arg1} tệp game ({arg2})."
+          }
         }
       }
     },
@@ -25792,6 +27352,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "可以開始遊戲"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sẵn sàng chơi"
           }
         }
       }
@@ -25876,6 +27442,12 @@
             "state": "translated",
             "value": "你選擇了仍要開始遊戲。 "
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn đã chọn vẫn chơi. "
+          }
         }
       }
     },
@@ -25958,6 +27530,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "此 iPhone 上的「{arg0}」。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\"{arg0}\" trên iPhone."
           }
         }
       }
@@ -26042,6 +27620,12 @@
             "state": "translated",
             "value": "在 GTA V Port 中找到遊戲資料夾，但目前無法使用。 "
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã tìm thấy thư mục game trong GTA V Port nhưng chưa dùng được. "
+          }
         }
       }
     },
@@ -26124,6 +27708,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "此 App 的資料夾中沒有內容"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thư mục ứng dụng đang trống"
           }
         }
       }
@@ -26208,6 +27798,12 @@
             "state": "translated",
             "value": "App 已搜尋「我的 iPhone › GTA V Port」中的每個資料夾，但找不到遊戲。如果遊戲在其他位置（其他資料夾或其他 App 的資料夾），請點按下方的「選擇資料夾…」並選取它，或選取「我的 iPhone」本身來搜尋全部內容。iOS 只允許 App 存取你選取過的其他資料夾。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ứng dụng đã tìm trong mọi thư mục tại Trên iPhone › GTA V Port nhưng không thấy game. Nếu game ở nơi khác, bấm Chọn thư mục… bên dưới và chọn thư mục đó, hoặc chọn Trên iPhone để tìm toàn bộ. iOS chỉ cho phép truy cập thư mục khác sau khi bạn chọn."
+          }
         }
       }
     },
@@ -26290,6 +27886,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "尚無遊戲檔案"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa có dữ liệu game"
           }
         }
       }
@@ -26374,6 +27976,12 @@
             "state": "translated",
             "value": "請使用下列任一方式。無論選擇哪種，App 都會在開始遊戲前檢查每個檔案。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chọn một trong các cách bên dưới. Ứng dụng luôn kiểm tra từng tệp trước khi bạn chơi."
+          }
         }
       }
     },
@@ -26456,6 +28064,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "可以開始，但有 1 個問題檔案"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sẵn sàng, còn 1 tệp lỗi"
           }
         }
       }
@@ -26540,6 +28154,12 @@
             "state": "translated",
             "value": "可以開始，但有 {arg0} 個問題檔案"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sẵn sàng, còn {arg0} tệp lỗi"
+          }
         }
       }
     },
@@ -26622,6 +28242,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "解壓縮 {arg0}（{arg1}）"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giải nén {arg0} ({arg1})"
           }
         }
       }
@@ -26706,6 +28332,12 @@
             "state": "translated",
             "value": "要在有 1 個問題檔案的情況下開始遊戲嗎？"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chơi dù có 1 tệp lỗi?"
+          }
         }
       }
     },
@@ -26788,6 +28420,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "要在有 {arg0} 個問題檔案的情況下開始遊戲嗎？"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chơi dù có {arg0} tệp lỗi?"
           }
         }
       }
@@ -26872,6 +28510,12 @@
             "state": "translated",
             "value": "遊戲可以啟動，但在需要這些檔案的地方可能會閃退或缺少內容。修復資料夾（重新解壓縮）才是根本的解決方法。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Game có thể khởi động nhưng sẽ văng hoặc thiếu nội dung khi cần các tệp đó. Hãy giải nén lại bộ game để sửa dứt điểm."
+          }
         }
       }
     },
@@ -26954,6 +28598,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "你選擇了仍要開始遊戲。遊戲在需要這些檔案時可能會閃退。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn đã chọn vẫn chơi. Game có thể văng khi cần các tệp bị thiếu."
           }
         }
       }
@@ -27038,6 +28688,12 @@
             "state": "translated",
             "value": "無法使用該資料夾"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể sử dụng thư mục này"
+          }
         }
       }
     },
@@ -27120,6 +28776,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "請再選擇一次。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy thử chọn lại."
           }
         }
       }
@@ -27204,6 +28866,12 @@
             "state": "translated",
             "value": "所有問題："
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Các lỗi:"
+          }
         }
       }
     },
@@ -27286,6 +28954,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "{arg0} 個問題"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{arg0} lỗi"
           }
         }
       }
@@ -27370,6 +29044,12 @@
             "state": "translated",
             "value": "正在搜尋「{arg0}」…"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang tìm trong \"{arg0}\"…"
+          }
         }
       }
     },
@@ -27452,6 +29132,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在搜尋其中每個資料夾來尋找遊戲，然後檢查每個檔案。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang tìm dữ liệu game trong các thư mục và kiểm tra từng tệp."
           }
         }
       }
@@ -27536,6 +29222,12 @@
             "state": "translated",
             "value": "在「{arg0}」中找到遊戲，但目前無法使用。 "
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã tìm thấy game trong \"{arg0}\" nhưng chưa dùng được. "
+          }
         }
       }
     },
@@ -27618,6 +29310,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "找到遊戲壓縮檔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã tìm thấy tệp nén game"
           }
         }
       }
@@ -27702,6 +29400,12 @@
             "state": "translated",
             "value": "{arg0} 尚未解壓縮。點按下方的「解壓縮」，App 會為你完成。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{arg0} chưa được giải nén. Bấm Giải nén bên dưới để ứng dụng thực hiện."
+          }
         }
       }
     },
@@ -27784,6 +29488,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "該資料夾中沒有遊戲"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thư mục này không có game"
           }
         }
       }
@@ -27868,6 +29578,12 @@
             "state": "translated",
             "value": "這不是網址"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đây không phải đường dẫn web"
+          }
         }
       }
     },
@@ -27950,6 +29666,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "請貼上以 https:// 開頭的完整連結"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dán đường dẫn đầy đủ bắt đầu bằng https://"
           }
         }
       }
@@ -28034,6 +29756,12 @@
             "state": "translated",
             "value": "正在檢查連結…"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang kiểm tra đường dẫn…"
+          }
         }
       }
     },
@@ -28116,6 +29844,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "{arg0} 回傳了遊戲檔案清單。遊玩時，遊戲會從那裡讀取檔案。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{arg0} trả về danh sách tệp game. Game sẽ đọc dữ liệu từ đó khi bạn chơi."
           }
         }
       }
@@ -28200,6 +29934,12 @@
             "state": "translated",
             "value": "該連結是網頁"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đường dẫn này là trang web"
+          }
         }
       }
     },
@@ -28282,6 +30022,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "請在瀏覽器中點按網頁上的下載按鈕，App 會接手下載。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dùng nút tải xuống trên trang trong trình duyệt; ứng dụng sẽ tiếp nhận tải."
           }
         }
       }
@@ -28366,6 +30112,12 @@
             "state": "translated",
             "value": "要解壓縮 {arg0} 嗎？"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giải nén {arg0}?"
+          }
         }
       }
     },
@@ -28448,6 +30200,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "為了能放進此 iPhone，壓縮檔會在解壓縮過程中逐步刪除：完成後只會留下解壓縮後的遊戲。如果解壓縮中途停止，你需要重新取得壓縮檔。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Để tiết kiệm dung lượng, dữ liệu nén được xóa dần trong lúc giải nén; khi xong chỉ còn bộ game. Nếu bị gián đoạn, bạn sẽ cần gói nén lại."
           }
         }
       }
@@ -28532,6 +30290,12 @@
             "state": "translated",
             "value": "正在取得遊戲檔案…"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang lấy dữ liệu game…"
+          }
         }
       }
     },
@@ -28614,6 +30378,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在下載並解壓縮。請保持 App 開啟，進度顯示於下方。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang tải và giải nén. Giữ ứng dụng mở; tiến độ hiển thị bên dưới."
           }
         }
       }
@@ -28698,6 +30468,12 @@
             "state": "translated",
             "value": "無法取得遊戲檔案"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể lấy dữ liệu game"
+          }
         }
       }
     },
@@ -28780,6 +30556,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "「{arg0}」中沒有遊戲。請選擇含有遊戲的資料夾（它上層的任一資料夾也可以，甚至是「我的 iPhone」本身）。\n\n最簡單的方法：將遊戲資料夾移到「檔案 › 我的 iPhone › GTA V Port」，App 便能自動找到。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không có game trong \"{arg0}\". Chọn thư mục chứa game (thư mục cấp trên bất kỳ cũng được, kể cả Trên iPhone).\n\nCách dễ nhất: chuyển thư mục game vào Tệp › Trên iPhone › GTA V Port. Ứng dụng sẽ tự tìm tại đó."
           }
         }
       }
@@ -28864,6 +30646,12 @@
             "state": "translated",
             "value": "已取消。已解壓縮的檔案會保留；重新開始時會取代它們。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã hủy. Giữ lại các tệp đã giải nén; bắt đầu lại sẽ thay thế chúng."
+          }
         }
       }
     },
@@ -28946,6 +30734,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在檢查空間與壓縮檔…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang kiểm tra dung lượng và gói nén…"
           }
         }
       }
@@ -29030,6 +30824,12 @@
             "state": "translated",
             "value": "正在檢查每個檔案…"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang kiểm tra từng tệp…"
+          }
         }
       }
     },
@@ -29112,6 +30912,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已解壓縮 {arg0} / {arg1} · {arg2} / {arg3} 個檔案"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã giải nén {arg0} trên {arg1} · {arg2} trên {arg3} tệp"
           }
         }
       }
@@ -29196,6 +31002,12 @@
             "state": "translated",
             "value": "已下載 {arg0} / {arg1}"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã tải {arg0} trên {arg1}"
+          }
         }
       }
     },
@@ -29278,6 +31090,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已下載 {arg0}"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã tải {arg0}"
           }
         }
       }
@@ -29362,6 +31180,12 @@
             "state": "translated",
             "value": "約剩 1 分鐘"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Còn khoảng một phút"
+          }
         }
       }
     },
@@ -29444,6 +31268,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "約剩 {arg0} 分鐘"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Còn khoảng {arg0} phút"
           }
         }
       }
@@ -29528,6 +31358,12 @@
             "state": "translated",
             "value": "連線中斷 {arg0} 次，皆已恢復"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kết nối ngắt {arg0} lần và đã tiếp tục"
+          }
         }
       }
     },
@@ -29610,6 +31446,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在下載並解壓縮… {arg0}%"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang tải và giải nén… {arg0}%"
           }
         }
       }
@@ -29694,6 +31536,12 @@
             "state": "translated",
             "value": "正在解壓縮… {arg0}%"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang giải nén… {arg0}%"
+          }
         }
       }
     },
@@ -29777,6 +31625,12 @@
             "state": "translated",
             "value": "{arg0} · {arg1} GB · App 上限 {arg2} MB"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{arg0} · {arg1} GB · giới hạn app {arg2} MB"
+          }
         }
       }
     },
@@ -29859,6 +31713,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "BC 材質"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texture BC"
           }
         }
       }
@@ -30299,6 +32159,12 @@
             "state": "translated",
             "value": "回報問題時請提供此版本號。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cung cấp phiên bản này khi báo lỗi."
+          }
         }
       }
     },
@@ -30381,6 +32247,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "選單會立即變更；遊戲本身會在下次啟動時切換語言。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menu đổi ngôn ngữ ngay. Ngôn ngữ trong game đổi ở lần khởi động tiếp theo."
           }
         }
       }
@@ -30465,6 +32337,12 @@
             "state": "translated",
             "value": "鏡頭：右搖桿"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Camera: cần phải"
+          }
         }
       }
     },
@@ -30547,6 +32425,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "鏡頭：滑動"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Camera: vuốt"
           }
         }
       }
@@ -30631,6 +32515,12 @@
             "state": "translated",
             "value": "滑鼠／鍵盤"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chuột/bàn phím"
+          }
         }
       }
     },
@@ -30713,6 +32603,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "控制器"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tay cầm"
           }
         }
       }
@@ -30797,6 +32693,12 @@
             "state": "translated",
             "value": "未知"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không xác định"
+          }
         }
       }
     },
@@ -30879,6 +32781,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "{arg0} [{arg1}] · 瞄準模式：{arg2}"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{arg0} [{arg1}] · Chế độ ngắm: {arg2}"
           }
         }
       }
@@ -30963,6 +32871,12 @@
             "state": "translated",
             "value": "約 21 GB"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "khoảng 21 GB"
+          }
         }
       }
     },
@@ -31045,6 +32959,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "將完整遊戲儲存在此 iPhone 上（{arg0}），不再從伺服器串流。下載期間必須連上 Tailscale。請保持 App 開啟：在背景時，下載會在短時間後暫停，回到 App 後繼續。下載期間也可以遊玩。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lưu toàn bộ game trên iPhone ({arg0}) để không phải đọc từ máy chủ nữa. Cần kết nối Tailscale khi tải. Giữ ứng dụng mở: khi chạy nền, tải sẽ tạm dừng sau một lúc và tiếp tục khi quay lại. Bạn có thể chơi trong khi tải."
           }
         }
       }
@@ -31129,6 +33049,12 @@
             "state": "translated",
             "value": "額外記憶體：已開啟。此安裝已取得提高的記憶體上限，遊戲最多可使用 {arg0} MB。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quyền RAM mở rộng: bật. Bản cài đặt có quyền tăng giới hạn bộ nhớ, game có thể dùng tối đa {arg0} MB."
+          }
         }
       }
     },
@@ -31211,6 +33137,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "額外記憶體：未開啟。此安裝簽署時未包含提高的記憶體上限，遊戲只能使用一般的 {arg0} MB。如需更多，請以付費開發者帳號安裝 \"unlimited\" 版本，或在免費帳號上使用 GetMoreRam。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quyền RAM mở rộng: tắt. Bản cài được ký không có quyền tăng giới hạn bộ nhớ, game chỉ được dùng mức thường {arg0} MB. Có thể dùng bản ký có quyền phù hợp hoặc GetMoreRam nếu thiết bị hỗ trợ."
           }
         }
       }
@@ -31295,6 +33227,12 @@
             "state": "translated",
             "value": "額外記憶體：未知。遊戲最多可使用 {arg0} MB。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quyền RAM mở rộng: chưa rõ. Game có thể dùng tối đa {arg0} MB."
+          }
         }
       }
     },
@@ -31370,6 +33308,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "顯示幀率計數器"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hiện bộ đếm FPS"
           }
         }
       }
@@ -31448,6 +33392,12 @@
             "state": "translated",
             "value": "鬆開拖鉤"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thả móc kéo"
+          }
         }
       }
     },
@@ -31525,6 +33475,12 @@
             "state": "translated",
             "value": "升起或收起車頂"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở hoặc đóng mui"
+          }
         }
       }
     },
@@ -31601,6 +33557,12 @@
             "state": "translated",
             "value": "升起拖車臂"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nâng cần kéo"
+          }
         }
       }
     },
@@ -31676,6 +33638,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "降下拖車臂"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hạ cần kéo"
           }
         }
       }
@@ -31764,7 +33732,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Telegram"
+            "value": "Dự án GitHub"
           }
         }
       }
@@ -31853,7 +33821,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Five Star Port trên Telegram"
+            "value": "Mugoat NewGen trên GitHub"
           }
         }
       }
@@ -31938,6 +33906,12 @@
             "state": "translated",
             "value": "官方更新、說明與最新版本"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cập nhật, hỗ trợ và phiên bản mới"
+          }
         }
       }
     },
@@ -32020,6 +33994,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "發熱時穩定影格率"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ổn định tốc độ khung hình khi nóng"
           }
         }
       }
@@ -32104,6 +34084,12 @@
             "state": "translated",
             "value": "減少卡頓，遊戲更穩定：iPhone 發熱時降低影格率，冷卻後恢復"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giảm giật và ổn định hơn: giảm FPS khi iPhone nóng, tăng lại khi máy nguội"
+          }
         }
       }
     },
@@ -32186,6 +34172,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "劇情作弊碼"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mã gian lận cốt truyện"
           }
         }
       }
@@ -32270,6 +34262,12 @@
             "state": "translated",
             "value": "遊戲自帶的劇情作弊碼。此畫面會關閉並自動替你按鍵，需要幾秒鐘，期間操作沒有反應。請站著不動，不要在過場動畫或暫停選單中使用。適用於故事模式和沙盒模式。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mã gian lận có sẵn của game. Màn hình sẽ đóng và tự bấm tổ hợp nút trong vài giây; điều khiển tạm thời không phản hồi. Hãy đứng yên, ngoài đoạn phim và menu tạm dừng. Dùng được trong Cốt truyện và Tự do."
+          }
         }
       }
     },
@@ -32352,6 +34350,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "無敵"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bất tử"
           }
         }
       }
@@ -32436,6 +34440,12 @@
             "state": "translated",
             "value": "約 5 分鐘。再次點按可延長。車輛仍可能被毀。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Khoảng 5 phút. Bấm lại để làm mới. Xe vẫn có thể bị phá hủy."
+          }
         }
       }
     },
@@ -32518,6 +34528,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "生命與護甲"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máu và giáp"
           }
         }
       }
@@ -32602,6 +34618,12 @@
             "state": "translated",
             "value": "補滿生命與護甲。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hồi đầy máu và giáp."
+          }
         }
       }
     },
@@ -32684,6 +34706,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "武器與彈藥"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vũ khí và đạn"
           }
         }
       }
@@ -32768,6 +34796,12 @@
             "state": "translated",
             "value": "給予武器並補滿彈藥。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhận vũ khí và đầy đạn."
+          }
         }
       }
     },
@@ -32850,6 +34884,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "提高通緝等級"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tăng mức truy nã"
           }
         }
       }
@@ -32934,6 +34974,12 @@
             "state": "translated",
             "value": "增加一顆星。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tăng một sao."
+          }
         }
       }
     },
@@ -33016,6 +35062,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "降低通緝等級"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giảm mức truy nã"
           }
         }
       }
@@ -33100,6 +35152,12 @@
             "state": "translated",
             "value": "減少一顆星。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giảm một sao."
+          }
         }
       }
     },
@@ -33182,6 +35240,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "高空墜落"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rơi từ trên trời"
           }
         }
       }
@@ -33266,6 +35330,12 @@
             "state": "translated",
             "value": "讓你從空中落下。降落傘是另一個作弊碼。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thả bạn từ trên trời. Dù là một mã riêng."
+          }
         }
       }
     },
@@ -33348,6 +35418,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "生成 Buzzard"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gọi Buzzard"
           }
         }
       }
@@ -33432,6 +35508,12 @@
             "state": "translated",
             "value": "武裝直升機。需要空曠的地方，否則不會出現。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trực thăng tấn công. Cần không gian trống để xuất hiện."
+          }
         }
       }
     },
@@ -33514,6 +35596,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "生成 Comet"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gọi Comet"
           }
         }
       }
@@ -33598,6 +35686,12 @@
             "state": "translated",
             "value": "跑車。需要路上有空位。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xe thể thao. Cần khoảng trống trên đường."
+          }
         }
       }
     },
@@ -33680,6 +35774,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "快速奔跑"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chạy nhanh"
           }
         }
       }
@@ -33764,6 +35864,12 @@
             "state": "translated",
             "value": "衝刺速度。再次點按可關閉。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tăng tốc chạy. Bấm lại để tắt."
+          }
         }
       }
     },
@@ -33846,6 +35952,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "快速游泳"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bơi nhanh"
           }
         }
       }
@@ -33930,6 +36042,12 @@
             "state": "translated",
             "value": "游泳速度。再次點按可關閉。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tăng tốc bơi. Bấm lại để tắt."
+          }
         }
       }
     },
@@ -34012,6 +36130,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "降落傘"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dù"
           }
         }
       }
@@ -34096,6 +36220,12 @@
             "state": "translated",
             "value": "給你裝備降落傘。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trang bị dù."
+          }
         }
       }
     },
@@ -34178,6 +36308,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "向左轉"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lái trái"
           }
         }
       }
@@ -34262,6 +36398,12 @@
             "state": "translated",
             "value": "向右轉"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lái phải"
+          }
         }
       }
     },
@@ -34344,6 +36486,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "轉向按鈕"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nút đánh lái"
           }
         }
       }
@@ -34428,6 +36576,12 @@
             "state": "translated",
             "value": "在汽車、機車和船上用左右按鈕取代轉向搖桿"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nút trái/phải thay cần lái trên ô tô, xe máy và thuyền"
+          }
         }
       }
     },
@@ -34510,6 +36664,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "記憶體上限"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giới hạn bộ nhớ"
           }
         }
       }
@@ -34594,6 +36754,12 @@
             "state": "translated",
             "value": "自動"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tự động"
+          }
         }
       }
     },
@@ -34673,6 +36839,12 @@
           }
         },
         "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{arg0} GB"
+          }
+        },
+        "vi": {
           "stringUnit": {
             "state": "translated",
             "value": "{arg0} GB"
@@ -34760,6 +36932,12 @@
             "state": "translated",
             "value": "遊戲最多可使用的記憶體。如果遊戲自行關閉，請調低。按下「開始遊戲」時生效。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lượng bộ nhớ tối đa game được dùng. Giảm nếu game tự đóng. Áp dụng khi bấm Chơi."
+          }
         }
       }
     },
@@ -34842,6 +37020,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "手機選項"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tùy chọn điện thoại"
           }
         }
       }
@@ -34926,6 +37110,12 @@
             "state": "translated",
             "value": "快一點"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đi nhanh lên"
+          }
         }
       }
     },
@@ -35008,6 +37198,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "停車"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dừng taxi"
           }
         }
       }
@@ -35092,6 +37288,12 @@
             "state": "translated",
             "value": "適用於記憶體較小的 iPhone：降低細節與繪製距離，讓世界持續載入"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cho iPhone ít RAM: giảm chi tiết và tầm nhìn để thế giới tiếp tục được nạp"
+          }
         }
       }
     },
@@ -35174,6 +37376,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "跳過任務或其他選項 (X)"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bỏ qua nhiệm vụ hoặc tùy chọn khác (X)"
           }
         }
       }
@@ -35258,6 +37466,12 @@
             "state": "translated",
             "value": "在載具中瞄準"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ngắm trên xe"
+          }
         }
       }
     },
@@ -35340,6 +37554,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "俯身"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cúi xuống"
           }
         }
       }
@@ -35424,6 +37644,12 @@
             "state": "translated",
             "value": "極致效能"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hiệu năng tối đa"
+          }
         }
       }
     },
@@ -35506,6 +37732,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "更清晰的放大"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Làm nét khi phóng hình"
           }
         }
       }
@@ -35590,6 +37822,12 @@
             "state": "translated",
             "value": "MetalFX 會把畫面銳化並提升到螢幕解析度，而不是直接拉伸。會稍微多耗一點電。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MetalFX nâng hình lên độ phân giải màn hình và làm nét thay vì kéo giãn. Tốn thêm một ít pin."
+          }
         }
       }
     },
@@ -35672,6 +37910,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "按下左搖桿"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhấn cần trái"
           }
         }
       }
@@ -35756,6 +38000,12 @@
             "state": "translated",
             "value": "按下右搖桿"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhấn cần phải"
+          }
         }
       }
     },
@@ -35763,6 +38013,12 @@
       "extractionState": "manual",
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LB"
+          }
+        },
+        "vi": {
           "stringUnit": {
             "state": "translated",
             "value": "LB"
@@ -35778,6 +38034,12 @@
             "state": "translated",
             "value": "RB"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RB"
+          }
         }
       }
     },
@@ -35785,6 +38047,12 @@
       "extractionState": "manual",
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LT"
+          }
+        },
+        "vi": {
           "stringUnit": {
             "state": "translated",
             "value": "LT"
@@ -35800,6 +38068,12 @@
             "state": "translated",
             "value": "RT"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RT"
+          }
         }
       }
     },
@@ -35807,6 +38081,12 @@
       "extractionState": "manual",
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "X"
+          }
+        },
+        "vi": {
           "stringUnit": {
             "state": "translated",
             "value": "X"
@@ -35822,6 +38102,12 @@
             "state": "translated",
             "value": "Y"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Y"
+          }
         }
       }
     },
@@ -35833,6 +38119,12 @@
             "state": "translated",
             "value": "A"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A"
+          }
         }
       }
     },
@@ -35840,6 +38132,12 @@
       "extractionState": "manual",
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "B"
+          }
+        },
+        "vi": {
           "stringUnit": {
             "state": "translated",
             "value": "B"
@@ -35927,6 +38225,12 @@
             "state": "translated",
             "value": "在選擇器中點一下資料夾以查看其中的內容，然後點一下頂端的「打開」。如果「打開」一直是灰色的（某些側載安裝會這樣），請使用上面最簡單的方法。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trong cửa sổ chọn, mở thư mục để xem nội dung rồi bấm Mở ở phía trên. Nếu nút Mở bị mờ (có thể gặp ở bản cài ngoài), dùng cách dễ nhất nêu trên."
+          }
         }
       }
     },
@@ -36009,6 +38313,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "同時按 LT 和 RT（點按保持，再點按放開）"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LT và RT cùng lúc (bấm để giữ, bấm lại để nhả)"
           }
         }
       }
@@ -36259,6 +38569,12 @@
             "state": "translated",
             "value": "你的腳本模組使用的按鍵"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Các phím mà mod script sử dụng"
+          }
         }
       }
     },
@@ -36341,6 +38657,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "長按以釘選或取消釘選"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhấn giữ để ghim hoặc bỏ ghim"
           }
         }
       }
@@ -36425,6 +38747,12 @@
             "state": "translated",
             "value": "模組按鍵"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phím mod"
+          }
         }
       }
     },
@@ -36507,6 +38835,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "模組已啟用"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã bật mod"
           }
         }
       }
@@ -36591,6 +38925,12 @@
             "state": "translated",
             "value": "已啟用 {arg0} 個模組檔案。模組可能造成我們無法修正的閃退和故障：相關問題請到 Telegram 的 Mods 主題詢問。只有在不裝模組也會出現的問題才傳送記錄。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang bật {arg0} tệp mod. Mod có thể gây văng hoặc lỗi riêng; hãy kiểm tra lại khi tắt mod và giữ nhật ký để đối chiếu."
+          }
         }
       }
     },
@@ -36673,6 +39013,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "這裡暫時無法開啟 7z 壓縮檔。請先在電腦或其他 App 中解壓縮，再安裝其中的檔案。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa mở được gói 7z tại đây. Giải nén trên máy tính hoặc bằng ứng dụng khác rồi nhập các tệp."
           }
         }
       }
@@ -36757,6 +39103,12 @@
             "state": "translated",
             "value": "無法開啟該檔案。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không mở được tệp."
+          }
         }
       }
     },
@@ -36839,6 +39191,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "壓縮檔已損毀或格式不受支援。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gói nén bị hỏng hoặc dùng định dạng chưa hỗ trợ."
           }
         }
       }
@@ -36923,6 +39281,12 @@
             "state": "translated",
             "value": "壓縮檔設有密碼，不受支援。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gói nén có mật khẩu; chưa hỗ trợ."
+          }
         }
       }
     },
@@ -37005,6 +39369,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "OpenIV 安裝包"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gói OpenIV"
           }
         }
       }
@@ -37089,6 +39459,12 @@
             "state": "translated",
             "value": "iPhone 上不需要"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "không cần trên iPhone"
+          }
         }
       }
     },
@@ -37171,6 +39547,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "腳本"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "script"
           }
         }
       }
@@ -37255,6 +39637,12 @@
             "state": "translated",
             "value": "腳本設定"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cài đặt script"
+          }
         }
       }
     },
@@ -37337,6 +39725,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "C# 腳本（ScriptHookVDotNet）：不支援"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Script C# (ScriptHookVDotNet): không hỗ trợ"
           }
         }
       }
@@ -37421,6 +39815,12 @@
             "state": "translated",
             "value": "模組附帶的遊戲路徑"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "đường dẫn game từ mod"
+          }
         }
       }
     },
@@ -37503,6 +39903,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "附加包「{arg0}」"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "gói addon \"{arg0}\""
           }
         }
       }
@@ -37587,6 +39993,12 @@
             "state": "translated",
             "value": "不是遊戲檔案"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "không phải tệp game"
+          }
         }
       }
     },
@@ -37669,6 +40081,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "位於 DLC 包內，暫不支援修改"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nằm trong gói DLC; chưa hỗ trợ thay thế trong đó"
           }
         }
       }
@@ -37753,6 +40171,12 @@
             "state": "translated",
             "value": "遊戲執行一次之前無法確定；請先啟動遊戲，再重新安裝"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "chưa xác định trước lần chạy game đầu tiên; hãy chạy game rồi nhập lại"
+          }
         }
       }
     },
@@ -37835,6 +40259,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "此遊戲版本沒有對應的高精度檔案（使用一般檔案）"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "phiên bản game này không có tệp chi tiết cao tương ứng (sử dụng tệp thường)"
           }
         }
       }
@@ -37919,6 +40349,12 @@
             "state": "translated",
             "value": "遊戲中沒有同名檔案"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "không có tệp mang tên này trong game"
+          }
         }
       }
     },
@@ -38001,6 +40437,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "取代遊戲檔案（{arg0} 個同名檔案之一）"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "thay tệp game (một trong {arg0} tệp cùng tên)"
           }
         }
       }
@@ -38085,6 +40527,12 @@
             "state": "translated",
             "value": "取代遊戲檔案"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "thay tệp game"
+          }
         }
       }
     },
@@ -38167,6 +40615,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "模組"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quản lý mod"
           }
         }
       }
@@ -38251,6 +40705,12 @@
             "state": "translated",
             "value": "已安裝"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã cài"
+          }
         }
       }
     },
@@ -38333,6 +40793,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "選擇下載好的模組（zip、rar、oiv、asi 或單一檔案）。App 會找出每個檔案該放的位置。車輛、外觀和附加包模組需要遊戲檔案在這支 iPhone 上。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhập ZIP, RAR, OIV hoặc thư mục mod. Mục Nhập âm thanh xe hỗ trợ ZIP/OIV/RPF/FiveM. Sau khi thay đổi mod hãy tắt hẳn và mở lại app."
           }
         }
       }
@@ -38417,6 +40883,12 @@
             "state": "translated",
             "value": "變更會在下次啟動遊戲時生效。模組可能造成我們無法修正的閃退和故障：請到 Telegram 的 Mods 主題詢問。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thay đổi có hiệu lực khi mở lại game. Nếu có lỗi, tắt mod và gửi nhật ký cho nhóm tester."
+          }
         }
       }
     },
@@ -38499,6 +40971,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在讀取模組…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang đọc mod…"
           }
         }
       }
@@ -38583,6 +41061,12 @@
             "state": "translated",
             "value": "安裝模組…"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhập mod…"
+          }
         }
       }
     },
@@ -38665,6 +41149,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "在「檔案」中顯示 Mods 資料夾"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở thư mục Mods trong Tệp"
           }
         }
       }
@@ -38749,6 +41239,12 @@
             "state": "translated",
             "value": "尚未安裝模組"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa có mod"
+          }
         }
       }
     },
@@ -38831,6 +41327,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "{arg0} 個檔案"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{arg0} tệp"
           }
         }
       }
@@ -38915,6 +41417,12 @@
             "state": "translated",
             "value": "……以及另外 {arg0} 個"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "…và {arg0} tệp nữa"
+          }
         }
       }
     },
@@ -38997,6 +41505,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "未安裝："
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không cài:"
           }
         }
       }
@@ -39081,6 +41595,12 @@
             "state": "translated",
             "value": "沒有可安裝的內容"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không có tệp phù hợp để cài"
+          }
         }
       }
     },
@@ -39163,6 +41683,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "App 無法判斷這個模組的檔案該放在哪裡。請參考指南手動放入 Mods 資料夾。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ứng dụng không xác định được vị trí cài các tệp mod. Xem hướng dẫn đặt tệp thủ công vào thư mục Mods."
           }
         }
       }
@@ -39247,6 +41773,12 @@
             "state": "translated",
             "value": "安裝「{arg0}」？"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cài \"{arg0}\"?"
+          }
         }
       }
     },
@@ -39329,6 +41861,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "安裝"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cài đặt"
           }
         }
       }
@@ -39413,6 +41951,12 @@
             "state": "translated",
             "value": "無法安裝模組"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể cài mod"
+          }
         }
       }
     },
@@ -39495,6 +42039,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "安裝車輛、外觀和腳本模組"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cài mod xe, nhân vật và script"
           }
         }
       }
@@ -39579,6 +42129,12 @@
             "state": "translated",
             "value": "已啟用 {arg0} 個模組"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{arg0} mod đang bật"
+          }
         }
       }
     },
@@ -39661,6 +42217,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "lo instala el paquete OpenIV del mod"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "được cài bằng gói OpenIV của mod"
           }
         }
       }
@@ -39745,6 +42307,12 @@
             "state": "translated",
             "value": "el juego tiene {arg0} archivos con este nombre; colócalo a mano (ver la guía)"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "game có {arg0} tệp cùng tên; hãy đặt thủ công (xem hướng dẫn)"
+          }
         }
       }
     },
@@ -39827,6 +42395,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "sus archivos de modelo no se pueden instalar, así que sus ajustes tampoco"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "không cài được model nên cũng không cài cấu hình đi kèm"
           }
         }
       }
@@ -39911,6 +42485,12 @@
             "state": "translated",
             "value": "Escribe el texto"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhập văn bản"
+          }
         }
       }
     },
@@ -39993,6 +42573,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Guía de mods"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hướng dẫn mod"
           }
         }
       }
@@ -40077,6 +42663,12 @@
             "state": "translated",
             "value": "se coloca al iniciar el juego"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "được đặt đúng chỗ khi game khởi động"
+          }
         }
       }
     },
@@ -40159,6 +42751,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "{arg0} no están en esta versión del juego"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{arg0} tệp không có trong bản game này"
           }
         }
       }
@@ -40243,6 +42841,12 @@
             "state": "translated",
             "value": "{arg0} se colocan al iniciar el juego"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{arg0} tệp sẽ được đặt khi game khởi động"
+          }
         }
       }
     },
@@ -40325,6 +42929,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escribir"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhập"
           }
         }
       }
@@ -40409,6 +43019,12 @@
             "state": "translated",
             "value": "Escribiendo para los mods"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhập chữ cho mod"
+          }
         }
       }
     },
@@ -40491,6 +43107,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "RAGE Plugin Hook 外掛(如 LSPDFR):不支援"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plugin RAGE Plugin Hook (như LSPDFR): không hỗ trợ"
           }
         }
       }
@@ -40575,6 +43197,12 @@
             "state": "translated",
             "value": "為 GTA V 加強版製作;請使用該模組的 Legacy(原版 PC)版本"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "dành cho GTA V Enhanced; hãy dùng bản Legacy (PC gốc) của mod"
+          }
         }
       }
     },
@@ -40657,6 +43285,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "為其他版本的遊戲製作"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "dành cho phiên bản game khác"
           }
         }
       }
@@ -40741,6 +43375,12 @@
             "state": "translated",
             "value": "此模組無法在 iPhone 上執行"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mod này không chạy được trên iPhone"
+          }
         }
       }
     },
@@ -40823,6 +43463,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "它需要只能在 Windows 電腦上執行的元件,或是為其他版本的遊戲製作的。指南列出了可用的內容。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mod cần thành phần chỉ chạy trên Windows hoặc dành cho phiên bản game khác. Xem hướng dẫn tương thích."
           }
         }
       }
@@ -40907,6 +43553,12 @@
             "state": "translated",
             "value": "繼續下載"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiếp tục tải"
+          }
         }
       }
     },
@@ -40989,6 +43641,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "下載在 {arg0}% 處停止"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quá trình tải dừng ở {arg0}%"
           }
         }
       }
@@ -41073,6 +43731,12 @@
             "state": "translated",
             "value": "點按「繼續下載」:從停止的地方繼續,而不是重新開始。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bấm Tiếp tục tải xuống để tải tiếp từ chỗ dừng, không phải bắt đầu lại."
+          }
         }
       }
     },
@@ -41155,6 +43819,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "點按「繼續下載」並選擇同一個壓縮檔:已解壓的檔案不會再次解壓。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bấm Tiếp tục tải xuống và chọn cùng gói nén: các tệp đã giải nén sẽ được giữ lại."
           }
         }
       }
@@ -41239,6 +43909,12 @@
             "state": "translated",
             "value": "已取消。已下載和解壓的內容會保留:「繼續下載」會從停止的地方繼續。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã hủy. Giữ lại phần đã tải và giải nén; Tiếp tục tải xuống sẽ làm tiếp từ chỗ dừng."
+          }
         }
       }
     },
@@ -41321,6 +43997,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "低"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thấp"
           }
         }
       }
@@ -41405,6 +44087,12 @@
             "state": "translated",
             "value": "高"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cao"
+          }
         }
       }
     },
@@ -41487,6 +44175,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "非常高"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rất cao"
           }
         }
       }
@@ -41571,6 +44265,12 @@
             "state": "translated",
             "value": "材質"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texture"
+          }
         }
       }
     },
@@ -41653,6 +44353,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "陰影"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bóng đổ"
           }
         }
       }
@@ -41737,6 +44443,12 @@
             "state": "translated",
             "value": "反射"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phản chiếu"
+          }
         }
       }
     },
@@ -41819,6 +44531,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "繪製距離"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tầm nhìn"
           }
         }
       }
@@ -41903,6 +44621,12 @@
             "state": "translated",
             "value": "草地"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cỏ"
+          }
         }
       }
     },
@@ -41985,6 +44709,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "交通和行人"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xe cộ và người đi đường"
           }
         }
       }
@@ -42069,6 +44799,12 @@
             "state": "translated",
             "value": "與預設相同 · 點按「開始」時生效"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Theo cấu hình · áp dụng khi bấm Chơi"
+          }
         }
       }
     },
@@ -42151,6 +44887,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "你的設定 · 點按「開始」時生效"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tùy chỉnh riêng · áp dụng khi bấm Chơi"
           }
         }
       }
@@ -42235,6 +44977,12 @@
             "state": "translated",
             "value": "預設({arg0})"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Theo cấu hình ({arg0})"
+          }
         }
       }
     },
@@ -42317,6 +45065,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "選不了?檔案旁有雲朵圖示代表它還在 iCloud 雲碟裡:先把它移到「我的 iPhone」。在 LiveContainer 中,開啟它的 Fix file selection 設定。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không chọn được? Biểu tượng đám mây cạnh tệp nghĩa là tệp còn ở iCloud Drive: chuyển về Trên iPhone trước. Với LiveContainer, bật tùy chọn sửa lỗi chọn tệp của nó."
           }
         }
       }
@@ -42401,6 +45155,12 @@
             "state": "translated",
             "value": "作弊"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Công cụ hỗ trợ"
+          }
         }
       }
     },
@@ -42483,6 +45243,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "載具、修理、天氣、時間、金錢等"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gọi xe, sửa chữa, thời tiết, thời gian, tiền và các mục khác"
           }
         }
       }
@@ -42567,6 +45333,12 @@
             "state": "translated",
             "value": "開關和操作會在你回到遊戲後生效。需要受傷或警察追逐的任務中，請關閉上帝模式和永不通緝。遊戲自帶的作弊碼會關閉此畫面並自動替你按鍵，需要幾秒鐘。適用於劇情模式和沙盒模式。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Công tắc và thao tác áp dụng khi trở lại game. Tắt Bất tử và Không truy nã cho nhiệm vụ cần mất máu hoặc cảnh sát đuổi. Mã có sẵn sẽ đóng màn hình này rồi tự bấm tổ hợp nút trong vài giây. Dùng được trong Cốt truyện và Tự do."
+          }
         }
       }
     },
@@ -42649,6 +45421,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "生成載具"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gọi xe"
           }
         }
       }
@@ -42733,6 +45511,12 @@
             "state": "translated",
             "value": "搜尋本遊戲中的所有載具"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tìm mọi xe có trong phiên bản game này"
+          }
         }
       }
     },
@@ -42815,6 +45599,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "設定金錢"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đặt số tiền"
           }
         }
       }
@@ -42899,6 +45689,12 @@
             "state": "translated",
             "value": "為你目前操控的角色輸入金額。如果舊的 $0 錯誤清空了你的錢，這很有用。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhập số tiền cho nhân vật đang chơi. Hữu ích nếu gặp lỗi mất tiền về $0."
+          }
         }
       }
     },
@@ -42981,6 +45777,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "你目前操控的角色（麥可、富蘭克林或崔佛）的金錢會變為此金額。儲存遊戲即可保留。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiền của nhân vật đang chơi (Michael, Franklin hoặc Trevor) sẽ thành số này. Lưu game để giữ lại."
           }
         }
       }
@@ -43065,6 +45867,12 @@
             "state": "translated",
             "value": "設定"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đặt"
+          }
         }
       }
     },
@@ -43147,6 +45955,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "上帝模式"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bất tử"
           }
         }
       }
@@ -43231,6 +46045,12 @@
             "state": "translated",
             "value": "在你關閉之前，任何東西都傷不到你。重新啟動 App 後會恢復關閉。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không bị thương cho đến khi tắt. Tự tắt khi khởi động lại ứng dụng."
+          }
         }
       }
     },
@@ -43313,6 +46133,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "永不通緝"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không bị truy nã"
           }
         }
       }
@@ -43397,6 +46223,12 @@
             "state": "translated",
             "value": "在你關閉之前，不會有任何通緝星。重新啟動 App 後會恢復關閉。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không có sao truy nã cho đến khi tắt. Tự tắt khi khởi động lại ứng dụng."
+          }
         }
       }
     },
@@ -43479,6 +46311,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "修理載具"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sửa xe"
           }
         }
       }
@@ -43563,6 +46401,12 @@
             "state": "translated",
             "value": "修好並清洗你所在的載具。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sửa và làm sạch xe đang ngồi."
+          }
         }
       }
     },
@@ -43645,6 +46489,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "清洗載具"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rửa xe"
           }
         }
       }
@@ -43729,6 +46579,12 @@
             "state": "translated",
             "value": "洗掉你所在載具上的污垢。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rửa sạch bụi bẩn trên xe đang ngồi."
+          }
         }
       }
     },
@@ -43811,6 +46667,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "時間"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thời gian trong ngày"
           }
         }
       }
@@ -43895,6 +46757,12 @@
             "state": "translated",
             "value": "選擇一個時間。時鐘會從那時繼續走。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chọn giờ. Đồng hồ tiếp tục chạy từ giờ đó."
+          }
         }
       }
     },
@@ -43977,6 +46845,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "早上 · 06:00"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buổi sáng · 06:00"
           }
         }
       }
@@ -44061,6 +46935,12 @@
             "state": "translated",
             "value": "中午 · 12:00"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buổi trưa · 12:00"
+          }
         }
       }
     },
@@ -44143,6 +47023,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "傍晚 · 18:00"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buổi tối · 18:00"
           }
         }
       }
@@ -44227,6 +47113,12 @@
             "state": "translated",
             "value": "午夜 · 00:00"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nửa đêm · 00:00"
+          }
         }
       }
     },
@@ -44309,6 +47201,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "天氣"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thời tiết"
           }
         }
       }
@@ -44393,6 +47291,12 @@
             "state": "translated",
             "value": "選擇天氣，或恢復遊戲自帶的天氣變化。任務可能會改變天氣。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chọn thời tiết hoặc trả về thời tiết tự nhiên của game. Nhiệm vụ có thể đổi thời tiết."
+          }
         }
       }
     },
@@ -44475,6 +47379,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "晴朗"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trời quang"
           }
         }
       }
@@ -44559,6 +47469,12 @@
             "state": "translated",
             "value": "艷陽高照"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nắng đẹp"
+          }
         }
       }
     },
@@ -44641,6 +47557,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "多雲"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Có mây"
           }
         }
       }
@@ -44725,6 +47647,12 @@
             "state": "translated",
             "value": "陰天"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Âm u"
+          }
         }
       }
     },
@@ -44807,6 +47735,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "下雨"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mưa"
           }
         }
       }
@@ -44891,6 +47825,12 @@
             "state": "translated",
             "value": "雷雨"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giông bão"
+          }
         }
       }
     },
@@ -44973,6 +47913,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "霧"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sương mù"
           }
         }
       }
@@ -45057,6 +48003,12 @@
             "state": "translated",
             "value": "自然天氣"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thời tiết tự nhiên"
+          }
         }
       }
     },
@@ -45139,6 +48091,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "小型車"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xe cỡ nhỏ"
           }
         }
       }
@@ -45223,6 +48181,12 @@
             "state": "translated",
             "value": "轎車"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xe sedan"
+          }
         }
       }
     },
@@ -45305,6 +48269,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "SUV"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xe SUV"
           }
         }
       }
@@ -45389,6 +48359,12 @@
             "state": "translated",
             "value": "雙門轎跑"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xe coupe"
+          }
         }
       }
     },
@@ -45471,6 +48447,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "肌肉車"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xe cơ bắp"
           }
         }
       }
@@ -45555,6 +48537,12 @@
             "state": "translated",
             "value": "經典跑車"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xe thể thao cổ điển"
+          }
         }
       }
     },
@@ -45637,6 +48625,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "跑車"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xe thể thao"
           }
         }
       }
@@ -45721,6 +48715,12 @@
             "state": "translated",
             "value": "超級跑車"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siêu xe"
+          }
         }
       }
     },
@@ -45803,6 +48803,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "機車"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xe máy"
           }
         }
       }
@@ -45887,6 +48893,12 @@
             "state": "translated",
             "value": "越野車"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xe địa hình"
+          }
         }
       }
     },
@@ -45969,6 +48981,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "工業車輛"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xe công nghiệp"
           }
         }
       }
@@ -46053,6 +49071,12 @@
             "state": "translated",
             "value": "多功能車"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xe tiện ích"
+          }
         }
       }
     },
@@ -46135,6 +49159,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "廂型車"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xe van"
           }
         }
       }
@@ -46219,6 +49249,12 @@
             "state": "translated",
             "value": "腳踏車"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xe đạp"
+          }
         }
       }
     },
@@ -46301,6 +49337,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "船隻"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thuyền"
           }
         }
       }
@@ -46385,6 +49427,12 @@
             "state": "translated",
             "value": "直升機"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trực thăng"
+          }
         }
       }
     },
@@ -46467,6 +49515,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "飛機"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máy bay"
           }
         }
       }
@@ -46551,6 +49605,12 @@
             "state": "translated",
             "value": "服務車輛"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xe dịch vụ"
+          }
         }
       }
     },
@@ -46633,6 +49693,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "緊急車輛"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xe cứu hộ và khẩn cấp"
           }
         }
       }
@@ -46717,6 +49783,12 @@
             "state": "translated",
             "value": "軍用"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xe quân sự"
+          }
         }
       }
     },
@@ -46799,6 +49871,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "商用車"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xe thương mại"
           }
         }
       }
@@ -46883,6 +49961,12 @@
             "state": "translated",
             "value": "其他"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Khác"
+          }
         }
       }
     },
@@ -46965,6 +50049,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "搜尋名稱、型號或類別"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tìm theo tên, model hoặc loại xe"
           }
         }
       }
@@ -47049,6 +50139,12 @@
             "state": "translated",
             "value": "正在讀取可用載具…"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang đọc danh sách xe…"
+          }
         }
       }
     },
@@ -47131,6 +50227,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "載具無法使用。請回到遊戲，然後重新開啟此選單。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa dùng được danh sách xe. Trở lại chơi rồi mở lại menu này."
           }
         }
       }
@@ -47215,6 +50317,12 @@
             "state": "translated",
             "value": "暫時沒有可用載具。請回到遊戲，然後重新開啟此選單。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa có xe trong danh sách. Trở lại chơi rồi mở lại menu này."
+          }
         }
       }
     },
@@ -47297,6 +50405,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "沒有符合的載具"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không có xe phù hợp"
           }
         }
       }
@@ -47381,6 +50495,12 @@
             "state": "translated",
             "value": "{arg1} 輛中的 {arg0} 輛"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{arg0} trên {arg1} xe"
+          }
         }
       }
     },
@@ -47463,6 +50583,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "遊戲恢復後，載具會出現在你面前。選單會保留你最近的兩輛載具：再生成一輛時，會移除其中沒有人的一輛。飛行器需要開闊的空間，船隻需要水面。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xe xuất hiện trước mặt khi tiếp tục chơi. Menu giữ hai xe gần nhất: gọi xe tiếp sẽ xóa một xe cũ không có người ngồi. Máy bay cần chỗ trống, thuyền cần mặt nước."
           }
         }
       }
@@ -47547,6 +50673,12 @@
             "state": "translated",
             "value": "進入生成的載具"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lên xe vừa gọi"
+          }
         }
       }
     },
@@ -47629,6 +50761,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已有載具正在載入。請等它完成。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang tải một xe khác. Vui lòng đợi xong."
           }
         }
       }
@@ -47713,6 +50851,12 @@
             "state": "translated",
             "value": "已生成載具：{arg0}"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã gọi xe: {arg0}"
+          }
         }
       }
     },
@@ -47795,6 +50939,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "你的遊戲中沒有這輛載具。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xe này không có trong bộ game của bạn."
           }
         }
       }
@@ -47879,6 +51029,12 @@
             "state": "translated",
             "value": "載具載入時間過長。請在開闊的地方再試一次。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tải xe quá lâu. Thử lại ở nơi thoáng."
+          }
         }
       }
     },
@@ -47961,6 +51117,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "可用記憶體不足，無法安全生成。請去人少一點的地方，或用更低的畫質預設重新啟動。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không đủ bộ nhớ trống để gọi xe. Đến nơi ít đông hơn hoặc khởi động lại với cấu hình thấp hơn."
           }
         }
       }
@@ -48045,6 +51207,12 @@
             "state": "translated",
             "value": "選單生成的兩輛載具都有人在用。空出一輛後再試。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cả hai xe của menu đều có người sử dụng. Để trống một xe rồi thử lại."
+          }
         }
       }
     },
@@ -48127,6 +51295,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "生成載具前，請先回到正常遊戲。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trở lại chơi bình thường trước khi gọi xe."
           }
         }
       }
@@ -48211,6 +51385,12 @@
             "state": "translated",
             "value": "遊戲無法在這裡生成這輛載具。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Game không tạo được xe tại đây."
+          }
         }
       }
     },
@@ -48293,6 +51473,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已有作弊正在等待執行。請等它完成。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang có một lệnh chờ thực hiện. Vui lòng đợi xong."
           }
         }
       }
@@ -48377,6 +51563,12 @@
             "state": "translated",
             "value": "已完成：{arg0}"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hoàn tất: {arg0}"
+          }
         }
       }
     },
@@ -48459,6 +51651,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "請先進入一輛載具。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy lên xe trước."
           }
         }
       }
@@ -48543,6 +51741,12 @@
             "state": "translated",
             "value": "使用此作弊前，請先回到正常遊戲。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trở lại chơi bình thường trước khi dùng lệnh này."
+          }
         }
       }
     },
@@ -48625,6 +51829,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "{arg0}：正在等待遊戲…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{arg0}: đang chờ game…"
           }
         }
       }
@@ -48709,6 +51919,12 @@
             "state": "translated",
             "value": "遊戲沒有回應。請回到正常遊戲後再試。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Game không phản hồi. Trở lại chơi bình thường rồi thử lại."
+          }
         }
       }
     },
@@ -48791,6 +52007,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "分離拖車"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tháo rơ moóc"
           }
         }
       }
@@ -48875,6 +52097,12 @@
             "state": "translated",
             "value": "廣告封鎖"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chặn quảng cáo"
+          }
         }
       }
     },
@@ -48957,6 +52185,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "已對此網站關閉廣告封鎖。請再次點按網頁上的下載按鈕。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã tắt chặn quảng cáo cho trang này. Bấm lại nút tải xuống trên trang."
           }
         }
       }
@@ -49041,6 +52275,12 @@
             "state": "translated",
             "value": "遊戲已停止"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Game đã dừng"
+          }
         }
       }
     },
@@ -49123,6 +52363,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "請傳送紀錄以便修正此問題，然後關閉 App 再重新開啟即可繼續遊玩。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giữ lại nhật ký để kiểm tra lỗi, sau đó đóng rồi mở lại ứng dụng để tiếp tục chơi."
           }
         }
       }
@@ -49207,6 +52453,12 @@
             "state": "translated",
             "value": "{arg0}、解析度、幀率、記憶體"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{arg0}, độ phân giải, FPS, bộ nhớ"
+          }
         }
       }
     },
@@ -49289,6 +52541,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "操控"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Điều khiển"
           }
         }
       }
@@ -49373,6 +52631,12 @@
             "state": "translated",
             "value": "鏡頭、按鈕、版面配置、陀螺儀、控制器和鍵盤"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Camera, nút bấm, bố trí, con quay, tay cầm và bàn phím"
+          }
         }
       }
     },
@@ -49455,6 +52719,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "遊戲模式與語言"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chế độ chơi và ngôn ngữ"
           }
         }
       }
@@ -49539,6 +52809,12 @@
             "state": "translated",
             "value": "遊戲位置、檔案檢查與下載"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vị trí game, kiểm tra và tải tệp"
+          }
         }
       }
     },
@@ -49621,6 +52897,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "記憶體、紀錄和 Telegram 群組"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bộ nhớ, nhật ký và trang dự án"
           }
         }
       }
@@ -49705,6 +52987,12 @@
             "state": "translated",
             "value": "衝刺按鈕"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nút chạy nhanh"
+          }
         }
       }
     },
@@ -49787,6 +53075,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "移動時點按即可衝刺，直到放開搖桿；按住可打開降落傘。把搖桿推到邊緣也會衝刺。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bấm khi đang di chuyển để chạy nhanh cho đến lúc nhả cần; giữ để mở dù. Đẩy cần đến mép cũng chạy nhanh."
           }
         }
       }
@@ -49871,6 +53165,12 @@
             "state": "translated",
             "value": "飛機右搖桿"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cần phải cho máy bay"
+          }
         }
       }
     },
@@ -49953,6 +53253,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "上下拖曳控制油門，左右拖曳控制方向舵。直升機仍使用按鈕。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kéo lên/xuống để chỉnh ga, trái/phải để chỉnh bánh lái. Trực thăng vẫn dùng các nút riêng."
           }
         }
       }
@@ -50037,6 +53343,12 @@
             "state": "translated",
             "value": "衝刺"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chạy nhanh"
+          }
         }
       }
     },
@@ -50119,6 +53431,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "有可用的更新"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Có bản cập nhật"
           }
         }
       }
@@ -50203,6 +53521,12 @@
             "state": "translated",
             "value": "版本 {arg0} 已推出。你目前的版本是 {arg1}。\n\n新的 IPA 已發布在 Telegram 群組的 Releases 話題中。請用安裝此 App 的相同方式安裝。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã có phiên bản {arg0}. Bạn đang dùng {arg1}.\n\nBản IPA mới được đăng ở mục Phát hành của dự án. Cài đặt giống cách đã cài bản này."
+          }
         }
       }
     },
@@ -50285,6 +53609,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "稍後"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Để sau"
           }
         }
       }
@@ -50369,6 +53699,12 @@
             "state": "translated",
             "value": "開啟 Telegram"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở trang dự án"
+          }
         }
       }
     },
@@ -50451,6 +53787,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "附上我最新的存檔（僅遊戲進度，約 0.5 MB），方便開發者從出問題的地方載入遊戲"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kèm save mới nhất (chỉ tiến độ game, khoảng 0,5 MB) để người phát triển mở đúng vị trí gặp lỗi"
           }
         }
       }
@@ -50535,6 +53877,12 @@
             "state": "translated",
             "value": "小地圖"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bản đồ nhỏ"
+          }
         }
       }
     },
@@ -50617,6 +53965,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "左下角"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Góc dưới bên trái"
           }
         }
       }
@@ -50701,6 +54055,12 @@
             "state": "translated",
             "value": "左上角"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Góc trên bên trái"
+          }
         }
       }
     },
@@ -50783,6 +54143,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "自訂"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tuỳ chỉnh"
           }
         }
       }
@@ -50867,6 +54233,12 @@
             "state": "translated",
             "value": "地圖顯示的位置。變更會在下次啟動遊戲時生效。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vị trí bản đồ. Áp dụng ở lần khởi động game tiếp theo."
+          }
         }
       }
     },
@@ -50949,6 +54321,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "拖曳地圖即可移動 · 雙指縮放可調整大小"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kéo bản đồ để di chuyển · chụm hai ngón để đổi kích thước"
           }
         }
       }
@@ -51033,6 +54411,12 @@
             "state": "translated",
             "value": "移動時點按即可衝刺，直到放開搖桿；按住可打開降落傘。開啟後，單靠搖桿不會衝刺。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bấm khi di chuyển để chạy nhanh đến lúc nhả cần; giữ để mở dù. Khi bật tùy chọn này, chỉ đẩy cần sẽ không chạy nhanh."
+          }
         }
       }
     },
@@ -51115,6 +54499,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "更聰明的貼圖載入"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tải texture thông minh"
           }
         }
       }
@@ -51199,6 +54589,12 @@
             "state": "translated",
             "value": "實驗性功能。防止長時間遊玩後地面和道路變成灰色。如果遊戲記憶體不足，請關閉。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thử nghiệm. Giữ mặt đất và đường không hóa xám sau khi chơi lâu. Tắt nếu game hết bộ nhớ."
+          }
         }
       }
     },
@@ -51281,6 +54677,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "更輕量的大貼圖"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giảm tải texture lớn"
           }
         }
       }
@@ -51365,6 +54767,12 @@
             "state": "translated",
             "value": "實驗性功能。在 iPhone 15 Pro 之前的機型上，最大的貼圖只占用四分之一的記憶體，讓更多畫面保持清晰。如需最清晰的近景，請關閉。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thử nghiệm. Texture lớn nhất dùng một phần tư bộ nhớ trên iPhone đời trước 15 Pro để thế giới giữ được độ nét. Tắt nếu muốn cận cảnh sắc nét nhất."
+          }
         }
       }
     },
@@ -51447,6 +54855,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "更快的引擎執行緒"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ưu tiên luồng engine"
           }
         }
       }
@@ -51531,6 +54945,12 @@
             "state": "translated",
             "value": "實驗性功能。讓遊戲在高速處理器核心上執行，幀率更穩定。如果 iPhone 過熱，請關閉。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thử nghiệm. Ưu tiên nhân xử lý nhanh để FPS ổn định hơn. Tắt nếu iPhone quá nóng."
+          }
         }
       }
     },
@@ -51613,6 +55033,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "下次啟動 App 時生效。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Áp dụng ở lần mở ứng dụng tiếp theo."
           }
         }
       }
@@ -51697,6 +55123,12 @@
             "state": "translated",
             "value": "無法移除模組"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể gỡ mod"
+          }
         }
       }
     },
@@ -51779,6 +55211,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "在「檔案」中打開 GTA V Port"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở Mugoat NewGen trong Tệp"
           }
         }
       }
@@ -51863,6 +55301,12 @@
             "state": "translated",
             "value": "此按鈕會在「檔案」中打開該資料夾。把遊戲資料夾搬進去（按住遊戲資料夾 › 搬移），然後回來：App 會自動檢查。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nút này mở thư mục trong Tệp. Chuyển thư mục game vào đó (nhấn giữ thư mục game › Di chuyển) rồi quay lại; ứng dụng sẽ tự kiểm tra."
+          }
         }
       }
     },
@@ -51945,6 +55389,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "「檔案」沒有打開"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không mở được tệp"
           }
         }
       }
@@ -52029,6 +55479,12 @@
             "state": "translated",
             "value": "請自行打開「檔案」App，前往「我的 iPhone › GTA V Port」，把遊戲資料夾搬到那裡，然後回來。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tự mở ứng dụng Tệp, vào Trên iPhone › GTA V Port, chuyển thư mục game vào đó rồi quay lại."
+          }
         }
       }
     },
@@ -52111,6 +55567,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "「打開」沒反應？"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nút Mở không hoạt động?"
           }
         }
       }
@@ -52195,6 +55657,12 @@
             "state": "translated",
             "value": "有些側載安裝無法把資料夾交給 App。點一下「在「檔案」中打開 GTA V Port」，把遊戲資料夾搬到那裡，然後回來：App 會自動找到它。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Một số bản cài ngoài không chuyển được quyền thư mục. Bấm Mở GTA V Port trong Tệp, chuyển thư mục game vào đó rồi quay lại; ứng dụng sẽ tự tìm."
+          }
         }
       }
     },
@@ -52277,6 +55745,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "找到 Weazel News：用箭頭切換電視頻道（或把左搖桿往左右推）。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tìm Weazel News: đổi kênh TV bằng các mũi tên (hoặc gạt cần trái sang ngang)."
           }
         }
       }
@@ -52361,6 +55835,12 @@
             "state": "translated",
             "value": "Lifeinvader 發表會 {arg0} / {arg1}。電視一直是黑的（遊戲檔案裡沒有電視影片）。{arg2} 時 Jay Norris 會舉起手機：那時打電話給他。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buổi thuyết trình Lifeinvader {arg0} trên {arg1}. TV vẫn đen vì bộ game không có video TV. Tại {arg2}, Jay Norris giơ điện thoại: hãy gọi cho ông ta lúc đó."
+          }
         }
       }
     },
@@ -52443,6 +55923,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "現在打：Jay Norris 正舉著手機。手機 › 聯絡人 › Jay Norris，在 {arg0} 之前（現在 {arg1}）。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gọi ngay: Jay Norris đang giơ điện thoại. Điện thoại › Danh bạ › Jay Norris, trước {arg0} (hiện tại {arg1})."
           }
         }
       }
@@ -52527,6 +56013,12 @@
             "state": "translated",
             "value": "來不及打了：任務會失敗。重試，並在 1:17 到 2:50 之間打給 Jay Norris。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã quá muộn: nhiệm vụ thất bại. Thử lại và gọi Jay Norris trong khoảng 1:17 đến 2:50."
+          }
         }
       }
     },
@@ -52609,6 +56101,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "未加密儲存的封存檔，遊戲無法讀取；請用 OpenIV 重新儲存"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "gói lưu không mã hóa mà game không đọc được; hãy lưu lại bằng OpenIV"
           }
         }
       }
@@ -52693,6 +56191,12 @@
             "state": "translated",
             "value": "下次啟動遊戲時移除"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "gỡ khi mở lại game"
+          }
         }
       }
     },
@@ -52775,6 +56279,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "下次啟動遊戲時開啟"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "bật khi mở lại game"
           }
         }
       }
@@ -52859,6 +56369,12 @@
             "state": "translated",
             "value": "下次啟動遊戲時關閉"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "tắt khi mở lại game"
+          }
         }
       }
     },
@@ -52941,6 +56457,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "匯入故事模式存檔…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhập save cốt truyện…"
           }
         }
       }
@@ -53025,6 +56547,12 @@
             "state": "translated",
             "value": "來自電腦或朋友的存檔（名稱類似 SGTA50000）。會放進空存檔位；在遊戲中讀取：暫停 › 遊戲 › 讀取遊戲。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save từ PC hoặc người khác (tên như SGTA50000). Save được đặt vào ô trống; tải trong game: Tạm dừng › Game › Tải game."
+          }
         }
       }
     },
@@ -53107,6 +56635,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "存檔已匯入"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã nhập save"
           }
         }
       }
@@ -53191,6 +56725,12 @@
             "state": "translated",
             "value": "「{arg0}」在存檔位 {arg1}。開始故事模式後讀取：暫停 › 遊戲 › 讀取遊戲。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\"{arg0}\" ở ô save {arg1}. Khởi động Cốt truyện rồi tải: Tạm dừng › Game › Tải game."
+          }
         }
       }
     },
@@ -53273,6 +56813,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "無法匯入存檔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không nhập được save"
           }
         }
       }
@@ -53357,6 +56903,12 @@
             "state": "translated",
             "value": "這不是 GTA V 故事模式存檔。存檔檔名類似 SGTA50000，大約 0.5 MB。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đây không phải save cốt truyện GTA V. Save hợp lệ có tên như SGTA50000, khoảng 0,5 MB."
+          }
         }
       }
     },
@@ -53439,6 +56991,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "15 個存檔位都已占用。請在遊戲中（暫停 › 遊戲 › 讀取遊戲）或「檔案」中刪除一個存檔後再試。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã dùng hết 15 ô save. Xóa một save trong game (Tạm dừng › Game › Tải game) hoặc trong Tệp rồi thử lại."
           }
         }
       }
@@ -53523,6 +57081,12 @@
             "state": "translated",
             "value": "無法複製存檔：{arg0}"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không sao chép được save: {arg0}"
+          }
         }
       }
     },
@@ -53605,6 +57169,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "字幕位於主畫面指示條上方"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phụ đề phía trên thanh home"
           }
         }
       }
@@ -53689,6 +57259,12 @@
             "state": "translated",
             "value": "把字幕行稍微上移，免得被主畫面指示條擋住。下次啟動遊戲時生效。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nâng phụ đề lên một chút để thanh home không che. Áp dụng ở lần khởi động game tiếp theo."
+          }
         }
       }
     },
@@ -53771,6 +57347,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "壓縮透明材質"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nén texture trong suốt"
           }
         }
       }
@@ -53855,6 +57437,12 @@
             "state": "translated",
             "value": "實驗功能。在 iPhone 15 Pro 之前的機型上，樹葉、柵欄、煙霧和貼花只佔四分之一記憶體，讓更多場景保持清晰。如果柔和的透明邊緣出現色階，請關閉。"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thử nghiệm. Trên iPhone đời trước 15 Pro, lá cây, hàng rào, khói và decal dùng một phần tư bộ nhớ để thế giới giữ được độ nét. Tắt nếu mép trong suốt bị răng cưa."
+          }
         }
       }
     },
@@ -53938,6 +57526,12 @@
             "state": "translated",
             "value": "更多引擎記憶體"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tăng bộ nhớ trong engine"
+          }
         }
       }
     },
@@ -54020,6 +57614,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "實驗功能，預設關閉。在遊戲的 4 GB 內多騰出約 270 MB，讓 6-8 GB 的 iPhone 長時間遊玩後更少停止。如果遊戲更常停止，請關閉。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thử nghiệm, mặc định tắt. Tăng khoảng 270 MB chỗ trống trong vùng 4 GB của game để giảm ngừng tải khi chơi lâu trên iPhone 6–8 GB. Tắt nếu game dừng thường xuyên hơn."
           }
         }
       }

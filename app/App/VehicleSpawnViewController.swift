@@ -105,10 +105,11 @@ final class VehicleSpawnViewController: UITableViewController, UISearchResultsUp
             return
         }
         timer?.invalidate(); timer = nil
+        let modNames = Set(ModVehicleSupport.vehicles())
         vehicles = (0..<count).compactMap { index in
             var entry = PGVehicleEntry()
             return PGVehicleCatalogEntryAt(UInt32(index), &entry) ? SpawnVehicle(entry) : nil
-        }.sorted { ($0.title, $0.name) < ($1.title, $1.name) }
+        }.filter { modNames.contains($0.name.lowercased()) }.sorted { ($0.title, $0.name) < ($1.title, $1.name) }
         updateSearchResults(for: search)
     }
     func updateSearchResults(for searchController: UISearchController) {

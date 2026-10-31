@@ -9,7 +9,7 @@ struct ControlsLayout {
     }
     private static let key = "controlsLayout"
     /// Never hidden: the game cannot be played (or left) without them.
-    static let essential: Set<String> = ["fire", "aim", "enter", "gas", "brake", "pause", "settings", "airFire"]
+    static let essential: Set<String> = ["fire", "aim", "enter", "gas", "brake", "pause", "settings", "airFire", "mods", "manualPad", "leftStick", "lookStick"]
 
     static var entries: [String: Entry] {
         get {
@@ -30,6 +30,18 @@ struct ControlsLayout {
         entries = all
     }
     static func reset(group: String) { entries = entries.filter { !$0.key.hasPrefix(group + ".") } }
+    /// Separate saved group, including both analog positions and their sizes.
+    static func manualFrames(in safe:CGRect,replacing name:String?=nil,entry:Entry?=nil)->[String:CGRect]? {
+        var frames=ManualPadLayout.frames(in:safe)
+        let saved=entries
+        for (key,base) in frames {
+            let value = key == name ? entry : saved["manual."+key]
+            guard let value else{continue}
+            let d=max(44,base.width*value.scale)
+            frames[key]=CGRect(x:safe.minX+value.x*safe.width-d/2,y:safe.minY+value.y*safe.height-d/2,width:d,height:d)
+        }
+        return ManualPadLayout.valid(frames,in:safe) ? frames : nil
+    }
     static var isCustomized: Bool { !entries.isEmpty }
 }
 
@@ -40,7 +52,8 @@ final class ControlsLayoutEditorController: UIViewController {
     private let controls = TouchControlsView(frame: .zero)
     private let background = UIImageView()
     private let toolbar = UIStackView()
-    private let groupPicker = UISegmentedControl(items: [AppLanguage.choose("On foot"), AppLanguage.choose("In a vehicle"), AppLanguage.choose("Aircraft")])
+    private let toolbarScroll = UIScrollView()
+    private let groupPicker = UISegmentedControl(items: [AppLanguage.choose("On foot"), AppLanguage.choose("In a vehicle"), AppLanguage.choose("Aircraft"), "Tay cầm"])
     private let sizeSlider = UISlider()
     private let hideButton = UIButton(type: .system)
     private let hint = UILabel()
@@ -88,7 +101,7 @@ final class ControlsLayoutEditorController: UIViewController {
         sizeSlider.maximumValue = 1.8
         sizeSlider.accessibilityLabel = AppLanguage.choose("Size of the selected button")
         sizeSlider.addAction(UIAction { [weak self] _ in self?.sizeChanged() }, for: .valueChanged)
-        sizeSlider.widthAnchor.constraint(equalToConstant: 110).isActive = true
+        sizeSlider.widthAnchor.constraint(equalToConstant: 88).isActive = true
         hideButton.addAction(UIAction { [weak self] _ in self?.toggleHidden() }, for: .touchUpInside)
         let reset = UIButton(type: .system)
         reset.setTitle(AppLanguage.choose("Reset"), for: .normal)
@@ -99,21 +112,29 @@ final class ControlsLayoutEditorController: UIViewController {
         done.addAction(UIAction { [weak self] _ in self?.finish() }, for: .touchUpInside)
         for item in [groupPicker, sizeSlider, hideButton, reset, done] as [UIView] { toolbar.addArrangedSubview(item) }
         toolbar.axis = .horizontal
-        toolbar.spacing = 12
+        toolbar.spacing = 8
         toolbar.alignment = .center
         toolbar.isLayoutMarginsRelativeArrangement = true
-        toolbar.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16)
+        toolbar.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8)
         toolbar.backgroundColor = UIColor.black.withAlphaComponent(0.7)
         toolbar.layer.cornerRadius = 14
         toolbar.overrideUserInterfaceStyle = .dark
         toolbar.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(toolbar)
+        toolbarScroll.translatesAutoresizingMaskIntoConstraints=false
+        toolbarScroll.showsHorizontalScrollIndicator=true
+        view.addSubview(toolbarScroll);toolbarScroll.addSubview(toolbar)
         NSLayoutConstraint.activate([
-            // Bottom-left: the move-stick area, which has no buttons to cover.
-            toolbar.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 8),
-            toolbar.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -8),
-            hint.leadingAnchor.constraint(equalTo: toolbar.leadingAnchor, constant: 8),
-            hint.bottomAnchor.constraint(equalTo: toolbar.topAnchor, constant: -8),
+            toolbarScroll.leadingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.leadingAnchor,constant:8),
+            toolbarScroll.trailingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.trailingAnchor,constant:-8),
+            toolbarScroll.bottomAnchor.constraint(equalTo:view.safeAreaLayoutGuide.bottomAnchor,constant:-8),
+            toolbarScroll.heightAnchor.constraint(equalTo:toolbar.heightAnchor),
+            toolbar.leadingAnchor.constraint(equalTo:toolbarScroll.contentLayoutGuide.leadingAnchor),
+            toolbar.trailingAnchor.constraint(equalTo:toolbarScroll.contentLayoutGuide.trailingAnchor),
+            toolbar.topAnchor.constraint(equalTo:toolbarScroll.contentLayoutGuide.topAnchor),
+            toolbar.bottomAnchor.constraint(equalTo:toolbarScroll.contentLayoutGuide.bottomAnchor),
+            toolbar.heightAnchor.constraint(equalTo:toolbarScroll.frameLayoutGuide.heightAnchor),
+            hint.leadingAnchor.constraint(equalTo:toolbarScroll.leadingAnchor,constant:8),
+            hint.bottomAnchor.constraint(equalTo:toolbarScroll.topAnchor,constant:-8),
         ])
 
         let pan = UIPanGestureRecognizer(target: self, action: #selector(panned(_:)))
@@ -125,11 +146,12 @@ final class ControlsLayoutEditorController: UIViewController {
         applyLaunchArguments()
     }
 
-    private var group: String { groupPicker.selectedSegmentIndex == 0 ? "foot" : "vehicle" }
+    private var group: String { groupPicker.selectedSegmentIndex == 3 ? "manual" : groupPicker.selectedSegmentIndex == 0 ? "foot" : "vehicle" }
 
     private func showGroup() {
         // Aircraft share the vehicle layout, but show their own buttons (plane: vehicle type 1 + 1).
-        controls.updateContext(vehicle: [0, 1, 2][max(0, groupPicker.selectedSegmentIndex)], pauseMenu: false)
+        controls.setManualPadPreview(groupPicker.selectedSegmentIndex == 3)
+        controls.updateContext(vehicle: [0, 1, 2, 0][max(0, min(3,groupPicker.selectedSegmentIndex))], pauseMenu: false)
         selected = nil
         controls.updateVisibility()
         controls.setNeedsLayout()
@@ -156,9 +178,12 @@ final class ControlsLayoutEditorController: UIViewController {
     private func store(_ button: ControlButton, center: CGPoint? = nil, scale: CGFloat? = nil, hidden: Bool? = nil) {
         let old = ControlsLayout.entry(group: group, name: button.name)
         let normalized = controls.normalized(center ?? button.center)
-        ControlsLayout.set(ControlsLayout.Entry(x: normalized.x, y: normalized.y,
-                                                scale: scale ?? old?.scale ?? 1, hidden: hidden ?? old?.hidden ?? false),
-                           group: group, name: button.name)
+        let proposal=ControlsLayout.Entry(x:normalized.x,y:normalized.y,scale:scale ?? old?.scale ?? 1,hidden:hidden ?? old?.hidden ?? false)
+        if group=="manual",ControlsLayout.manualFrames(in:controls.bounds.inset(by:controls.safeAreaInsets),replacing:button.name,entry:proposal)==nil {
+            hint.text="Vị trí/kích thước này đè lên nút khác hoặc ra ngoài màn hình."
+            return
+        }
+        ControlsLayout.set(proposal,group:group,name:button.name)
         controls.updateVisibility()
         controls.setNeedsLayout()
         controls.layoutIfNeeded()
@@ -241,7 +266,7 @@ extension ControlsLayoutEditorController: UIGestureRecognizerDelegate {
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
         // The toolbar keeps its own taps.
         guard let view = touch.view else { return true }
-        return !view.isDescendant(of: toolbar)
+        return !view.isDescendant(of: toolbarScroll)
     }
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
         gestureRecognizer is UIPinchGestureRecognizer || other is UIPinchGestureRecognizer

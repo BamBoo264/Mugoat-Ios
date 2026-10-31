@@ -50,6 +50,10 @@ final class SettingsHomeViewController: UITableViewController {
             let count = ModInstaller.installed().filter(\.enabled).count
             return count == 0 ? AppLanguage.choose("Install car, skin and script mods") : AppLanguage.interpolate(AppLanguage.choose("{arg0} mods on"), [String(count)])
         }, sections: [], page: { ModsViewController() }))
+        list.append(Category(icon:"puzzlepiece.extension",title:"Plugin Menyoo",summary:{BundledMenyoo.enabled ? "Đang bật":"Đang tắt"},sections:[],page:{BundledMenyooViewController()}))
+        list.append(Category(icon:"camera",title:"Camera góc nhìn thứ nhất",summary:{"Plugin camera và cấu hình cảm ứng/PAD"},sections:[],page:{NovaCameraViewController()}))
+        list.append(Category(icon:"sparkles",title:"Nova Super Resolution",summary:{NovaUpscaling.titles[NovaUpscaling.mode]},sections:[],page:{NovaUpscalingViewController()}))
+        list.append(Category(icon:"flame",title:"Turbo / lửa bô",summary:{"Tuỳ chọn, mặc định tắt"},sections:[],page:{TurboSettingsViewController()}))
         list.append(Category(icon: "iphone", title: AppLanguage.choose("This device"), summary: {
             AppLanguage.choose("Memory, logs and the Telegram group")
         }, sections: [.device]))
