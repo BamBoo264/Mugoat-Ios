@@ -7,6 +7,14 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         // The Lite build (PGLiteMode in Info.plist, build_ipa.sh --lite): the engine and renderer read PG_LITE.
         if Theme.isLite && getenv("PG_LITE") == nil { setenv("PG_LITE", "1", 1) }
         UserDefaults.standard.register(defaults: ["cameraTouchMode": 2, "gtaPortAppLanguage": "vi", "NovaVietnameseEnabled": true])
+        if Theme.isLite {
+            UserDefaults.standard.set(GraphicsPreset.performance.rawValue,forKey:"graphicsPreset")
+            UserDefaults.standard.set(540,forKey:"renderHeight")
+            UserDefaults.standard.set([String:String](),forKey:"graphicsOverrides")
+            UserDefaults.standard.set(60,forKey:"frameRateCap")
+            UserDefaults.standard.register(defaults:["NovaUpscaler":1])
+            setenv("PG_LITE_DENSITY","0.30",1);setenv("PG_LITE_LOD","0.55",1)
+        }
         GameSettings.applyExperimentalSwitches()
         ModInstaller.applyPending()
         #if targetEnvironment(simulator)

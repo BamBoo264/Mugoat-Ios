@@ -1422,7 +1422,9 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         let settings = GameSettings.shared
         // On a TV the picture takes the TV's shape.
         let surface = tvWindow?.bounds.size ?? view.bounds.size
-        let (width, height) = GraphicsConfiguration.size(for: bootedPreset, renderHeight: settings.renderHeight, screen: surface, matchScreenShape: tvWindow != nil || settings.matchScreenShape)
+        let (outputWidth,outputHeight) = GraphicsConfiguration.size(for: bootedPreset, renderHeight: settings.renderHeight, screen: surface, matchScreenShape: tvWindow != nil || settings.matchScreenShape)
+        let (width,height)=NovaUpscaling.renderSize(width:outputWidth,height:outputHeight,mode:NovaUpscaling.mode)
+        PGSetNovaOutput(NovaUpscaling.mode > 0 ? UInt32(outputWidth):0,NovaUpscaling.mode > 0 ? UInt32(outputHeight):0)
         PGSetBackBufferSize(Int32(width), Int32(height))
         appendLog("Graphics: live resize to \(width)×\(height)")
     }

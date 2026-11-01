@@ -50,6 +50,11 @@ jobs:
           clang -c "$RUNNER_TEMP/compat.c" -o "$RUNNER_TEMP/compat.o"
           swiftc -import-objc-header Tests/SoundTestBridge.h -I App/GameInstaller App/ModInstaller.swift App/SoundArchive.swift App/SoundInstaller.swift App/SkinInstaller.swift App/ModVehicleSupport.swift App/BundledMenyoo.swift Tests/SoundTestStubs.swift Tests/nova_mod_import.swift "$RUNNER_TEMP/archive.o" "$RUNNER_TEMP/inflate.o" "$RUNNER_TEMP/stubs.o" "$RUNNER_TEMP/compat.o" "$PG_HOST_ARCHIVE/libarchive.a" -lz -lbz2 -o "$RUNNER_TEMP/nova-mod-import"
           "$RUNNER_TEMP/nova-mod-import"
+      - name: Log flood and camera filesystem regressions
+        run: |
+          clang -std=c11 -I app/Source -fsanitize=address,undefined app/Tests/nova_log_filter.c -o "$RUNNER_TEMP/nova-log-filter"
+          "$RUNNER_TEMP/nova-log-filter"
+          python3 tools/test_camera_filesystem.py "$RUNNER_TEMP"
       - name: Assemble checked original engine inputs
         if: inputs.build_ipa
         run: python3 app/Scripts/assemble_inputs.py --inputs . --out "$RUNNER_TEMP/game-files"
@@ -64,20 +69,17 @@ jobs:
         env:
           JOBS: "3"
         run: bash build_ipa.sh --mirror "$RUNNER_TEMP/game-files"
-      - name: Verify paid-cert entitlements and Nova pack resources
+      - name: Package and verify two memory-entitled variants without rebuilding engine
         if: inputs.build_ipa
-        run: |
-          APP=app/Build/Release/Build/Products/Release-iphoneos/PlayGTA5Native.app
-          codesign -d --entitlements :- "$APP" 2>&1 | tee "$RUNNER_TEMP/entitlements.txt"
-          test -s "$APP/VietnameseAccented.nvp"
-          test -s "$APP/BundledMenyoo.zip"
-          test -d "$APP/TurboSounds"
-          shasum -a 256 Mugoat-Nova-N001.ipa
+        run: python3 tools/package_variants.py
       - uses: actions/upload-artifact@v4
         if: success() && inputs.build_ipa
         with:
-          name: Mugoat-Nova-N001
-          path: Mugoat-Nova-N001.ipa
+          name: Mugoat-Nova-N002-Two-Variants
+          path: |
+            Mugoat-Nova-N002.ipa
+            Mugoat-Nova-N002-LowRAM.ipa
+            Nova-N002-artifacts.json
           retention-days: 14
       - uses: actions/upload-artifact@v4
         if: failure()

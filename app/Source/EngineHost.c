@@ -70,7 +70,13 @@ static void pg_note_region(const char *message) {
 }
 static void pg_note_engine_memory(const char *line);
 static void pg_note_pool_failure(void);
+#include "NovaLogFilter.h"
 void pg_log(const char *message) {
+  int noise=pg_nova_noise_kind(message);
+  if(noise>=0){static _Atomic uint64_t seen[5];uint64_t count=atomic_fetch_add(&seen[noise],1)+1;
+    if(!pg_nova_noise_emit(count))return;
+    if(count>4){char summary[120];snprintf(summary,sizeof summary,"Nova log: repeated diagnostic family %d reached %llu; full logging suppressed.",noise,(unsigned long long)count);pg_log(summary);return;}
+  }
   if (!strncmp(message, "[wasm] region 0x", 16)) pg_note_region(message);
   if (!strncmp(message, "[wasm] mem: malloc arena ", 25)) pg_note_engine_memory(message);	// the address-space guard (GTA-70)
   if (strstr(message, "Failed to allocation virtual memory")) pg_note_pool_failure();	// the pool's free space is in pieces (GTA-128)

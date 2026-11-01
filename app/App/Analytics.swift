@@ -26,7 +26,7 @@ final class Analytics {
         #if targetEnvironment(simulator)
         endpoint = ProcessInfo.processInfo.environment["PG_STATS_ENDPOINT"].flatMap(URL.init(string:))
         #else
-        endpoint = URL(string: "https://fivestarport.vercel.app/api/stats")
+        endpoint = nil // Nova: no upstream telemetry, no pending disk queue.
         #endif
         if let data = try? Data(contentsOf: file), let saved = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] { pending = saved }
     }
@@ -47,6 +47,7 @@ final class Analytics {
     }
 
     func track(_ event: String, _ properties: [String: Any] = [:]) {
+        guard endpoint != nil else{return}
         let item: [String: Any] = ["e": event, "t": Int64(Date().timeIntervalSince1970 * 1000), "u": UUID().uuidString.lowercased(), "p": properties]
         queue.async {
             self.pending.append(item)

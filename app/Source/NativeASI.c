@@ -454,6 +454,30 @@ static uint64_t k_GetFullPathNameW(void) {
 }
 static uint64_t k_GetCurrentDirectoryW(void) { const char *d = "C:\\GTA5"; size_t n = strlen(d); if (ARG(0) <= n) return n + 1; for (size_t i = 0; i <= n; i++) wr16(ARG(1) + 2 * i, (uint8_t)d[i]); return n; }
 static uint64_t k_GetDriveTypeW(void) { return 3; }
+// Filesystem startup calls used by modern C++ camera plugins. Same per-mod sandbox.
+static uint64_t k_CreateDirectoryW(void){char name[1024],path[1100];wToUtf8(ARG(0),-1,name,sizeof name);hostPath(name,path,sizeof path);if(!mkdir(path,0755))return 1;setError(errno==EEXIST?183:3);return 0;}
+static uint64_t k_GetFileAttributesW(void){char name[1024],path[1100];struct stat st;wToUtf8(ARG(0),-1,name,sizeof name);hostPath(name,path,sizeof path);if(stat(path,&st)){setError(errno==ENOENT?2:5);return 0xffffffffu;}return S_ISDIR(st.st_mode)?0x10:0x80;}
+static uint64_t k_GetFileAttributesExW(void){
+ if(ARG(1)!=0||!ARG(2)){setError(87);return 0;}
+ char name[1024],path[1100];struct stat st;wToUtf8(ARG(0),-1,name,sizeof name);hostPath(name,path,sizeof path);
+ if(stat(path,&st)){setError(errno==ENOENT?2:5);return 0;}
+ uint64_t out=ARG(2),ft=116444736000000000ull+(uint64_t)st.st_mtime*10000000ull;
+ memset(G(out),0,36);wr32(out,S_ISDIR(st.st_mode)?0x10:0x80);wr64(out+4,ft);wr64(out+12,ft);wr64(out+20,ft);
+ wr32(out+28,(uint32_t)((uint64_t)st.st_size>>32));wr32(out+32,S_ISDIR(st.st_mode)?0:(uint32_t)st.st_size);return 1;
+}
+static uint64_t k_FindFirstFileW(void){char name[1024];wToUtf8(ARG(0),-1,name,sizeof name);return findFirst(name,ARG(1),true);}
+static uint64_t k_SHGetKnownFolderPath(void){
+ if(!ARG(3))return 0x80070057u;wr64(ARG(3),0);
+ // FOLDERID_LocalAppData. Unknown folder IDs fail honestly, never S_OK + null.
+ static const unsigned char local[16]={0x85,0x27,0xb3,0xf1,0xba,0x6f,0xcf,0x4f,0x9d,0x55,0x7b,0x8e,0x7f,0x15,0x70,0x91};
+ if(!ARG(0)||memcmp(G(ARG(0)),local,16))return 0x80070057u;
+ const char *name="C:\\GTA5\\LocalAppData";char path[1100];hostPath(name,path,sizeof path);
+ if(mkdir(path,0755)&&errno!=EEXIST)return 0x80004005u;
+ size_t count=strlen(name)+1;uint64_t out=galloc(count*2);if(!out)return 0x8007000eu;
+ for(size_t i=0;i<count;i++)wr16(out+2*i,(unsigned char)name[i]);wr64(ARG(3),out);return 0;
+}
+static uint64_t k_CoTaskMemFree(void){if(ARG(0))H.free(ARG(0));return 0;}
+
 // Settings files (.ini), the way most trainers keep their options.
 static char *readText(const char *windows) {
   char p[1100]; hostPath(windows, p, sizeof p); FILE *f = fopen(p, "rb"); if (!f) return 0;
@@ -572,6 +596,8 @@ static const Import imports[] = {
   {"CreateFileW", k_CreateFileW}, {"CreateFileA", k_CreateFileA}, {"ReadFile", k_ReadFile}, {"WriteFile", k_WriteFile}, {"WriteConsoleW", k_WriteConsoleW}, {"ReadConsoleW", unimplemented},
   {"CloseHandle", k_CloseHandle}, {"GetFileSizeEx", k_GetFileSizeEx}, {"SetFilePointerEx", k_SetFilePointerEx}, {"SetEndOfFile", k_SetEndOfFile}, {"FlushFileBuffers", k_one},
   {"GetFileType", k_GetFileType}, {"GetStdHandle", k_GetStdHandle}, {"SetStdHandle", k_one}, {"GetConsoleMode", k_GetConsoleMode}, {"GetConsoleOutputCP", k_GetConsoleOutputCP},
+  {"CreateDirectoryW", k_CreateDirectoryW}, {"GetFileAttributesW", k_GetFileAttributesW}, {"GetFileAttributesExW", k_GetFileAttributesExW}, {"FindFirstFileW", k_FindFirstFileW},
+  {"SHGetKnownFolderPath", k_SHGetKnownFolderPath}, {"CoTaskMemFree", k_CoTaskMemFree},
   {"DeleteFileA", k_DeleteFileA}, {"CreateDirectoryA", k_CreateDirectoryA}, {"CopyFileA", k_CopyFileA}, {"GetFileAttributesA", k_GetFileAttributesA},
   {"FindFirstFileA", k_FindFirstFileA}, {"FindFirstFileExW", k_FindFirstFileExW}, {"FindNextFileA", k_FindNextFileA}, {"FindNextFileW", k_FindNextFileW}, {"FindClose", k_CloseHandle},
   {"GetFullPathNameW", k_GetFullPathNameW}, {"GetCurrentDirectoryW", k_GetCurrentDirectoryW}, {"GetDriveTypeW", k_GetDriveTypeW},
