@@ -31,4 +31,10 @@ class NovaIntegrity(unittest.TestCase):
   for item in ['NativeDistanceStreaming','NativeRuntimePolicy','NativeAudioDownmix','NativeLazyCPU','pg_distance_streaming']:
    self.assertNotIn(item,host)
   sound=(ROOT/'app/Source/NativeSoundMods.inc').read_text(encoding='utf-8',errors='replace');self.assertNotIn('stockSound',sound)
+ def test_metal_binary_archive_and_data_optimizer(self):
+  renderer = (ROOT/'app/Source/MetalRenderer/MRRenderer.mm').read_text(encoding='utf-8',errors='replace')
+  self.assertIn('MTLBinaryArchive', renderer)
+  self.assertIn('flushBinaryArchive', renderer)
+  self.assertIn('metal_pso_cache.metallib', renderer)
+  self.assertTrue((ROOT/'tools/optimize_game_data.py').exists())
 if __name__=='__main__':unittest.main(verbosity=2)

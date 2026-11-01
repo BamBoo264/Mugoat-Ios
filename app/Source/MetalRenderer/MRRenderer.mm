@@ -285,6 +285,31 @@ static void tracef(const char *format, ...) {
 static inline void tracef(const char *, ...) {}
 #endif
 
+// ---- binary shader archive (persistent PSO caching across sessions) --------------------------------
+static id<MTLBinaryArchive> gBinaryArchive = nil;
+static NSURL *gBinaryArchiveURL = nil;
+static std::atomic<int> gArchiveDirtyEntries{0};
+static std::mutex gArchiveMutex;
+
+static void flushBinaryArchive(bool force = false) {
+	if (!gBinaryArchive || !gBinaryArchiveURL) return;
+	int dirty = gArchiveDirtyEntries.load(std::memory_order_relaxed);
+	if (dirty == 0 && !force) return;
+	static double lastFlush = 0;
+	double now = CACurrentMediaTime();
+	if (force || dirty >= 16 || (dirty > 0 && (now - lastFlush >= 6.0))) {
+		std::lock_guard<std::mutex> guard(gArchiveMutex);
+		NSError *serr = nil;
+		if ([gBinaryArchive serializeToURL:gBinaryArchiveURL error:&serr]) {
+			gArchiveDirtyEntries.store(0, std::memory_order_relaxed);
+			lastFlush = now;
+			logf("Metal renderer: Binary shader archive serialized (%d new PSOs saved to disk).", dirty);
+		} else {
+			logOnce("archive_save_fail", "Metal renderer: Failed to serialize binary archive: %s", serr.localizedDescription.UTF8String);
+		}
+	}
+}
+
 // ---- command buffers and encoders -----------------------------------------------------------------------------------
 static id<MTLCommandBuffer> commandBuffer() {
 	if (!R->cmd) {
@@ -1108,6 +1133,9 @@ static Pipe *getPipeline(Shader *vs, Shader *ps, Layout *lay) {
 	d.alphaToCoverageEnabled = bw && bw[0] && psi && std::find(psi->outputs.begin(), psi->outputs.end(), 0u) != psi->outputs.end();
 	d.inputPrimitiveTopology = topologyClass(R->topo);
 	if (R->topo == 1) logOnce("points", "Metal renderer: point-list draws (%s): shaders do not write a point size", pipe->label.c_str());
+	if (gBinaryArchive) {
+		d.binaryArchives = @[ gBinaryArchive ];
+	}
 	R->pipesPending++; R->pipesMade++;
 	Renderer *r = R;
 	std::string label = pipe->label;
@@ -1117,6 +1145,13 @@ static Pipe *getPipeline(Shader *vs, Shader *ps, Layout *lay) {
 		pipe->state = s;
 		pipe->ready.store(true, std::memory_order_release);
 		r->pipesPending--;
+		if (s && gBinaryArchive) {
+			std::lock_guard<std::mutex> archiveGuard(gArchiveMutex);
+			NSError *aerr = nil;
+			if ([gBinaryArchive addRenderPipelineFunctionsWithDescriptor:d error:&aerr]) {
+				gArchiveDirtyEntries.fetch_add(1, std::memory_order_relaxed);
+			}
+		}
 	}];
 	return pipe;
 }
@@ -1643,7 +1678,18 @@ static void dispatch(uint32_t x, uint32_t y, uint32_t z) {
 	if (!cp.state && !cp.failed) {
 		id<MTLFunction> fn = shaderFunction(info);
 		NSError *error = nil;
-		cp.state = fn ? [R->device newComputePipelineStateWithFunction:fn error:&error] : nil;
+		if (fn) {
+			MTLComputePipelineDescriptor *cd = [MTLComputePipelineDescriptor new];
+			cd.computeFunction = fn;
+			if (gBinaryArchive) cd.binaryArchives = @[ gBinaryArchive ];
+			cp.state = [R->device newComputePipelineStateWithDescriptor:cd options:0 reflection:nil error:&error];
+			if (cp.state && gBinaryArchive) {
+				std::lock_guard<std::mutex> archiveGuard(gArchiveMutex);
+				if ([gBinaryArchive addComputePipelineFunctionsWithDescriptor:cd error:nil]) {
+					gArchiveDirtyEntries.fetch_add(1, std::memory_order_relaxed);
+				}
+			}
+		}
 		if (!cp.state) { cp.failed = true; logf("Metal renderer: compute pipeline failed (%s): %s", info->label.c_str(), error.localizedDescription.UTF8String ?: "no function"); }
 	}
 	if (!cp.state) { R->skipped++; return; }
@@ -2133,10 +2179,12 @@ static void present(uint32_t texId) {
 			logf("Metal renderer: world shown after %.1f s of pipeline compiles (%u pipelines made)", (ms - R->worldSince) / 1000, R->pipesMade);
 			pg_log("{\"pct\":100,\"label\":\"Ready\",\"world\":true}");
 			pg_log("WORLD_READY");
+			flushBinaryArchive(true);
 		}
 	}
 	R->pendingAtPresent = R->pendingSkips;
 	R->pipeWaitMs = 0;
+	flushBinaryArchive(false);
 	// the next frame's ring slot must be idle on the GPU
 	R->frame++;
 	FrameRing &next = R->frames[R->frame % FRAME_SLOTS];
@@ -2510,6 +2558,48 @@ static bool setup() {
 	{ const char *v = getenv("PG_BIG_MIP_SKIP"); long side = v ? atol(v) : 512; if (side >= 256 && side <= 8192 && !gNativeBC) gSkipBigTopMip = (uint64_t)side * side; }
 	R->borderColors = [R->device supportsFamily:MTLGPUFamilyApple7];
 	if (!loadShaderLibrary(R->device)) return false;
+
+	// Persistent Metal Binary Archive: pre-caches compiled pipeline states to disk, eliminating runtime shader stutter
+	@try {
+		if ([R->device respondsToSelector:@selector(newBinaryArchiveWithDescriptor:error:)]) {
+			NSString *caches = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES).firstObject;
+			NSString *shaderCacheDir = [caches stringByAppendingPathComponent:@"Shaders"];
+			[NSFileManager.defaultManager createDirectoryAtPath:shaderCacheDir withIntermediateDirectories:YES attributes:nil error:nil];
+			NSString *archivePath = [shaderCacheDir stringByAppendingPathComponent:@"metal_pso_cache.metallib"];
+			gBinaryArchiveURL = [NSURL fileURLWithPath:archivePath];
+
+			MTLBinaryArchiveDescriptor *desc = [MTLBinaryArchiveDescriptor new];
+			if ([NSFileManager.defaultManager fileExistsAtPath:archivePath]) {
+				desc.url = gBinaryArchiveURL;
+			}
+			NSError *archiveErr = nil;
+			gBinaryArchive = [R->device newBinaryArchiveWithDescriptor:desc error:&archiveErr];
+			if (gBinaryArchive) {
+				if (desc.url) {
+					logf("Metal renderer: binary shader archive loaded from %s", archivePath.UTF8String);
+				} else {
+					logf("Metal renderer: initialized new binary shader archive at %s", archivePath.UTF8String);
+				}
+			} else {
+				[NSFileManager.defaultManager removeItemAtPath:archivePath error:nil];
+				desc.url = nil;
+				gBinaryArchive = [R->device newBinaryArchiveWithDescriptor:desc error:nil];
+				if (gBinaryArchive) {
+					logf("Metal renderer: reinitialized fresh binary shader archive.");
+				}
+			}
+
+			// Automatically flush archive to disk when app goes to background or terminates
+			[NSNotificationCenter.defaultCenter addObserverForName:UIApplicationDidEnterBackgroundNotification object:nil queue:nil usingBlock:^(NSNotification *) {
+				flushBinaryArchive(true);
+			}];
+			[NSNotificationCenter.defaultCenter addObserverForName:UIApplicationWillTerminateNotification object:nil queue:nil usingBlock:^(NSNotification *) {
+				flushBinaryArchive(true);
+			}];
+		}
+	} @catch (id ex) {
+		gBinaryArchive = nil;
+	}
 	R->zeroBuffer = [R->device newBufferWithLength:65536 options:MTLResourceStorageModeShared];
 	memset(R->zeroBuffer.contents, 0, 65536);
 	R->visibility = [R->device newBufferWithLength:OCCLUSION_SLOTS * 8 options:MTLResourceStorageModeShared];
