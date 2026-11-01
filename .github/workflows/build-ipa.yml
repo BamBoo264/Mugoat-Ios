@@ -1,5 +1,8 @@
 name: Build Mugoat Nova
 on:
+  push:
+    branches:
+      - nova-2
   workflow_dispatch:
     inputs:
       build_ipa:
@@ -58,24 +61,24 @@ jobs:
           clang -std=c11 -I app/Source -fsanitize=address,undefined app/Tests/nova_movement.c -o "$RUNNER_TEMP/nova-movement"
           "$RUNNER_TEMP/nova-movement"
       - name: Assemble checked original engine inputs
-        if: inputs.build_ipa
+        if: github.event_name == 'push' || inputs.build_ipa
         run: python3 app/Scripts/assemble_inputs.py --inputs . --out "$RUNNER_TEMP/game-files"
       - name: Install Xcode project generator and Metal compiler
-        if: inputs.build_ipa
+        if: github.event_name == 'push' || inputs.build_ipa
         run: |
           command -v xcodegen || brew install xcodegen
           xcrun -sdk iphoneos metal --version > /dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain
           echo "PGMSL_PREBUILT_URL=file://$PWD/build-tools/pgmsl-macos-arm64.tar.gz" >> "$GITHUB_ENV"
       - name: Release IPA from original 1.4.4 native renderer
-        if: inputs.build_ipa
+        if: github.event_name == 'push' || inputs.build_ipa
         env:
           JOBS: "3"
         run: bash build_ipa.sh --mirror "$RUNNER_TEMP/game-files"
       - name: Package and verify two memory-entitled variants without rebuilding engine
-        if: inputs.build_ipa
+        if: github.event_name == 'push' || inputs.build_ipa
         run: python3 tools/package_variants.py
       - uses: actions/upload-artifact@v4
-        if: success() && inputs.build_ipa
+        if: success() && (github.event_name == 'push' || inputs.build_ipa)
         with:
           name: Mugoat-Nova-N002-Two-Variants
           path: |
