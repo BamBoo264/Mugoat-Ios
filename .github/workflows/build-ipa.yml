@@ -77,12 +77,16 @@ jobs:
       - name: Package and verify memory-entitled Release IPA without rebuilding engine
         if: github.event_name == 'push' || inputs.build_ipa
         run: python3 tools/package_variants.py
+      - name: Build Standalone Nova Keygen IPA
+        if: github.event_name == 'push' || inputs.build_ipa
+        run: bash tools/build_keygen_ipa.sh
       - uses: actions/upload-artifact@v4
         if: success() && (github.event_name == 'push' || inputs.build_ipa)
         with:
           name: Mugoat-Nova-N002-Release
           path: |
             Mugoat-Nova-N002.ipa
+            Nova-Keygen.ipa
             Nova-N002-artifacts.json
           retention-days: 14
       - uses: actions/upload-artifact@v4

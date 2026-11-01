@@ -173,10 +173,6 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     var debugTouchControls: TouchControlsView { touchControls }
     func debugHold(_ pad: PGPadState, for seconds: Double) { debugPad = pad; debugPadUntil = CACurrentMediaTime() + seconds }
     override var canBecomeFirstResponder: Bool { true }
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        becomeFirstResponder()
-    }
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
         // With keyboard and mouse on, keys reach the game as PC keys instead (KeyboardMouse).
         let pcKeys = GameSettings.shared.keyboardMouse && KeyboardMouse.shared.hasKeyboard
@@ -197,6 +193,18 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     /// While playing with a mouse (iPad), the pointer is captured so moving it looks around.
     override var prefersPointerLocked: Bool { engineStarted && GameSettings.shared.keyboardMouse && KeyboardMouse.shared.hasMouse }
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .landscape }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        #if targetEnvironment(simulator)
+        becomeFirstResponder()
+        #endif
+        if !engineStarted && !LicenseManager.shared.isActivated {
+            LicenseManager.shared.showActivationModal(on: self) { [weak self] in
+                self?.updatePlayEnabled()
+            }
+        }
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -589,6 +597,12 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     }
 
     @objc private func startEngine() {
+        guard LicenseManager.shared.isActivated else {
+            LicenseManager.shared.showActivationModal(on: self) { [weak self] in
+                self?.startEngine()
+            }
+            return
+        }
         if GameSettings.shared.gameModeChoice == nil {
             // Automated launches without a choice keep the old sandbox start.
             guard ProcessInfo.processInfo.arguments.contains("--boot-engine") else { return }
