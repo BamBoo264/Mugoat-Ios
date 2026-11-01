@@ -1016,6 +1016,7 @@ void PGUpdateVirtualPad(PGPadState state) {
 // control-update thread.
 void PG_FN_SET_MENU_PREFERENCE(w2c_game*, u32, u32);
 void PG_FN_PROFILE_SETTINGS_SET(w2c_game*, u64, u32, u32);
+void PG_FN_DO_AUTO_SAVE(w2c_game*); // misc_commands::CommandDoAutoSave
 void PG_FN_SYS_IPC_SLEEP(w2c_game*, u32); // rage::sysIpcSleep
 static _Atomic int32_t pendingTargetingMode = -1;
 void PGSetTargetingMode(int32_t mode) { if (mode >= 0 && mode <= 3) atomic_store(&pendingTargetingMode, mode); }
@@ -1027,6 +1028,45 @@ static void pg_apply_targeting_mode(w2c_game *instance) {
   uint64_t listeners = *(uint64_t *)pg_pointer(&env, 19571440, 8);
   if (listeners) PG_FN_PROFILE_SETTINGS_SET(instance, listeners, 0, (u32)mode);
   char line[96]; snprintf(line, sizeof line, "Targeting mode set to %d.", mode); pg_log(line);
+}
+
+// Vehicle layout guard: when MPBeach DLC has unresolved entry points (idx: 1) during mission 20 reload,
+// log a warning instead of calling Quitf / Trap 5, allowing the validation loop to continue.
+void pg_vehicle_layout_bad_entry_point(w2c_game *instance, u64 fmt, u64 args) {
+  (void)instance; (void)fmt;
+  u64 idx = 0;
+  if (args && args + 8 <= env.memory.size) {
+    idx = *(uint64_t *)pg_pointer(&env, args, 8);
+  }
+  char line[160];
+  snprintf(line, sizeof line, "Warning: vehicle layouts contains bad entry points (at idx : %llu) - skipped fatal abort", (unsigned long long)idx);
+  pg_log(line);
+}
+
+// Story Autosave: ensure Pause Menu preference 28 and Profile setting 28 (Autosave) are always active.
+static void pg_ensure_autosave(w2c_game *instance) {
+  static int autosaveInit = 0;
+  if (!autosaveInit) {
+    autosaveInit = 1;
+    PG_FN_SET_MENU_PREFERENCE(instance, 28, 1);
+    uint64_t listeners = *(uint64_t *)pg_pointer(&env, 19571440, 8);
+    if (listeners) PG_FN_PROFILE_SETTINGS_SET(instance, listeners, 28, 1);
+    pg_log("Autosave: ensured active (preference 28 = 1, profile setting 28 = 1).");
+  }
+}
+
+// Periodic story autosave every 5 minutes in free play.
+static void pg_story_autosave_tick(w2c_game *instance) {
+  static uint64_t lastAutosaveMS = 0;
+  uint64_t now = (uint64_t)timeMS(CLOCK_MONOTONIC);
+  if (lastAutosaveMS == 0) { lastAutosaveMS = now; return; }
+  if (now - lastAutosaveMS >= 300000) {
+    if (!PGPauseMenuActive() && !(PGGameStatus() & 16)) { // not paused, not in cutscene
+      lastAutosaveMS = now;
+      PG_FN_DO_AUTO_SAVE(instance);
+      pg_log("Story Autosave: triggered periodic autosave.");
+    }
+  }
 }
 u64 PG_FN_OPERATOR_NEW(w2c_game*, u64); // operator new
 // Used outside the simulator tests below too (the weapon streaming guard, the saved-cash restore).
@@ -1632,6 +1672,28 @@ static void pg_apply_lite(w2c_game *instance) {
   PG_FN_VEHICLE_DENSITY_THIS_FRAME(instance, density);
   PG_FN_PARKED_DENSITY_THIS_FRAME(instance, density);
   if (lod < 1) PG_FN_LOD_SCALE_THIS_FRAME(instance, lod);
+}
+
+// Distance blur and LOD optimization ("vật thể ở xa mờ đi", chống drop FPS).
+// Reduces distant mesh draw calls and GPU rasterizer load by scaling down LOD distance
+// so distant geometry blends smoothly into distance fog/blur.
+static void pg_apply_distance_optimization(w2c_game *instance) {
+  static int optEnabled = -1;
+  static float lodFactor = 0.75f;
+  if (optEnabled < 0) {
+    const char *opt = getenv("PG_DISTANCE_BLUR_OPT");
+    // Enabled by default unless explicitly disabled with 0
+    optEnabled = !(opt && !strcmp(opt, "0"));
+    const char *factorStr = getenv("PG_DISTANCE_LOD_FACTOR");
+    if (factorStr) lodFactor = fmaxf(0.3f, fminf(1.0f, (float)atof(factorStr)));
+    if (optEnabled) {
+      char line[120];
+      snprintf(line, sizeof line, "Distance optimization: active, distant LOD scale %.2f (reduces rasterizer stalls).", lodFactor);
+      pg_log(line);
+    }
+  }
+  if (!optEnabled) return;
+  PG_FN_LOD_SCALE_THIS_FRAME(instance, lodFactor);
 }
 u32 PG_FN_GET_ENTITY_MODEL(w2c_game*, u32); // entity_commands::CommandGetEntityModel
 u32 PG_FN_STAT_SET_INT(w2c_game*, u32, u32, u32); // stats_commands::CommandStatSetInt
@@ -2438,6 +2500,9 @@ void pg_virtual_pad_apply(w2c_game *instance, uint64_t pad) {
   if (pad == 12840656) pg_apply_cash_request(instance);
   if (pad == 12840656) pg_apply_lite(instance);
   if (pad == 12840656) pg_apply_targeting_mode(instance);
+  if (pad == 12840656) pg_ensure_autosave(instance);
+  if (pad == 12840656) pg_story_autosave_tick(instance);
+  if (pad == 12840656) pg_apply_distance_optimization(instance);
   if (pad == 12840656) pg_tv_presentation_update(instance);
   if (pad == 12840656) pg_keep_on_test_map(instance);
   if (pad == 12840656) pg_keep_weapon_loaded(instance);

@@ -67,12 +67,14 @@ struct GraphicsDetail {
             GraphicsDetail(option: "lodScale", title: AppLanguage.choose("Draw distance"), values: percent, names: percent.map { "\(Int((Double($0) ?? 0) * 100))%" }),
             GraphicsDetail(option: "grassQuality", title: AppLanguage.choose("Grass"), values: ["0", "1", "2"], names: levels),
             GraphicsDetail(option: "cityDensity", title: AppLanguage.choose("Traffic and people"), values: percent, names: percent.map { "\(Int((Double($0) ?? 0) * 100))%" }),
+            GraphicsDetail(option: "distanceBlur", title: "Làm mờ vật thể ở xa (Tối ưu FPS)", values: ["1", "0"], names: ["Bật (Mượt hơn)", "Tắt"]),
         ]
     }()
 
     /// The preset's own value for this detail.
     func presetValue(_ preset: GraphicsPreset) -> String {
-        preset.engineOptions.first { $0.hasPrefix("-\(option)=") }.map { String($0.dropFirst(option.count + 2)) } ?? values[0]
+        if option == "distanceBlur" { return "1" }
+        return preset.engineOptions.first { $0.hasPrefix("-\(option)=") }.map { String($0.dropFirst(option.count + 2)) } ?? values[0]
     }
     func name(of value: String) -> String { values.firstIndex(of: value).map { names[$0] } ?? value }
 }
@@ -196,6 +198,8 @@ enum GraphicsConfiguration {
         let own = GraphicsDetail.all.compactMap { detail in overrides[detail.option].map { "\(detail.option) \($0)" } }
         // The engine and renderer read PG_LITE when they start, after this. The Lite build always sets it.
         if preset == .lite { setenv("PG_LITE", "1", 1) } else if !Theme.isLite { unsetenv("PG_LITE") }
+        let blurOpt = overrides["distanceBlur"] ?? "1"
+        setenv("PG_DISTANCE_BLUR_OPT", blurOpt, 1)
         PGSetMemoryCap(Int32(settings.memoryCapMB))
         PGSetSharperUpscaling((NovaUpscaling.mode > 0 || settings.sharperUpscaling) ? 1 : 0)
         var pointers = options.map { strdup($0) }

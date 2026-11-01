@@ -505,10 +505,12 @@ final class TouchControlsView: UIView {
         MissionButton(input: 230, button: ControlButton("script_ls", icon: "script_ls", label: AppLanguage.choose("Left stick click")), pad: .l3, trigger: 0),
         MissionButton(input: 231, button: ControlButton("script_rs", icon: "script_rs", label: AppLanguage.choose("Right stick click")), pad: .r3, trigger: 0)]
     private var polledMission: Set<Int32> = []
-    /// A script polls the frontend D-pad up and down (INPUT_FRONTEND_UP/DOWN, 188/187): a shop or script menu is
-    /// open (the barber reads both). Down alone isn't a menu: after swipe-camera mouse movement a game script reads
-    /// it every frame on foot, and the layout used to switch to the menu one (GTA-86).
-    private var scriptMenu: Bool { polledMission.isSuperset(of: [187, 188]) && context != .menu && !phoneDock }
+    /// A script polls the frontend D-pad up and down (INPUT_FRONTEND_UP/DOWN, 188/187) along with frontend accept/cancel/tab
+    /// (201/202/204/206): a shop or script menu is open (barber, clothes, customs). Background ambient scripts also poll
+    /// 187/188/189/190 without a menu open, so requiring a frontend action input prevents taking over normal gameplay controls.
+    private var scriptMenu: Bool {
+        polledMission.isSuperset(of: [187, 188]) && !polledMission.isDisjoint(with: [201, 202, 204, 206]) && context != .menu && !phoneDock
+    }
     private var lastMissionLog = ""
     /// Inputs the help message on screen names (PGControlHints.helpInputs, bit n is input 218 + n): a mission asks for
     /// a button in its help ("Hold RT to grip a tooth" in By the Book) even when it reads the button in a way the poll
@@ -528,7 +530,7 @@ final class TouchControlsView: UIView {
     private var rightStickWasAsked = false
     /// Called every frame with the engine's poll check (PGInputPolledWithin).
     func updateMissionInputs(_ polled: (Int32) -> Bool) {
-        let next = Set((missionButtons.map(\.input) + missionButtons.compactMap(\.menuInput) + [218, 219, 220, 221, 187, 188, 189, 190, 19]).filter(polled)).union(helpAsked)
+        let next = Set((missionButtons.map(\.input) + missionButtons.compactMap(\.menuInput) + [218, 219, 220, 221, 187, 188, 189, 190, 19, 201, 202, 206]).filter(polled)).union(helpAsked)
         if helpAsksRightStick != rightStickWasAsked {
             rightStickWasAsked = helpAsksRightStick
             GameFolder.log("Touch layout: the right side is \(rightStickWasAsked ? "the right stick (the help asks for it)" : "the camera again")")
@@ -740,7 +742,7 @@ final class TouchControlsView: UIView {
             // says so, and without the D-pad there was no way at all, e.g. standing up from a safehouse couch where the
             // stick changes the TV channel (GTA-82), or drinking more whiskey at Trevor's (log 602).
             let contextButton: [ControlButton] = hints.helpContext ? [interact] : []
-            return [camera, pause, settings] + (stick ? [] : [up, down, left, right]) + contextButton + [accept, back, promptOption]
+            return [camera, phone, pause, settings] + (stick ? [] : [up, down, left, right]) + contextButton + [accept, back, promptOption]
         }
         if tvCouch && !editing {
             return [camera, phone, pause, settings, up, down, left, right] + (hints.helpContext ? [interact] : [])

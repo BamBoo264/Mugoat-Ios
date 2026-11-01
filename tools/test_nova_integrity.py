@@ -3,8 +3,8 @@ import hashlib,json,re,struct,unittest
 ROOT=Path(__file__).resolve().parents[1]
 class NovaIntegrity(unittest.TestCase):
  def test_original_audio_memory_sections(self):
-  source=(ROOT/'app/Source/EngineHost.c').read_text()
-  for name,expected in json.loads((ROOT/'tools/nova-baseline-sections.json').read_text()).items():
+  source=(ROOT/'app/Source/EngineHost.c').read_text(encoding='utf-8',errors='replace')
+  for name,expected in json.loads((ROOT/'tools/nova-baseline-sections.json').read_text(encoding='utf-8',errors='replace')).items():
    with self.subTest(name=name):
     m=re.search(r'^.*?\b'+name+r'\([^;\n]*\)\s*\{',source,re.M);self.assertIsNotNone(m)
     end=source.index('\n}',m.start())+2
@@ -27,8 +27,8 @@ class NovaIntegrity(unittest.TestCase):
    self.assertEqual(16+length+end,len(data))
    if kind=='Accented':self.assertTrue('common/data/ui/fontmap.xml' in names)
  def test_no_v5_runtime_policies(self):
-  host=(ROOT/'app/Source/EngineHost.c').read_text()
+  host=(ROOT/'app/Source/EngineHost.c').read_text(encoding='utf-8',errors='replace')
   for item in ['NativeDistanceStreaming','NativeRuntimePolicy','NativeAudioDownmix','NativeLazyCPU','pg_distance_streaming']:
    self.assertNotIn(item,host)
-  sound=(ROOT/'app/Source/NativeSoundMods.inc').read_text();self.assertNotIn('stockSound',sound)
+  sound=(ROOT/'app/Source/NativeSoundMods.inc').read_text(encoding='utf-8',errors='replace');self.assertNotIn('stockSound',sound)
 if __name__=='__main__':unittest.main(verbosity=2)

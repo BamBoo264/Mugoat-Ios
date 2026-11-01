@@ -156,9 +156,9 @@ final class GameSettings {
         get { (defaults.object(forKey: "gameMode") as? Int).flatMap(GameMode.init) }
         set { defaults.set(newValue?.rawValue, forKey: "gameMode") }
     }
-    /// Sandbox was the only mode before the choice existed.
+    /// Story mode is the primary GTA V experience; Sandbox can be selected in Settings.
     var gameMode: GameMode {
-        get { gameModeChoice ?? .sandbox }
+        get { gameModeChoice ?? .story }
         set { gameModeChoice = newValue }
     }
 
