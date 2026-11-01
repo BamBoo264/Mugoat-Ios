@@ -29,6 +29,7 @@ final class ModKeysView: UIView, UIKeyInput {
     private var keys: [Int] = []
     private var firstRowKeys: [Int] = []
     private var navKeys: [Int] = []
+    private var navKeyGroups: [[Int]] = []
     private var latched = Set<Int>()
     private var timer: Timer?
     private var typing = false
@@ -140,14 +141,24 @@ final class ModKeysView: UIView, UIKeyInput {
         // the tray opened again over an open menu stays open (it used to close again at once).
         if info.menuVisible && !menuWasVisible && !tray.isHidden && !typing { closeTray() }
         menuWasVisible = info.menuVisible
-        // The D-pad, while a mod menu is on screen, with the keys that mod checks in its menu. Keyboard-handler
-        // mods never say: the number pad, which Script Hook V trainers (Simple Trainer, Menyoo) use.
-        let handlerOnly = info.keyboardHandler && ![0x68, 0x26, 0x62, 0x28].contains(where: { open[$0] != 0 })
-        let usable = { (key: Int) in open[key] != 0 || (handlerOnly && [0x68, 0x62, 0x64, 0x66, 0x65, 0x60].contains(key)) }
-        let pick = { (choices: [Int]) in choices.first(where: usable) ?? 0 }
-        let nav = [pick([0x68, 0x26]), pick([0x62, 0x28]), pick([0x64, 0x25]), pick([0x66, 0x27]), pick([0x65, 0x0D]), pick([0x60, 0x08, 0x1B])]
-        if nav != navKeys { navKeys = nav; buildDpad() }
-        dpad.isHidden = !(info.menuVisible && nav.filter { $0 != 0 }.count >= 2 && tray.isHidden && !typing)
+        // The D-pad, while a mod menu is on screen, with the keys that mod checks in its menu.
+        // Script Hook V trainers (Menyoo, Native Trainer) use the number pad (0x68, 0x62, 0x64, 0x66, 0x65, 0x60).
+        // Custom camera/vehicle mods (DynamicVehicleFirstPerson) use Arrow keys (0x26, 0x28, 0x25, 0x27, 0x0D, 0x08).
+        // Mapping each D-pad direction to both groups simultaneously ensures all active mod menus respond immediately!
+        let defaultNavGroups: [[Int]] = [
+            [0x68, 0x26],       // Up: Num 8 + Arrow Up
+            [0x62, 0x28],       // Down: Num 2 + Arrow Down
+            [0x64, 0x25],       // Left: Num 4 + Arrow Left
+            [0x66, 0x27],       // Right: Num 6 + Arrow Right
+            [0x65, 0x0D],       // OK: Num 5 + Enter
+            [0x60, 0x08, 0x1B]  // Back: Num 0 + Backspace + Escape
+        ]
+        if navKeyGroups != defaultNavGroups {
+            navKeyGroups = defaultNavGroups
+            navKeys = defaultNavGroups.map { $0.first ?? 0 }
+            buildDpad()
+        }
+        dpad.isHidden = !(info.menuVisible && tray.isHidden && !typing)
         // The tray's keys are laid out again only while it's closed, so nothing moves under a finger.
         let sorted = found.sorted { Self.rank($0) == Self.rank($1) ? $0 < $1 : Self.rank($0) < Self.rank($1) }
         if sorted != keys && tray.isHidden { keys = sorted }
@@ -187,9 +198,9 @@ final class ModKeysView: UIView, UIKeyInput {
         // Back in the cross's lower right corner keeps the whole pad inside the free strip (GTA-69: a Back key
         // to the right of the cross sat on the sprint button).
         let spots: [(CGFloat, CGFloat)] = [(1, 0), (1, 2), (0, 1), (2, 1), (1, 1), (2, 2)]
-        for (i, key) in navKeys.enumerated() where key != 0 {
+        for (i, keys) in navKeyGroups.enumerated() where !keys.isEmpty {
             let title = ["▲", "▼", "◀", "▶", "OK", "↩\u{FE0E}"][i]   // text style, not the blue emoji
-            let button = makeKey(key, compact: true, title: title)
+            let button = makeNavButton(keys: keys, title: title)
             button.frame = CGRect(x: spots[i].0 * (size + gap), y: spots[i].1 * (size + gap), width: size, height: size)
             button.translatesAutoresizingMaskIntoConstraints = true
             dpad.addSubview(button)
@@ -201,6 +212,14 @@ final class ModKeysView: UIView, UIKeyInput {
         let width = 3 * 46 + 2 * 4, height = 3 * 46 + 2 * 4
         let safe = bounds.inset(by: safeAreaInsets)
         dpad.frame = CGRect(x: safe.minX + safe.width * 0.40 - CGFloat(width) / 2, y: safe.maxY - CGFloat(height) - 14, width: CGFloat(width), height: CGFloat(height))
+    }
+
+    private func makeNavButton(keys: [Int], title: String) -> UIView {
+        let button = ModKeyButton(key: keys.first ?? 0, title: title, pinned: false, compact: true)
+        button.pressed = { [weak self] down in
+            for k in keys { self?.press(k, down) }
+        }
+        return button
     }
 
     private func makeKey(_ key: Int, compact: Bool, title: String? = nil) -> UIView {
@@ -231,6 +250,7 @@ final class ModKeysView: UIView, UIKeyInput {
 
     private func releaseAll() {
         for key in keys { PGAsiSetKey(Int32(key), false) }
+        for group in navKeyGroups { for key in group { PGAsiSetKey(Int32(key), false) } }
         latched.removeAll()
     }
 
@@ -417,11 +437,13 @@ private final class ModKeyButton: UIView {
         didLongPress = false
         backgroundColor = UIColor.white.withAlphaComponent(0.45)
         pressed?(true)
-        holdTimer = Timer.scheduledTimer(withTimeInterval: 0.7, repeats: false) { [weak self] _ in
-            guard let self else { return }
-            self.didLongPress = true
-            self.pressed?(false)
-            self.longPressed?()
+        if longPressed != nil {
+            holdTimer = Timer.scheduledTimer(withTimeInterval: 0.7, repeats: false) { [weak self] _ in
+                guard let self else { return }
+                self.didLongPress = true
+                self.pressed?(false)
+                self.longPressed?()
+            }
         }
     }
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) { finish() }
