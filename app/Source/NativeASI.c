@@ -528,6 +528,13 @@ static uint8_t keysClosed[256], keysOpen[256], keysOpening[256], keysHinted[256]
 static uint32_t frameDraws, tickNumber, lastPressed[256];
 static bool menuVisible;
 static uint64_t u_GetAsyncKeyState(void) { int vk = (int)(ARG(0) & 255); polledKeys[vk] = 1; polledThisFrame[vk] = 1; return H.key_down && H.key_down(vk) ? 0x8000 : 0; }
+static uint64_t u_GetForegroundWindow(void) { return 0x10001; }
+static uint64_t u_GetActiveWindow(void) { return 0x10001; }
+static uint64_t u_GetWindowThreadProcessId(void) {
+  uint64_t pidPtr = ARG(1);
+  if (pidPtr) *(uint32_t *)G(pidPtr) = (uint32_t)k_GetCurrentProcessId();
+  return k_GetCurrentThreadId();
+}
 static uint64_t s_PathFindFileNameA(void) { uint64_t p = ARG(0), last = p; for (uint64_t a = p; *G(a); a++) if (*G(a) == '\\' || *G(a) == '/') last = a + 1; return last; }
 
 // ---- Script Hook V ----------------------------------------------------------------------------
@@ -602,7 +609,10 @@ static const Import imports[] = {
   {"FindFirstFileA", k_FindFirstFileA}, {"FindFirstFileExW", k_FindFirstFileExW}, {"FindNextFileA", k_FindNextFileA}, {"FindNextFileW", k_FindNextFileW}, {"FindClose", k_CloseHandle},
   {"GetFullPathNameW", k_GetFullPathNameW}, {"GetCurrentDirectoryW", k_GetCurrentDirectoryW}, {"GetDriveTypeW", k_GetDriveTypeW},
   {"GetPrivateProfileStringA", k_GetPrivateProfileStringA}, {"GetPrivateProfileIntA", k_GetPrivateProfileIntA}, {"WritePrivateProfileStringA", k_WritePrivateProfileStringA},
-  {"GetAsyncKeyState", u_GetAsyncKeyState}, {"GetKeyState", u_GetAsyncKeyState}, {"PathFindFileNameA", s_PathFindFileNameA},
+  {"GetAsyncKeyState", u_GetAsyncKeyState}, {"GetKeyState", u_GetAsyncKeyState},
+  {"GetForegroundWindow", u_GetForegroundWindow}, {"GetActiveWindow", u_GetActiveWindow},
+  {"GetWindowThreadProcessId", u_GetWindowThreadProcessId},
+  {"PathFindFileNameA", s_PathFindFileNameA},
   {"scriptRegister", v_scriptRegister}, {"scriptRegisterAdditionalThread", v_scriptRegister}, {"scriptUnregister", v_scriptUnregister}, {"scriptWait", v_scriptWait},
   {"keyboardHandlerRegister", v_keyboardHandlerRegister}, {"keyboardHandlerUnregister", v_keyboardHandlerUnregister},
   {"nativeInit", v_nativeInit}, {"nativePush64", v_nativePush64}, {"nativeCall", v_nativeCall}, {"getGlobalPtr", v_getGlobalPtr},
@@ -704,6 +714,7 @@ static void hintKeys(const char *folder, int depth) {
       bool wanted = false; for (size_t i = 0; i < sizeof names / sizeof *names; i++) if (!strcmp(key, names[i])) wanted = true;
       if (!wanted) continue;
       int vk = keyFromName(eq + 1);
+      if (vk == 0 && !strcasecmp(entry->d_name, "settings_menu.ini")) vk = 0x76;
       if (vk > 0 && vk < 256) { keysHinted[vk] = 1; logf_("ASI: %s names key 0x%02x as a menu key.", entry->d_name, vk); }
     }
     fclose(f);

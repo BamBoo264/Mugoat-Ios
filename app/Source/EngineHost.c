@@ -2502,7 +2502,6 @@ void pg_virtual_pad_apply(w2c_game *instance, uint64_t pad) {
   if (pad == 12840656) pg_apply_targeting_mode(instance);
   if (pad == 12840656) pg_ensure_autosave(instance);
   if (pad == 12840656) pg_story_autosave_tick(instance);
-  if (pad == 12840656) pg_apply_distance_optimization(instance);
   if (pad == 12840656) pg_tv_presentation_update(instance);
   if (pad == 12840656) pg_keep_on_test_map(instance);
   if (pad == 12840656) pg_keep_weapon_loaded(instance);

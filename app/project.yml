@@ -93,7 +93,7 @@ targets:
       - sdk: libbz2.tbd
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: vn.gta.newgen.nova
+        PRODUCT_BUNDLE_IDENTIFIER: vn.gta.newgen
         PRODUCT_NAME: PlayGTA5Native
         TARGETED_DEVICE_FAMILY: "1,2"
         # Paid Apple developer accounts can use App/Full.entitlements (more

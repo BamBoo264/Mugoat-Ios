@@ -3,7 +3,13 @@ final class NovaCameraViewController:UITableViewController {
  private var folder:URL? {
   for mod in ModInstaller.installed() where mod.enabled {
    let p=mod.url.appendingPathComponent("DynamicVehicleFirstPerson")
-   if FileManager.default.fileExists(atPath:p.appendingPathComponent("settings_general.ini").path){return p}
+   if FileManager.default.fileExists(atPath:p.appendingPathComponent("settings_general.ini").path){
+     let menuIni = p.appendingPathComponent("settings_menu.ini")
+     if let content = try? String(contentsOf: menuIni, encoding: .utf8), content.contains("MenuKey = NONE") {
+       try? update(menuIni, section: "MENU", key: "MenuKey", value: "F7")
+     }
+     return p
+   }
   };return nil
  }
  init(){super.init(style:.insetGrouped);title="Camera góc nhìn thứ nhất"}

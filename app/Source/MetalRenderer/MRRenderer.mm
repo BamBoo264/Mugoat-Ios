@@ -292,22 +292,19 @@ static std::atomic<int> gArchiveDirtyEntries{0};
 static std::mutex gArchiveMutex;
 
 static void flushBinaryArchive(bool force = false) {
-	if (!gBinaryArchive || !gBinaryArchiveURL) return;
+	if (!force || !gBinaryArchive || !gBinaryArchiveURL) return;
 	int dirty = gArchiveDirtyEntries.load(std::memory_order_relaxed);
-	if (dirty == 0 && !force) return;
-	static double lastFlush = 0;
-	double now = CACurrentMediaTime();
-	if (force || dirty >= 16 || (dirty > 0 && (now - lastFlush >= 6.0))) {
+	if (dirty == 0) return;
+	dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
 		std::lock_guard<std::mutex> guard(gArchiveMutex);
 		NSError *serr = nil;
 		if ([gBinaryArchive serializeToURL:gBinaryArchiveURL error:&serr]) {
 			gArchiveDirtyEntries.store(0, std::memory_order_relaxed);
-			lastFlush = now;
 			logf("Metal renderer: Binary shader archive serialized (%d new PSOs saved to disk).", dirty);
 		} else {
 			logOnce("archive_save_fail", "Metal renderer: Failed to serialize binary archive: %s", serr.localizedDescription.UTF8String);
 		}
-	}
+	});
 }
 
 // ---- command buffers and encoders -----------------------------------------------------------------------------------
@@ -2179,12 +2176,10 @@ static void present(uint32_t texId) {
 			logf("Metal renderer: world shown after %.1f s of pipeline compiles (%u pipelines made)", (ms - R->worldSince) / 1000, R->pipesMade);
 			pg_log("{\"pct\":100,\"label\":\"Ready\",\"world\":true}");
 			pg_log("WORLD_READY");
-			flushBinaryArchive(true);
 		}
 	}
 	R->pendingAtPresent = R->pendingSkips;
 	R->pipeWaitMs = 0;
-	flushBinaryArchive(false);
 	// the next frame's ring slot must be idle on the GPU
 	R->frame++;
 	FrameRing &next = R->frames[R->frame % FRAME_SLOTS];

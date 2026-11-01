@@ -524,7 +524,7 @@ final class TouchControlsView: UIView {
     /// On a safehouse couch the TV help says "Use the left stick to change the channel / the volume", and on
     /// touch the stick is an invisible area: arrows that move the left stick show instead (Friend Request waits
     /// for a channel change before the Lifeinvader presentation starts, GTA-73).
-    var tvCouch: Bool { context == .onFoot && !promptActive && !scriptMenu && !taxiRide && !helpAsked.isDisjoint(with: [218, 219]) }
+    var tvCouch: Bool { context == .onFoot && !promptActive && !taxiRide && !helpAsked.isDisjoint(with: [218, 219]) }
     /// Mission triggers latched on (see padState): asked for together with the right stick.
     private var latchedTriggers: Set<Int32> = [], triggerWasPressed: Set<Int32> = []
     private var rightStickWasAsked = false
@@ -546,7 +546,7 @@ final class TouchControlsView: UIView {
         // Only while the game waits for the player: the prompt layout (control off outside cutscenes) or
         // a help message on screen. Scripts also poll inputs they don't ask for, and those must not
         // bring up buttons in normal play.
-        if context == .menu || phoneDock || !(promptActive || hints.helpShown || scriptMenu) { return [] }
+        if context == .menu || phoneDock || !(promptActive || hints.helpShown) { return [] }
         var covered: Set<Int32> = []
         if list.contains(where: { $0 === accept }) { covered.insert(223) }
         if list.contains(where: { $0 === back }) { covered.insert(225) }
@@ -729,7 +729,7 @@ final class TouchControlsView: UIView {
         // side free for the stick: the D-pad sits where the thumb goes.
         // A script menu (shops: barber, clothes, Ammu-Nation, Los Santos Customs) reads the frontend D-pad
         // inputs while player control stays on: it gets the menu layout too, or it can't be used (GTA-43).
-        if (promptActive || scriptMenu) && !editing {
+        if promptActive && !editing {
             // A prompt that reads either stick (the yoga poses read both, GTA-37): no D-pad under the left
             // thumb; an empty spot on the left is the left stick and on the right the right stick.
             // A shop menu (barber, Los Santos Customs) reads the sticks too, but it moves with the frontend D-pad:
@@ -737,7 +737,7 @@ final class TouchControlsView: UIView {
             // A help that names the script D-pad keeps the arrows though the script reads a stick as well (By the
             // Book's tool cart: "Use the left stick/D-pad and A to pick a torture weapon"); the stick still works on the
             // empty part of the left side.
-            let stick = !polledMission.isDisjoint(with: [218, 219, 220, 221]) && !scriptMenu && helpAsked.isDisjoint(with: [232, 233, 234, 235])
+            let stick = !polledMission.isDisjoint(with: [218, 219, 220, 221]) && helpAsked.isDisjoint(with: [232, 233, 234, 235])
             // A prompt that asks for INPUT_CONTEXT gets the interact button: D-pad right sends it too, but nothing
             // says so, and without the D-pad there was no way at all, e.g. standing up from a safehouse couch where the
             // stick changes the TV channel (GTA-82), or drinking more whiskey at Trevor's (log 602).

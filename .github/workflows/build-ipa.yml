@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - nova-2
+      - nova2
   workflow_dispatch:
     inputs:
       build_ipa:
@@ -74,16 +75,15 @@ jobs:
         env:
           JOBS: "3"
         run: bash build_ipa.sh --mirror "$RUNNER_TEMP/game-files"
-      - name: Package and verify two memory-entitled variants without rebuilding engine
+      - name: Package and verify memory-entitled Release IPA without rebuilding engine
         if: github.event_name == 'push' || inputs.build_ipa
         run: python3 tools/package_variants.py
       - uses: actions/upload-artifact@v4
         if: success() && (github.event_name == 'push' || inputs.build_ipa)
         with:
-          name: Mugoat-Nova-N002-Two-Variants
+          name: Mugoat-Nova-N002-Release
           path: |
             Mugoat-Nova-N002.ipa
-            Mugoat-Nova-N002-LowRAM.ipa
             Nova-N002-artifacts.json
           retention-days: 14
       - uses: actions/upload-artifact@v4
