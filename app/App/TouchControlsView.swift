@@ -1513,9 +1513,10 @@ final class TouchControlsView: UIView {
                 if handbrake.pressed { held.insert(.r1) }
             }
             if driveBy.pressed {
-                // Aim with L1; R1 shoots while aiming.
+                // Aim with L1; R1 shoots while aiming. Also assert rightTrigger for mounted vehicle weapons.
                 held.insert(.l1)
-                if now - (fireStartedAt ?? now) > 0.12 { held.insert(.r1) }
+                held.insert(.r1)
+                state.rightTrigger = 1
             }
             if enter.pressed { held.insert(.y) }
             if driveAim.pressed { held.insert(.l1) }
@@ -1682,7 +1683,7 @@ final class TouchControlsView: UIView {
     private func sendKeyboardMouseEquivalents(_ state: PGPadState) {
         var buttons: Int32 = 0
         var shift = false
-        if experimentalMouseLookActive {
+        if experimentalMouseLookActive || swipeCameraEnabled {
             switch context {
             case .onFoot:
                 if state.leftTrigger > 0.5 { buttons |= 2 }
@@ -1690,7 +1691,7 @@ final class TouchControlsView: UIView {
                 shift = moveStick.sprinting || sprint.pressed
             case .car, .boat, .bike, .bicycle, .sub:
                 if driveAim.pressed || driveBy.pressed { buttons |= 2 }
-                if driveBy.pressed, let started = fireStartedAt, CACurrentMediaTime() - started > 0.12 { buttons |= 1 }
+                if driveBy.pressed { buttons |= 1 }
             default: break
             }
         }

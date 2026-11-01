@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - nova-2
-      - nova2
   workflow_dispatch:
     inputs:
       build_ipa:

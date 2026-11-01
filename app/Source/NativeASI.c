@@ -51,6 +51,10 @@ static int moduleIndex(uint64_t a);
 static Module *moduleAt(uint64_t a) { for (int i = 0; i < moduleCount; i++) if (a >= modules[i].base && a < modules[i].base + modules[i].size) return &modules[i]; return 0; }
 static int moduleIndex(uint64_t a) { Module *m = moduleAt(a); return m ? (int)(m - modules) : -1; }
 
+struct Nest;
+struct Catch;
+struct Throw;
+
 // ---- Coroutines: script threads (scriptRegister, CreateThread) and one-off calls -------------
 enum { CO_NEW, CO_READY, CO_WAIT, CO_DEAD };
 typedef struct Co {
@@ -58,8 +62,13 @@ typedef struct Co {
   bool script, yield, finished; uint64_t result;  // native result buffer
   uint64_t args[32]; uint32_t argc; uint64_t hash;
   uint64_t tls[64], fls[64];
+  struct Nest *nest; int nestDepth;
+  struct Catch *catches;
+  struct Throw *pending;
+  int uncaught;
 } Co;
 static Co *threads[64]; static int threadCount; static Co *cur;
+static void ehAbandon(Co *co);
 static pthread_t runner; static volatile sig_atomic_t running;  // a mod's code is running on this thread
 static uint64_t stubs;  // import stubs: mov eax, id; syscall; ret
 static uint64_t exitStub;
@@ -85,7 +94,7 @@ static uint64_t makeTeb(Co *co, int module) {
 }
 static Co *newCo(uint64_t entry, uint64_t param, bool script, int module) {
   Co *co = 0;
-  for (int i = 0; i < threadCount && !co; i++) if (threads[i]->state == CO_DEAD) co = threads[i];  // reuse a finished one
+  for (int i = 0; i < threadCount && !co; i++) if (threads[i]->state == CO_DEAD) { co = threads[i]; ehAbandon(co); }  // reuse a finished one
   if (!co) {
     if (threadCount >= 64) { logf_("ASI: too many script threads; one was not started."); return 0; }
     co = calloc(1, sizeof *co); co->m = NewMachine(sys, 0); co->stackSize = 1 << 20; co->stack = galloc(co->stackSize);
@@ -123,13 +132,13 @@ static bool run(Co *co) {
     running = outer != 0;
     logf_("ASI %s: %s at +0x%llx (address 0x%llx); this script is stopped.", mod ? mod->name : "?", faultName(rc),
           (unsigned long long)(mod ? m->ip - mod->base : m->ip), (unsigned long long)m->faultaddr);
-    co->state = CO_DEAD; ok = false;
+    co->state = CO_DEAD; ok = false; ehAbandon(co);
   } else {
     m->canhalt = true; uint64_t count = 0; runner = pthread_self(); running = 1;
     // A script that doesn't wait within ~20 million instructions (about 0.1 s) is stuck; it would
     // freeze the game, so it stops.
     while (!co->yield && !co->finished && count < 20000000) { ExecuteInstruction(m); count++; }
-    if (count >= 20000000) { Module *mod = moduleAt(m->ip); logf_("ASI %s: a script ran too long without waiting (at +0x%llx); it is stopped.", mod ? mod->name : "?", (unsigned long long)(mod ? m->ip - mod->base : m->ip)); co->state = CO_DEAD; }
+    if (count >= 20000000) { Module *mod = moduleAt(m->ip); logf_("ASI %s: a script ran too long without waiting (at +0x%llx); it is stopped.", mod ? mod->name : "?", (unsigned long long)(mod ? m->ip - mod->base : m->ip)); co->state = CO_DEAD; ehAbandon(co); }
     running = outer != 0; ticks_instructions += count;
   }
   m->canhalt = false; memcpy(m->onhalt, saved, sizeof saved);
@@ -141,7 +150,7 @@ static uint64_t callGuest(uint64_t function, const uint64_t *a, int n) {
   Co *co = newCo(function, 0, false, moduleIndex(function)); if (!co) return 0;
   startCall(co, function, a, n); co->state = CO_READY;
   for (int guard = 0; !co->finished && co->state != CO_DEAD && guard < 1000; guard++) run(co);
-  uint64_t value = Get64(co->m->r10); co->state = CO_DEAD; return value;
+  uint64_t value = Get64(co->m->r10); co->state = CO_DEAD; ehAbandon(co); return value;
 }
 
 // ---- Windows strings ------------------------------------------------------------------------
@@ -454,17 +463,6 @@ static uint64_t k_GetFullPathNameW(void) {
 }
 static uint64_t k_GetCurrentDirectoryW(void) { const char *d = "C:\\GTA5"; size_t n = strlen(d); if (ARG(0) <= n) return n + 1; for (size_t i = 0; i <= n; i++) wr16(ARG(1) + 2 * i, (uint8_t)d[i]); return n; }
 static uint64_t k_GetDriveTypeW(void) { return 3; }
-// Filesystem startup calls used by modern C++ camera plugins. Same per-mod sandbox.
-static uint64_t k_CreateDirectoryW(void){char name[1024],path[1100];wToUtf8(ARG(0),-1,name,sizeof name);hostPath(name,path,sizeof path);if(!mkdir(path,0755))return 1;setError(errno==EEXIST?183:3);return 0;}
-static uint64_t k_GetFileAttributesW(void){char name[1024],path[1100];struct stat st;wToUtf8(ARG(0),-1,name,sizeof name);hostPath(name,path,sizeof path);if(stat(path,&st)){setError(errno==ENOENT?2:5);return 0xffffffffu;}return S_ISDIR(st.st_mode)?0x10:0x80;}
-static uint64_t k_GetFileAttributesExW(void){
- if(ARG(1)!=0||!ARG(2)){setError(87);return 0;}
- char name[1024],path[1100];struct stat st;wToUtf8(ARG(0),-1,name,sizeof name);hostPath(name,path,sizeof path);
- if(stat(path,&st)){setError(errno==ENOENT?2:5);return 0;}
- uint64_t out=ARG(2),ft=116444736000000000ull+(uint64_t)st.st_mtime*10000000ull;
- memset(G(out),0,36);wr32(out,S_ISDIR(st.st_mode)?0x10:0x80);wr64(out+4,ft);wr64(out+12,ft);wr64(out+20,ft);
- wr32(out+28,(uint32_t)((uint64_t)st.st_size>>32));wr32(out+32,S_ISDIR(st.st_mode)?0:(uint32_t)st.st_size);return 1;
-}
 static uint64_t k_FindFirstFileW(void){char name[1024];wToUtf8(ARG(0),-1,name,sizeof name);return findFirst(name,ARG(1),true);}
 static uint64_t k_SHGetKnownFolderPath(void){
  if(!ARG(3))return 0x80070057u;wr64(ARG(3),0);
@@ -573,6 +571,11 @@ static uint64_t v_worldGetAllObjects(void) { return v_worldGetAll(2); }
 static uint64_t v_getGameVersion(void) { return (uint64_t)H.game_version; }
 static uint64_t v_minusOne(void) { return (uint64_t)-1; }
 
+enum { ID_EXIT = 0, ID_FIRST = 1 };
+static uint64_t stubFor(const char *name);
+
+#include "NativeASIRuntime.inc"
+
 static const Import imports[] = {
   {"HeapAlloc", k_HeapAlloc}, {"HeapFree", k_HeapFree}, {"HeapSize", k_HeapSize}, {"HeapReAlloc", k_HeapReAlloc}, {"GetProcessHeap", k_GetProcessHeap},
   {"VirtualAlloc", k_VirtualAlloc}, {"VirtualFree", k_VirtualFree}, {"VirtualProtect", k_VirtualProtect}, {"VirtualQuery", k_VirtualQuery},
@@ -625,13 +628,17 @@ static void plainName(const char *name, char *out, size_t cap) {
   if (name[0] == '?') { const char *at = strchr(name + 1, '@'); size_t n = at ? (size_t)(at - name - 1) : strlen(name + 1); snprintf(out, cap, "%.*s", (int)n, name + 1); }
   else snprintf(out, cap, "%s", name);
 }
-enum { ID_EXIT = 0, ID_FIRST = 1 };
 static uint64_t stubFor(const char *name) {
-  char plain[128]; plainName(name, plain, sizeof plain);
-  for (int i = 0; i < stubCount; i++) if (!strcmp(stubName[i], plain)) return stubs + 16 * (uint64_t)(ID_FIRST + i);
+  for (int i = 0; i < stubCount; i++) if (!strcmp(stubName[i], name)) return stubs + 16 * (uint64_t)(ID_FIRST + i);
   if (stubCount >= 4000) return 0;
-  Fn fn = 0; for (size_t i = 0; i < sizeof imports / sizeof *imports; i++) if (!strcmp(imports[i].name, plain)) fn = imports[i].fn;
-  stubName[stubCount] = strdup(plain); stubFn[stubCount] = fn;
+  Fn fn = 0;
+  for (size_t i = 0; i < sizeof cppImports / sizeof *cppImports; i++) if (!strcmp(cppImports[i].name, name)) { fn = cppImports[i].fn; break; }
+  if (!fn) {
+    char plain[128]; plainName(name, plain, sizeof plain);
+    for (size_t i = 0; i < sizeof imports / sizeof *imports; i++) if (!strcmp(imports[i].name, plain)) { fn = imports[i].fn; break; }
+    if (!fn) for (size_t i = 0; i < sizeof crtImports / sizeof *crtImports; i++) if (!strcmp(crtImports[i].name, plain)) { fn = crtImports[i].fn; break; }
+  }
+  stubName[stubCount] = strdup(name); stubFn[stubCount] = fn;
   uint64_t at = stubs + 16 * (uint64_t)(ID_FIRST + stubCount); uint32_t id = (uint32_t)(ID_FIRST + stubCount);
   uint8_t code[16] = {0xB8, (uint8_t)id, (uint8_t)(id >> 8), (uint8_t)(id >> 16), (uint8_t)(id >> 24), 0x0F, 0x05, 0xC3, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC};
   memcpy(G(at), code, 16); stubCount++; return at;
@@ -646,7 +653,11 @@ static bool onSyscall(struct Machine *m) {
     static char told[4096]; if (!told[i]) { told[i] = 1; logf_("ASI: Windows function %s isn't available on iOS; it returns 0.", stubName[i]); }
     Put64(m->ax, 0); return true;
   }
-  Put64(m->ax, stubFn[i]()); return true;
+  rawReturn = false;
+  uint64_t ret = stubFn[i]();
+  if (!rawReturn) Put64(m->ax, ret);
+  if (cur->pending) continuePending();
+  return true;
 }
 
 // ---- Faults ---------------------------------------------------------------------------------
@@ -683,6 +694,7 @@ bool pg_asi_init(const PGAsiHost *host) {
   cmdA = galloc(16); memcpy(G(cmdA), "GTA5.exe", 9);
   cmdW = galloc(32); for (int i = 0; i < 9; i++) wr16(cmdW + 2 * (uint64_t)i, (uint8_t)"GTA5.exe"[i]);
   envW = galloc(8);
+  if (!runtimeInit()) return false;
   return true;
 }
 // A mod's menu key from its settings: trainers that take keys through a Script Hook V keyboard handler

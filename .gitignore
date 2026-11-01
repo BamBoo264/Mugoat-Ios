@@ -13,3 +13,4 @@ app/*.xcodeproj
 
 .local-tools/
 __pycache__/
+extracted_v1.5.2/
