@@ -15,6 +15,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             UserDefaults.standard.register(defaults:["NovaUpscaler":1])
             setenv("PG_LITE_DENSITY","0.30",1);setenv("PG_LITE_LOD","0.55",1)
         }
+        NovaMemorySettings.apply()
         GameSettings.applyExperimentalSwitches()
         ModInstaller.applyPending()
         #if targetEnvironment(simulator)

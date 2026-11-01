@@ -55,6 +55,8 @@ jobs:
           clang -std=c11 -I app/Source -fsanitize=address,undefined app/Tests/nova_log_filter.c -o "$RUNNER_TEMP/nova-log-filter"
           "$RUNNER_TEMP/nova-log-filter"
           python3 tools/test_camera_filesystem.py "$RUNNER_TEMP"
+          clang -std=c11 -I app/Source -fsanitize=address,undefined app/Tests/nova_movement.c -o "$RUNNER_TEMP/nova-movement"
+          "$RUNNER_TEMP/nova-movement"
       - name: Assemble checked original engine inputs
         if: inputs.build_ipa
         run: python3 app/Scripts/assemble_inputs.py --inputs . --out "$RUNNER_TEMP/game-files"

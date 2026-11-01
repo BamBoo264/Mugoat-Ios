@@ -51,6 +51,7 @@ final class SettingsHomeViewController: UITableViewController {
             return count == 0 ? AppLanguage.choose("Install car, skin and script mods") : AppLanguage.interpolate(AppLanguage.choose("{arg0} mods on"), [String(count)])
         }, sections: [], page: { ModsViewController() }))
         list.append(Category(icon:"puzzlepiece.extension",title:"Plugin Menyoo",summary:{BundledMenyoo.enabled ? "Đang bật":"Đang tắt"},sections:[],page:{BundledMenyooViewController()}))
+        if Theme.isLite {list.append(Category(icon:"memorychip",title:"RAM • máy 4 GB",summary:{"Thu hồi theo di chuyển · \(NovaMemorySettings.distance) m · \(NovaMemorySettings.reserve) MiB dự phòng"},sections:[],page:{NovaMemoryViewController()}))}
         list.append(Category(icon:"camera",title:"Camera góc nhìn thứ nhất",summary:{"Plugin camera và cấu hình cảm ứng/PAD"},sections:[],page:{NovaCameraViewController()}))
         list.append(Category(icon:"sparkles",title:"Nova Super Resolution",summary:{NovaUpscaling.titles[NovaUpscaling.mode]},sections:[],page:{NovaUpscalingViewController()}))
         list.append(Category(icon:"flame",title:"Turbo / lửa bô",summary:{"Tuỳ chọn, mặc định tắt"},sections:[],page:{TurboSettingsViewController()}))

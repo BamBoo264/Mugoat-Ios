@@ -638,7 +638,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         SoundAssignments.resolveDuplicatePacks(log: { self.appendLog($0) })
         SoundAssignments.configure()
         _ = TurboSettings.apply()
-        appendLog("Nova baseline: original 1.4.4 PCM/DSP/Opus, streaming and memory guard; custom sound assignments only.")
+        appendLog("Nova baseline: original PCM/DSP/Opus; custom sound assignments only. RAM policy: " + (Theme.isLite && NovaMemorySettings.enabled ? "movement \(NovaMemorySettings.distance) m, reserve \(NovaMemorySettings.reserve) MiB":"original memory guard"))
         noticeMods()
         startAudio()
         let (root, rootNote) = EnginePaths.filesRoot()

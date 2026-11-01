@@ -195,3 +195,5 @@ bool PGLoadSceneActive(void);
 void PGEnableSoundMods(bool enabled);
 uint32_t PGCurrentSoundVehicle(void);
 bool PGSelectVehicleSound(uint32_t model,const char *profile);
+
+void PGConfigureMovementCleanup(bool enabled,unsigned metres,unsigned reserveMB);

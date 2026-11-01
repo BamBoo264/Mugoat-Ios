@@ -9,3 +9,5 @@ Camera: log confirms F7/0x76 read, but DynamicVehicleFirstPerson stops with a C+
 References: https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfileattributesexw and https://learn.microsoft.com/en-us/windows/win32/api/shlobj_core/nf-shlobj_core-shgetknownfolderpath
 
 Two IPAs are signed with the same Full.entitlements (increased-memory-limit and extended-virtual-addressing). This requests eligibility; actual post-Esign grant and process limits depend on device, OS and certificate. Both variants share one compiled executable to avoid duplicate engine compilation. LowRAM uses its own bundle ID for rollback/side-by-side tests.
+
+User clarification: LowRAM includes explicit movement cleanup settings (40/60/80/120/160 m), small reserve selection (64/128/192/256 MiB), default 80 m / 128 MiB. Only LowRAM opts in. Requests capped at 16 MiB, no more often than 500 ms, require movement permission or scene transition unless critical headroom. Engine lifetime rules and heap ceiling remain. Standard continues original guard.

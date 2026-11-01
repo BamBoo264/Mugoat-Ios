@@ -335,6 +335,15 @@ static uint64_t guardBand(void){
 // model never streamed in, so it was invisible and unusable (GTA-55; simulator at 2098 MB: weapon
 // object 0 for a minute). While the player has a weapon selected on foot with no weapon object
 // (pg_keep_weapon_loaded), the guard gives streaming 64 MB of room.
+#include "NovaMovementBudget.h"
+static PGNovaMovement novaMovement;
+static bool novaMovementEnabled;
+void PGConfigureMovementCleanup(bool enabled,unsigned metres,unsigned reserveMB){
+ if(atomic_load(&started))return;
+ novaMovementEnabled=enabled;
+ novaMovement.distanceMeters=(metres==40||metres==60||metres==80||metres==120||metres==160)?metres:80;
+ novaMovement.reserveBytes=(uint64_t)(reserveMB==64||reserveMB==128||reserveMB==192||reserveMB==256?reserveMB:128)<<20;
+}
 static _Atomic double weaponGrantUntil;
 static int64_t weaponGrant(int64_t result){
  const int64_t room=64ll<<20;
@@ -344,6 +353,7 @@ static int64_t weaponGrant(int64_t result){
 uint64_t pg_streaming_available_memory(uint64_t engineAvailable){
  uint64_t available;
  if(!nativeProcessHeadroom(&available))return engineAvailable;
+ if(novaMovementEnabled)return pg_nova_move_available(&novaMovement,engineAvailable,available);
  uint64_t result=pg_streaming_headroom_budget(engineAvailable,available,guardReserve(),guardBand());
  int64_t granted=weaponGrant((int64_t)result);
  return granted>(int64_t)result&&(uint64_t)granted<=engineAvailable?(uint64_t)granted:result;
@@ -407,7 +417,10 @@ static int64_t guardNudge(int64_t result){
 uint64_t pg_streaming_resource_memory(uint64_t engineAvailable){
  uint64_t available;
  int64_t result=(int64_t)engineAvailable;
- if(nativeProcessHeadroom(&available))result=weaponGrant(guardNudge(pg_streaming_resource_budget((int64_t)engineAvailable,available,guardReserve(),guardBand())));
+ if(nativeProcessHeadroom(&available)){
+  if(novaMovementEnabled)result=pg_nova_move_budget(&novaMovement,(uint64_t)timeMS(CLOCK_MONOTONIC),(int64_t)engineAvailable,available);
+  else result=weaponGrant(guardNudge(pg_streaming_resource_budget((int64_t)engineAvailable,available,guardReserve(),guardBand())));
+ }
  if(result>(int64_t)engineAvailable)result=(int64_t)engineAvailable;
  result=heapCeilingBudget(result);
  if(result<(int64_t)engineAvailable&&result<=0)atomic_fetch_add(result<0?&memoryBudgetEvictions:&memoryBudgetClamps,1);
@@ -800,6 +813,16 @@ static uint64_t pg_script_global(uint64_t index) {
 // table: Global_99461, 34 words a mission, the script name first; the label at word 8), the player's position,
 // and the replay controller's state (Global_109375: 1 is the Mission failed screen). Harness/gta.py uses the same
 // numbers to start a mission in the simulator at the moment a log describes.
+static void pg_nova_movement_tick(void){
+ if(!novaMovementEnabled)return;
+ static uint64_t next;
+ uint64_t now=(uint64_t)timeMS(CLOCK_MONOTONIC);if(now<next)return;next=now+250;
+ const uint8_t *m=(const uint8_t *)(void *)env.memory.data;uint64_t size=env.memory.size,info,ped;
+ const bool scene=size>23389293&&atomic_load_explicit((const _Atomic uint8_t *)(m+23389293),memory_order_relaxed)==1;
+ float p[3]={0};bool valid=false;
+ if(!PGPauseMenuActive()&&pg_context_u64(m,size,20159720,&info)&&info&&info<=size&&size-info>=16&&pg_context_u64(m,size,info+8,&ped)&&ped&&ped<=size&&size-ped>=156){memcpy(p,m+ped+144,12);valid=true;}
+ pg_nova_move_sample(&novaMovement,now,valid,p[0],p[1],p[2],scene);
+}
 bool PGStoryContext(char *mission, size_t size, float position[3], int32_t *replayState) {
   mission[0] = 0; position[0] = position[1] = position[2] = 0; *replayState = -1;
   if (!atomic_load(&inputBlock)) return false;
@@ -2390,6 +2413,7 @@ void pg_asi_script_tick(w2c_game *instance, u64 thread) {
   pg_asi_frame(instance);
   pg_trailer_tick(instance);
   pg_submarine_depth_tick(instance);
+  pg_nova_movement_tick();
   pg_cheats_menu_tick(instance);
   pg_sound_mod_tick(instance);
   pg_sandbox_map_tick(instance);
