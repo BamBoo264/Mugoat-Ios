@@ -44,7 +44,7 @@ static void logf_(const char *format, ...) {
 static uint64_t now_us(void) { struct timeval t; gettimeofday(&t, 0); return (uint64_t)t.tv_sec * 1000000 + (uint64_t)t.tv_usec; }
 
 // ---- Modules -------------------------------------------------------------------------------
-typedef struct { char name[64]; char root[1024]; uint64_t base, size, entry; uint64_t tlsIndexAddress, tlsStart, tlsEnd; uint32_t tlsZero; bool dead; } Module;
+typedef struct { char name[64]; char root[1024]; uint64_t base, size, entry; uint64_t tlsIndexAddress, tlsStart, tlsEnd; uint32_t tlsZero; bool dead; uint64_t pdata, pdataCount; } Module;
 static Module modules[16]; static int moduleCount;
 static uint64_t fakeExe;  // stands in for GTA5.exe: header only, so pattern scans find nothing (and say so)
 static int moduleIndex(uint64_t a);
@@ -764,10 +764,11 @@ int pg_asi_load(const char *name, const char *root, const uint8_t *bytes, uint64
     memcpy(G(base + va), bytes + rawAt, rawSize < vsize || !vsize ? rawSize : vsize);
   }
   #define DIR(n) rd32(base + opt + 112 + 8 * (n)), rd32(base + opt + 112 + 8 * (n) + 4)
-  uint32_t relocAt, relocSize, importAt, importSize, tlsAt, tlsSize;
+  uint32_t relocAt, relocSize, importAt, importSize, tlsAt, tlsSize, pdataAt, pdataSize;
   { uint32_t d[2] = {DIR(5)}; relocAt = d[0]; relocSize = d[1]; }
   { uint32_t d[2] = {DIR(1)}; importAt = d[0]; importSize = d[1]; }
   { uint32_t d[2] = {DIR(9)}; tlsAt = d[0]; tlsSize = d[1]; }
+  { uint32_t d[2] = {DIR(3)}; pdataAt = d[0]; pdataSize = d[1]; }
   (void)importSize; (void)tlsSize;
   int64_t delta = (int64_t)(base - imageBase);
   for (uint64_t block = base + relocAt; relocSize && block < base + relocAt + relocSize;) {
@@ -793,6 +794,7 @@ int pg_asi_load(const char *name, const char *root, const uint8_t *bytes, uint64
   if (missing) logf_("ASI %s: %d Windows function%s not available on iOS (they return 0): %s", name, missing, missing == 1 ? "" : "s", missingList);
   Module *mod = &modules[moduleCount++]; snprintf(mod->name, sizeof mod->name, "%s", name); snprintf(mod->root, sizeof mod->root, "%s", root ? root : H.files);
   hintKeys(mod->root, 0); mod->base = base; mod->size = sizeOfImage; mod->entry = entry ? base + entry : 0;
+  mod->pdata = pdataAt ? base + pdataAt : 0; mod->pdataCount = pdataSize / 12;
   if (tlsAt) {
     uint64_t t = base + tlsAt; mod->tlsStart = rd64(t); mod->tlsEnd = rd64(t + 8); mod->tlsIndexAddress = rd64(t + 16); mod->tlsZero = rd32(t + 32);
     wr32(mod->tlsIndexAddress, (uint32_t)(moduleCount - 1));

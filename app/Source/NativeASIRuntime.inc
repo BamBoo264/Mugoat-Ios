@@ -14,6 +14,11 @@
 #include <math.h>
 #include <xlocale.h>
 
+#ifndef HALT_QUIET
+#define HALT_QUIET kMachineHalt
+#endif
+static inline void PGMeshTouch(const void *ptr, size_t size) { (void)ptr; (void)size; }
+
 static bool rawReturn;  // the import set the machine's registers itself (a throw, the end of a catch block): RAX stays
 static bool thrown;     // the import started a C++ throw: it returns at once, and nothing after it may run guest code
 
