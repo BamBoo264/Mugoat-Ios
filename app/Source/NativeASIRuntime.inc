@@ -2304,7 +2304,6 @@ static uint64_t p_Fiopen_w(void) { char p[1100]; pathOf(ARG(0), true, p, sizeof 
 
 // ---- Windows functions such mods also call -------------------------------------------------------
 static uint64_t attributesOf(const char *p) { struct stat st; if (stat(p, &st)) { setError(2); return 0xFFFFFFFF; } return S_ISDIR(st.st_mode) ? 0x10 : 0x80; }
-static uint64_t k_GetFileAttributesW(void) { char p[1100]; pathOf(ARG(0), true, p, sizeof p); return attributesOf(p); }
 static uint64_t fileAttributesEx(const char *p, uint64_t out) {  // WIN32_FILE_ATTRIBUTE_DATA: attributes, 3 FILETIMEs, size high/low
   struct stat st; if (stat(p, &st)) { setError(2); return 0; }
   memset(G(out), 0, 36); wr32(out, S_ISDIR(st.st_mode) ? 0x10 : 0x80);
@@ -2312,8 +2311,6 @@ static uint64_t fileAttributesEx(const char *p, uint64_t out) {  // WIN32_FILE_A
   wr32(out + 28, (uint32_t)((uint64_t)st.st_size >> 32)); wr32(out + 32, (uint32_t)st.st_size); return 1;
 }
 static uint64_t k_GetFileAttributesExA(void) { char p[1100]; pathOf(ARG(0), false, p, sizeof p); return fileAttributesEx(p, ARG(2)); }
-static uint64_t k_GetFileAttributesExW(void) { char p[1100]; pathOf(ARG(0), true, p, sizeof p); return fileAttributesEx(p, ARG(2)); }
-static uint64_t k_CreateDirectoryW(void) { char p[1100]; pathOf(ARG(0), true, p, sizeof p); if (!mkdir(p, 0755)) return 1; setError(errno == EEXIST ? 183 : 3); return 0; }
 static uint64_t k_CompareFileTime(void) { uint64_t a = rd64(ARG(0)), b = rd64(ARG(1)); return a < b ? (uint64_t)-1 : a > b; }
 static uint64_t s_PathIsDirectoryA(void) { char p[1100]; pathOf(ARG(0), false, p, sizeof p); return attributesOf(p) == 0x10 ? 0x10 : 0; }
 static uint64_t s_PathFileExistsA(void) { char p[1100]; pathOf(ARG(0), false, p, sizeof p); return access(p, F_OK) == 0; }

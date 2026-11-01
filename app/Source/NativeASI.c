@@ -463,6 +463,17 @@ static uint64_t k_GetFullPathNameW(void) {
 }
 static uint64_t k_GetCurrentDirectoryW(void) { const char *d = "C:\\GTA5"; size_t n = strlen(d); if (ARG(0) <= n) return n + 1; for (size_t i = 0; i <= n; i++) wr16(ARG(1) + 2 * i, (uint8_t)d[i]); return n; }
 static uint64_t k_GetDriveTypeW(void) { return 3; }
+// Filesystem startup calls used by modern C++ camera plugins. Same per-mod sandbox.
+static uint64_t k_CreateDirectoryW(void){char name[1024],path[1100];wToUtf8(ARG(0),-1,name,sizeof name);hostPath(name,path,sizeof path);if(!mkdir(path,0755))return 1;setError(errno==EEXIST?183:3);return 0;}
+static uint64_t k_GetFileAttributesW(void){char name[1024],path[1100];struct stat st;wToUtf8(ARG(0),-1,name,sizeof name);hostPath(name,path,sizeof path);if(stat(path,&st)){setError(errno==ENOENT?2:5);return 0xffffffffu;}return S_ISDIR(st.st_mode)?0x10:0x80;}
+static uint64_t k_GetFileAttributesExW(void){
+ if(ARG(1)!=0||!ARG(2)){setError(87);return 0;}
+ char name[1024],path[1100];struct stat st;wToUtf8(ARG(0),-1,name,sizeof name);hostPath(name,path,sizeof path);
+ if(stat(path,&st)){setError(errno==ENOENT?2:5);return 0;}
+ uint64_t out=ARG(2),ft=116444736000000000ull+(uint64_t)st.st_mtime*10000000ull;
+ memset(G(out),0,36);wr32(out,S_ISDIR(st.st_mode)?0x10:0x80);wr64(out+4,ft);wr64(out+12,ft);wr64(out+20,ft);
+ wr32(out+28,(uint32_t)((uint64_t)st.st_size>>32));wr32(out+32,S_ISDIR(st.st_mode)?0:(uint32_t)st.st_size);return 1;
+}
 static uint64_t k_FindFirstFileW(void){char name[1024];wToUtf8(ARG(0),-1,name,sizeof name);return findFirst(name,ARG(1),true);}
 static uint64_t k_SHGetKnownFolderPath(void){
  if(!ARG(3))return 0x80070057u;wr64(ARG(3),0);
