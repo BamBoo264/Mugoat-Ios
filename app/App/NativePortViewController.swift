@@ -681,6 +681,29 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
                 return
             }
             PGSetLocalGameFolder(data.path)
+
+            // Apply commandline.txt launch options if present (Port RPF dataset)
+            let cmdPath = data.appendingPathComponent("commandline.txt")
+            if FileManager.default.fileExists(atPath: cmdPath.path),
+               let cmdContent = try? String(contentsOf: cmdPath, encoding: .utf8) {
+                appendLog("Applying port options from commandline.txt:")
+                for line in cmdContent.components(separatedBy: .newlines) {
+                    let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty, !trimmed.hasPrefix("#") else { continue }
+                    if trimmed.hasPrefix("-memrestrict=") {
+                        let val = String(trimmed.dropFirst("-memrestrict=".count))
+                        if let mb = Int(val) { PGSetMemoryCap(Int32(mb)); appendLog("  - Memory restrict cap: \(mb) MB") }
+                    } else if trimmed == "-minimapTopLeft" {
+                        GameSettings.shared.minimapPlace = .topLeft
+                        appendLog("  - Minimap: top left")
+                    } else if trimmed == "-fpsCounter" {
+                        GameSettings.shared.showFPS = true
+                        appendLog("  - FPS counter: enabled")
+                    } else if trimmed.hasPrefix("-") {
+                        appendLog("  - Flag: \(trimmed)")
+                    }
+                }
+            }
         } else {
             PGSetAssetServer(GameSettings.shared.assetServer)
         }

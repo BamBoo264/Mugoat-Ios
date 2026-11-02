@@ -2655,19 +2655,23 @@ static void pg_online_peers_tick(w2c_game *instance) {
       p->pedHandle = 0;
       u32 localPed = PG_FN_PLAYER_PED_ID(instance);
       u32 model = localPed ? PG_FN_GET_ENTITY_MODEL(instance, localPed) : 0;
-      if (model && PG_FN_HAS_MODEL_LOADED(instance, model)) {
-        uint32_t fh; memcpy(&fh, &p->heading, 4);
-        uint64_t pedArgs[7] = {26, model, fx, fy, fz, fh, 0};
-        uint32_t ped = (uint32_t)(pg_test_call(instance, 0xd49f9b0955c367deull, 7, pedArgs) & 0xffffffff);
-        if (ped && PG_FN_ENTITY_EXISTS(instance, ped)) {
-          p->pedHandle = ped;
-          p->pedModel = model;
-          pg_test_call(instance, 0x3882114bde571ad4ull, 2, (uint64_t[]){ped, 1});
-          pg_test_call(instance, 0x9f8aa94d6d97dbf4ull, 2, (uint64_t[]){ped, 1});
-          pg_test_call(instance, 0xad738c3085fe7e11ull, 3, (uint64_t[]){ped, 1, 1});
-          char line[128];
-          snprintf(line, sizeof line, "Online: spawned peer avatar ped %u at %.1f, %.1f, %.1f.", ped, p->x, p->y, p->z);
-          pg_log(line);
+      if (model) {
+        if (!PG_FN_HAS_MODEL_LOADED(instance, model)) {
+          PG_FN_REQUEST_MODEL(instance, model);
+        } else {
+          uint32_t fh; memcpy(&fh, &p->heading, 4);
+          uint64_t pedArgs[7] = {26, model, fx, fy, fz, fh, 0};
+          uint32_t ped = (uint32_t)(pg_test_call(instance, 0xd49f9b0955c367deull, 7, pedArgs) & 0xffffffff);
+          if (ped && PG_FN_ENTITY_EXISTS(instance, ped)) {
+            p->pedHandle = ped;
+            p->pedModel = model;
+            pg_test_call(instance, 0x3882114bde571ad4ull, 2, (uint64_t[]){ped, 1});
+            pg_test_call(instance, 0x9f8aa94d6d97dbf4ull, 2, (uint64_t[]){ped, 1});
+            pg_test_call(instance, 0xad738c3085fe7e11ull, 3, (uint64_t[]){ped, 1, 1});
+            char line[128];
+            snprintf(line, sizeof line, "Online: spawned peer avatar ped %u at %.1f, %.1f, %.1f.", ped, p->x, p->y, p->z);
+            pg_log(line);
+          }
         }
       }
     } else if (pedVec) {

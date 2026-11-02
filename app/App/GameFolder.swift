@@ -196,9 +196,9 @@ enum GameFolder {
         let hasEngine = manager.fileExists(atPath: picked.appendingPathComponent("game.wasm").path)
             || manager.fileExists(atPath: picked.appendingPathComponent("8b0b5899ed/game.wasm").path)
         if name == "b" || name == "8b0b5899ed" || name == "shaders" || hasEngine {
-            return AppLanguage.interpolate(AppLanguage.choose("You opened the \"{arg0}\" folder. Go back up one or two levels and pick the folder that has both \"data\" and \"b\" inside, then tap Open there."), [String(describing: name)])
+            return AppLanguage.interpolate(AppLanguage.choose("You opened the \"{arg0}\" folder. Go back up one or two levels and pick the folder that has common.rpf (or \"data\" and \"b\") inside, then tap Open there."), [String(describing: name)])
         }
-        return AppLanguage.interpolate(AppLanguage.choose("There is no game in \"{arg0}\". Pick the folder that has your game in it (any folder above it works, even On My iPhone itself).\n\nEasiest: move your game folder into Files › On My iPhone › GTA V Port. The app finds it there by itself."), [name])
+        return AppLanguage.interpolate(AppLanguage.choose("There is no game in \"{arg0}\". Pick the folder that has your game in it (containing common.rpf or data/b).\n\nEasiest: move your game folder into Files › On My iPhone › GTA V Port. The app finds it there by itself."), [name])
     }
 
     /// The name shown for a game folder: the folder holding data/, or data/'s own name.

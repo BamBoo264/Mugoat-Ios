@@ -163,6 +163,7 @@ final class OnlineRoomManager {
         do {
             let params = NWParameters.udp
             params.allowLocalEndpointReuse = true
+            params.includePeerToPeer = true
             let listener = try NWListener(using: params, on: 47520)
             listener.service = NWListener.Service(name: "GTAV-\(code)", type: "_gtavmp._udp")
             listener.newConnectionHandler = { [weak self] connection in
@@ -182,8 +183,11 @@ final class OnlineRoomManager {
 
     private func connectToHost(code: String) {
         // 1. Direct UDP broadcast fast-path on port 47520
+        let udpParams = NWParameters.udp
+        udpParams.allowLocalEndpointReuse = true
+        udpParams.includePeerToPeer = true
         let hostEndpoint = NWEndpoint.hostPort(host: .ipv4(.broadcast), port: 47520)
-        let connection = NWConnection(to: hostEndpoint, using: .udp)
+        let connection = NWConnection(to: hostEndpoint, using: udpParams)
         connection.stateUpdateHandler = { [weak self] connState in
             guard let self = self else { return }
             switch connState {
@@ -201,12 +205,14 @@ final class OnlineRoomManager {
         // 2. Bonjour discovery (_gtavmp._udp) for reliable local network discovery
         let descriptor = NWBrowser.Descriptor.bonjour(type: "_gtavmp._udp", domain: nil)
         let browserParams = NWParameters.udp
+        browserParams.allowLocalEndpointReuse = true
+        browserParams.includePeerToPeer = true
         let browser = NWBrowser(for: descriptor, using: browserParams)
         browser.browseResultsChangedHandler = { [weak self] results, _ in
             guard let self = self else { return }
             for result in results {
                 if case .service(let name, _, _, _) = result.endpoint, name.contains(code) {
-                    let bonjourConn = NWConnection(to: result.endpoint, using: .udp)
+                    let bonjourConn = NWConnection(to: result.endpoint, using: browserParams)
                     bonjourConn.stateUpdateHandler = { [weak self] state in
                         if state == .ready {
                             self?.sendJoinRequest(connection: bonjourConn, code: code)

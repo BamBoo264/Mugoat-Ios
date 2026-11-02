@@ -27,6 +27,7 @@ jobs:
           xcodebuild -version
           python3 tools/test_nova_integrity.py
           python3 tools/test_nova_online.py
+          python3 tools/test_port_rpf_loader.py
       - name: Type-check all production Swift against the iPhone SDK
         run: |
           xcrun swiftc -typecheck -parse-as-library -target arm64-apple-ios16.0 -sdk "$(xcrun --sdk iphoneos --show-sdk-path)" -import-objc-header app/Source/Native-Bridging-Header.h -I app/Source -I app/App/GameInstaller app/App/*.swift app/App/GameInstaller/*.swift

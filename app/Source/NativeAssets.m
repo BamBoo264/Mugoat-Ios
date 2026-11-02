@@ -46,9 +46,17 @@ NSString *PGAssetServer(void){return assetServer;}
 // A folder on this device with the game's data/ files (chosen in the app):
 // every asset read goes straight to the file; no server, no download cache.
 static NSString *localDataRoot;
+#include "NativePortRPF.h"
 void PGSetLocalGameFolder(const char *dataPath){
   localDataRoot=dataPath&&*dataPath?[NSString stringWithUTF8String:dataPath]:nil;
   if(localDataRoot)pg_log("Game files are read from the folder on this device; no server is used.");
+  if(localDataRoot){
+    NSString *commonRpf=[localDataRoot stringByAppendingPathComponent:@"common.rpf"];
+    if([[NSFileManager defaultManager] fileExistsAtPath:commonRpf]){
+      pg_log("[NativeAssets] GTA V Port dataset (common.rpf) confirmed. Starting Port RPF engine.");
+      PGInitPortRPF(localDataRoot,cacheRoot?:NSTemporaryDirectory());
+    }
+  }
   // The file list may have been loaded before the folder was known (home screen); mods inside archives
   // and add-on packs need the folder, so they are applied again now, before the engine starts.
   if(localDataRoot&&modsBaseFiles&&!modsLocked)PGReapplyMods();
@@ -523,6 +531,9 @@ void pg_assets_configure(const char *manifest,const char *root) {
     [[NSURL fileURLWithPath:cacheRoot] setResourceValue:@YES forKey:NSURLIsExcludedFromBackupKey error:nil];
     packedRoot=[cacheRoot stringByAppendingPathComponent:@"Packed-v1"];
     [[NSFileManager defaultManager] createDirectoryAtPath:packedRoot withIntermediateDirectories:YES attributes:nil error:nil];
+    if(localDataRoot && isLocalPortRPF){
+      PGInitPortRPF(localDataRoot, cacheRoot);
+    }
     const char *trace=getenv("PG_NATIVE_ASSET_TRACE");
     if(trace&&atoi(trace)){
       NSString *tracePath=[[@(root) stringByDeletingLastPathComponent] stringByAppendingPathComponent:@"native-asset-ranges.csv"];
@@ -682,6 +693,10 @@ static int64_t readLocalAsset(uint32_t id,uint64_t offset,uint8_t *destination,u
   PGModArchive *changed=modArchiveCount?modArchiveFor(id):NULL;
   if(changed){int64_t got=readModArchive(changed,file,offset,destination,length);if(got>=0)assetReadSource=4;return got;}
   int descriptor=open(file.fileSystemRepresentation,O_RDONLY);
+  if(descriptor<0 && isLocalPortRPF){
+    int64_t rpfGot = PGReadPortRPFAsset(entry[0], offset, destination, length);
+    if(rpfGot >= 0){ assetReadSource=4; return rpfGot; }
+  }
   if(descriptor<0){NSString *message=[@"Game file missing from your folder: " stringByAppendingString:entry[0]];pg_log(message.UTF8String);return -1;}
   uint64_t done=0;
   while(done<length){

@@ -20,6 +20,7 @@ enum GameFiles {
         let fileCount: Int
         let totalBytes: UInt64
         let problems: [Problem]
+        var isPortData: Bool = false
         var isComplete: Bool { problems.isEmpty }
 
         var missing: [Problem] { problems.filter { if case .missing = $0.kind { return true }; return false } }
@@ -28,6 +29,11 @@ enum GameFiles {
 
         /// A short title and an explanation of what is wrong and what to do (shown to the player, so translated).
         var explanation: (title: String, message: String) {
+            if isPortData && isComplete {
+                return (AppLanguage.choose("GTA V Port Data (RPF) Sẵn sàng"),
+                        AppLanguage.interpolate(AppLanguage.choose("Grand Theft Auto V: {arg0} gói dữ liệu RPF sẵn sàng ({arg1}), nạp trực tiếp không cần giải nén."),
+                                               [String(fileCount), Self.size(totalBytes)]))
+            }
             if isComplete { return (AppLanguage.choose("Game files OK"), AppLanguage.interpolate(AppLanguage.choose("All {arg0} game files are there and complete."), [String(fileCount)])) }
             var parts: [String] = []
             if !inICloud.isEmpty {
@@ -113,8 +119,55 @@ enum GameFiles {
         }
     }
 
+    /// Whether the game folder is formatted as Port RPF archives (common.rpf, x64a-w.rpf).
+    static func isPortRPF(_ url: URL) -> Bool {
+        let fm = FileManager.default
+        let common = url.appendingPathComponent("common.rpf").path
+        let gtavCommon = url.appendingPathComponent("GTAV/common.rpf").path
+        return fm.fileExists(atPath: common) || fm.fileExists(atPath: gtavCommon)
+    }
+
+    /// Checks a GTA V Port RPF game data folder.
+    static func checkPortRPF(_ data: URL) -> Report {
+        let target = FileManager.default.fileExists(atPath: data.appendingPathComponent("common.rpf").path) ? data : data.appendingPathComponent("GTAV")
+        var total: UInt64 = 0
+        var foundCount = 0
+        var problems: [Problem] = []
+
+        let commonPath = target.appendingPathComponent("common.rpf").path
+        var commonInfo = stat()
+        if stat(commonPath, &commonInfo) == 0 && commonInfo.st_size > 1_000_000 {
+            total += UInt64(commonInfo.st_size)
+            foundCount += 1
+        } else {
+            problems.append(Problem(path: "common.rpf", expected: 27_000_000, kind: .missing))
+        }
+
+        for c in UInt8(ascii: "a")...UInt8(ascii: "w") {
+            let name = "x64\(Character(UnicodeScalar(c))).rpf"
+            let path = target.appendingPathComponent(name).path
+            var info = stat()
+            if stat(path, &info) == 0 && info.st_size > 0 {
+                total += UInt64(info.st_size)
+                foundCount += 1
+            }
+        }
+
+        let updatePath = target.appendingPathComponent("update/update.rpf").path
+        var updateInfo = stat()
+        if stat(updatePath, &updateInfo) == 0 && updateInfo.st_size > 0 {
+            total += UInt64(updateInfo.st_size)
+            foundCount += 1
+        }
+
+        return Report(data: target, fileCount: foundCount, totalBytes: total, problems: problems, isPortData: true)
+    }
+
     /// Checks every file of the game in `data` (presence and exact size). Takes well under a second.
     static func check(_ data: URL) -> Report {
+        if isPortRPF(data) {
+            return checkPortRPF(data)
+        }
         let list = manifest.filter { !isTestMapFile($0.0) }
         var problems: [Problem] = []
         var total: UInt64 = 0
@@ -167,8 +220,11 @@ enum GameFiles {
         return result
     }
 
-    /// The game's data folder at `folder`: the folder itself or its `data` child, holding x64 and common.
+    /// The game's data folder at `folder`: the folder itself or its `data` child, holding x64 and common, or RPF archives.
     static func gameData(at folder: URL) -> URL? {
+        if isPortRPF(folder) {
+            return FileManager.default.fileExists(atPath: folder.appendingPathComponent("common.rpf").path) ? folder : folder.appendingPathComponent("GTAV")
+        }
         let data = folder.appendingPathComponent("data")
         if isData(data) { return data }
         return isData(folder) ? folder : nil
@@ -177,7 +233,8 @@ enum GameFiles {
     private static let skippedFolders: Set<String> = ["x64", "common", "b", "EngineFiles", "__MACOSX", "Library", "tmp", ".Trash"]
 
     private static func isData(_ url: URL) -> Bool {
-        isDirectory(url.appendingPathComponent("x64")) && isDirectory(url.appendingPathComponent("common"))
+        if isPortRPF(url) { return true }
+        return isDirectory(url.appendingPathComponent("x64")) && isDirectory(url.appendingPathComponent("common"))
     }
     private static func isDirectory(_ url: URL) -> Bool {
         var directory: ObjCBool = false

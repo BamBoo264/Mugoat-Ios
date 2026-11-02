@@ -42,6 +42,12 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_gtavmp._udp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Kết nối phòng chơi GTA Online trên mạng nội bộ và chia sẻ phiên với bạn bè.</string>
 	<key>PGDefaultAssetServer</key>
 	<string></string>
 	<key>PGLiteMode</key>
