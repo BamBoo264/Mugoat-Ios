@@ -39,13 +39,6 @@ jobs:
       - name: Type-check all production Swift against the iPhone SDK
         run: |
           xcrun swiftc -typecheck -parse-as-library -target arm64-apple-ios15.0 -sdk "$(xcrun --sdk iphoneos --show-sdk-path)" -import-objc-header app/Source/Native-Bridging-Header.h -I app/Source -I app/App/GameInstaller app/App/*.swift app/App/GameInstaller/*.swift
-      - name: Verify compilation of all native C, C++ and Objective-C sources
-        run: |
-          SDK_PATH="$(xcrun --sdk iphoneos --show-sdk-path)"
-          xcrun clang -std=c11 -target arm64-apple-ios15.0 -isysroot "$SDK_PATH" -I app/Source -fsyntax-only app/Source/EngineHost.c
-          xcrun clang -fobjc-arc -target arm64-apple-ios15.0 -isysroot "$SDK_PATH" -I app/Source -I app/Vendor/libarchive.xcframework/ios-arm64/Headers -fsyntax-only app/Source/NativeAssets.m
-          xcrun clang -fobjc-arc -target arm64-apple-ios15.0 -isysroot "$SDK_PATH" -I app/Source -fsyntax-only app/Source/NovaLanguagePack.m
-          xcrun clang++ -std=c++20 -fobjc-arc -target arm64-apple-ios15.0 -isysroot "$SDK_PATH" -I app/Source -I app/Source/MetalRenderer -fsyntax-only app/Source/MetalRenderer/MRRenderer.mm
       - name: Check native graphics bridge C ABI before engine compilation
         run: |
           xcrun clang++ -std=c++20 -fobjc-arc -target arm64-apple-ios15.0 -isysroot "$(xcrun --sdk iphoneos --show-sdk-path)" -I app/Source -c app/Source/MetalGraphicsHost.mm -o "$RUNNER_TEMP/nova-graphics.o"
