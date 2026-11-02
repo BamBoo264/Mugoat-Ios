@@ -20,6 +20,7 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
     private let joinButton = Theme.primaryButton("Vào phòng", symbol: "arrow.right.circle.fill")
 
     private let actionStack = UIStackView()
+    private let teleportButton = Theme.glassButton("Dịch chuyển đến bạn chơi", symbol: "location.fill")
     private let leaveButton = Theme.glassButton("Rời phòng", symbol: "xmark.circle.fill")
     private let startGameButton = Theme.primaryButton("Vào Game (Bắt đầu)", symbol: "play.fill")
 
@@ -47,7 +48,7 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
         header.alignment = .center
         header.distribution = .equalSpacing
 
-        titleLabel.text = "GTA ONLINE · PHÒNG CHƠI"
+        titleLabel.text = "GTA ONLINE — PHÒNG CHƠI"
         titleLabel.font = Theme.display(18)
         titleLabel.textColor = Theme.text
 
@@ -105,7 +106,7 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
         copyButton.addAction(UIAction { [weak self] _ in
             guard let code = self?.roomManager.roomCode else { return }
             UIPasteboard.general.string = code
-            let alert = UIAlertController(title: "Đã chép", message: "Mã phòng \(code) đã được lưu vào bộ nhớ tạm.", preferredStyle: .alert)
+            let alert = UIAlertController(title: "Đã sao chép", message: "Mã phòng \(code) đã được lưu vào bộ nhớ tạm.", preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: "OK", style: .default))
             self?.present(alert, animated: true)
         }, for: .touchUpInside)
@@ -182,7 +183,20 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
             joinStack.bottomAnchor.constraint(equalTo: joinCard.bottomAnchor, constant: -12)
         ])
 
-        // Action Buttons (Leave / Start Game)
+        // Action Buttons (Leave / Teleport / Start Game)
+        teleportButton.addAction(UIAction { [weak self] _ in
+            guard let self = self else { return }
+            if self.roomManager.teleportToPartner() {
+                let alert = UIAlertController(title: "Đã dịch chuyển", message: "Đã dịch chuyển tới vị trí của người cùng phòng!", preferredStyle: .alert)
+                alert.addAction(UIAlertAction(title: "OK", style: .default))
+                self.present(alert, animated: true)
+            } else {
+                let alert = UIAlertController(title: "Chưa có toạ độ", message: "Chưa nhận được toạ độ của bạn chơi trong game. Hãy đảm bảo cả hai đã vào trong game!", preferredStyle: .alert)
+                alert.addAction(UIAlertAction(title: "OK", style: .default))
+                self.present(alert, animated: true)
+            }
+        }, for: .touchUpInside)
+
         leaveButton.addAction(UIAction { [weak self] _ in
             self?.dismissKeyboard()
             self?.roomManager.leaveRoom()
@@ -199,6 +213,7 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
         actionStack.axis = .vertical
         actionStack.spacing = 8
         actionStack.addArrangedSubview(startGameButton)
+        actionStack.addArrangedSubview(teleportButton)
         actionStack.addArrangedSubview(leaveButton)
 
         // Main Layout inside ScrollView
@@ -219,7 +234,6 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
     // MARK: - Keyboard Handling
 
     private func setupKeyboardHandling() {
-        // Keyboard Toolbar Accessory
         let toolbar = UIToolbar()
         toolbar.sizeToFit()
         let flex = UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil)
@@ -229,7 +243,6 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
         toolbar.items = [hideBtn, flex, joinBarBtn]
         joinInput.inputAccessoryView = toolbar
 
-        // Keyboard Notifications
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillShow(_:)), name: UIResponder.keyboardWillShowNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillHide(_:)), name: UIResponder.keyboardWillHideNotification, object: nil)
     }
@@ -257,7 +270,6 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
         scrollView.contentInset.bottom = keyboardHeight + 20
         scrollView.verticalScrollIndicatorInsets.bottom = keyboardHeight + 20
 
-        // Scroll joinCard into view
         DispatchQueue.main.async {
             self.scrollView.scrollRectToVisible(self.joinCard.frame, animated: true)
         }
@@ -298,6 +310,7 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
             hostButton.isHidden = true
             joinCard.isHidden = true
             actionStack.isHidden = false
+            teleportButton.isHidden = roomManager.peers.isEmpty
             leaveButton.isHidden = false
             startGameButton.isHidden = false
 
@@ -309,18 +322,21 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
             hostButton.isHidden = true
             joinCard.isHidden = true
             actionStack.isHidden = false
+            teleportButton.isHidden = true
             leaveButton.isHidden = false
             startGameButton.isHidden = true
 
         case .connected(let code, let isHost):
             let count = roomManager.peers.count + 1
-            statusLabel.text = "✅ ĐÃ KẾT NỐI PHÒNG (\(count) người chơi)\n\(isHost ? "Bạn là Host" : "Bạn là Khách tham gia")"
+            let roleStr = isHost ? "👑 Chủ phòng (Host)" : "🎮 Khách tham gia (Guest - tự động spawn ở chủ phòng)"
+            statusLabel.text = "✅ ĐÃ KẾT NỐI PHÒNG (\(count) người chơi)\n\(roleStr)"
             roomCodeDisplay.text = code
             roomCodeDisplay.textColor = .systemGreen
             copyButton.isHidden = false
             hostButton.isHidden = true
             joinCard.isHidden = true
             actionStack.isHidden = false
+            teleportButton.isHidden = false
             leaveButton.isHidden = false
             startGameButton.isHidden = false
 

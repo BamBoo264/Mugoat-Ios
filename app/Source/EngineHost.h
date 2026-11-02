@@ -84,6 +84,12 @@ PGControlHints PGReadControlHints(uint32_t touchContext);
 // For player logs: the story mission running ("docks_setup (DH1)", empty when none), the player's position and
 // the replay controller's state (1: the Mission failed screen). False before the engine runs.
 bool PGStoryContext(char *mission, size_t size, float position[3], int32_t *replayState);
+// Multiplayer & Remote Peer Sync: position, teleport, and peer avatars on the map/radar
+void PGTeleportPlayer(float x, float y, float z);
+bool PGGetPlayerPosition(float position[3]);
+float PGGetPlayerHeading(void);
+void PGUpdateRemotePeer(const char *peerId, float x, float y, float z, float heading, uint32_t vehicleModel);
+void PGRemoveRemotePeer(const char *peerId);
 // Simulator only (Source/NativeDebugChannel.inc): runs one test-harness command and writes its JSON reply.
 void PGDebugCommand(const char *command, char *reply, size_t size);
 // The next weapon of the aircraft the player flies (applied on the game thread).

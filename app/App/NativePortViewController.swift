@@ -1526,6 +1526,9 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         let elapsed = lastControllerPoll.map { now - $0 } ?? (1.0 / 60.0)
         lastControllerPoll = now
         let gameStatus = PGGameStatus()
+        if OnlineRoomManager.shared.inRoom {
+            OnlineRoomManager.shared.gameLoopTick()
+        }
         // A long respawn or story load looked like a freeze (GTA-50): say it's loading.
         let loading = engineStarted && PGLoadSceneSeconds() >= 3 && gameStatus & 1 != 0 && gameStatus & 16 == 0
         if loading == loadingPill.isHidden {

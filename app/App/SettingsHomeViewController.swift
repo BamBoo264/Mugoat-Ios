@@ -46,7 +46,10 @@ final class SettingsHomeViewController: UITableViewController {
                 AppLanguage.choose("Where the game is, checking and downloading its files")
             }, sections: [.files]))
         }
-        list.append(Category(icon: "shippingbox", title: AppLanguage.choose("Mods"), summary: {
+                list.append(Category(icon: "person.2.fill", title: "GTA Online / Phòng chơi", summary: {
+            OnlineRoomManager.shared.inRoom ? "Đang trong phòng (\(OnlineRoomManager.shared.roomCode ?? ""))" : "Tạo phòng, nhập mã, dịch chuyển"
+        }, sections: [], page: { OnlineRoomViewController() }))
+list.append(Category(icon: "shippingbox", title: AppLanguage.choose("Mods"), summary: {
             let count = ModInstaller.installed().filter(\.enabled).count
             return count == 0 ? AppLanguage.choose("Install car, skin and script mods") : AppLanguage.interpolate(AppLanguage.choose("{arg0} mods on"), [String(count)])
         }, sections: [], page: { ModsViewController() }))

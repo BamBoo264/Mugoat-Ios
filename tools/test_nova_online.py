@@ -39,6 +39,40 @@ class NovaOnlineAndControlsTest(unittest.TestCase):
         self.assertIn('createRoom', manager)
         self.assertIn('joinRoom', manager)
         self.assertIn('pushLocalState', manager)
+        self.assertIn('spawnAtHost', manager)
+        self.assertIn('teleportToPartner', manager)
+        self.assertIn('gameLoopTick', manager)
+
+    def test_multiplayer_c_engine_exports_and_sync(self):
+        """EngineHost.h and EngineHost.c must implement position reading, teleportation, and remote peer avatars."""
+        header = (ROOT / 'app/Source/EngineHost.h').read_text(encoding='utf-8')
+        self.assertIn('void PGTeleportPlayer(float x, float y, float z);', header)
+        self.assertIn('bool PGGetPlayerPosition(float position[3]);', header)
+        self.assertIn('float PGGetPlayerHeading(void);', header)
+        self.assertIn('void PGUpdateRemotePeer(const char *peerId, float x, float y, float z, float heading, uint32_t vehicleModel);', header)
+        self.assertIn('void PGRemoveRemotePeer(const char *peerId);', header)
+
+        source = (ROOT / 'app/Source/EngineHost.c').read_text(encoding='utf-8')
+        self.assertIn('PGGetPlayerPosition', source)
+        self.assertIn('PGGetPlayerHeading', source)
+        self.assertIn('PGTeleportPlayer', source)
+        self.assertIn('pg_apply_online_teleport', source)
+        self.assertIn('pg_online_peers_tick', source)
+        self.assertIn('PGUpdateRemotePeer', source)
+        self.assertIn('PGRemoveRemotePeer', source)
+        # Verify radar blip creation and ped spawning
+        self.assertIn('0x5a039bb0bca604b6ull', source) # ADD_BLIP_FOR_COORD
+        self.assertIn('0xd49f9b0955c367deull', source) # CREATE_PED
+        self.assertIn('pg_online_peers_tick(instance);', source)
+        self.assertIn('pg_apply_online_teleport(instance);', source)
+
+    def test_in_game_online_tick_and_settings(self):
+        """NativePortViewController must tick OnlineRoomManager, and SettingsHomeViewController must offer Online Room."""
+        port = (ROOT / 'app/App/NativePortViewController.swift').read_text(encoding='utf-8')
+        self.assertIn('OnlineRoomManager.shared.gameLoopTick()', port)
+
+        settings = (ROOT / 'app/App/SettingsHomeViewController.swift').read_text(encoding='utf-8')
+        self.assertIn('OnlineRoomViewController()', settings)
 
     def test_project_yml_bonjour_and_network_framework(self):
         """project.yml must declare Network.framework and NSBonjourServices for P2P multiplayer."""

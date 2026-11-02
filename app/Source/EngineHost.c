@@ -849,6 +849,33 @@ bool PGStoryContext(char *mission, size_t size, float position[3], int32_t *repl
   }
   return true;
 }
+bool PGGetPlayerPosition(float position[3]) {
+  if (position) { position[0] = position[1] = position[2] = 0.0f; }
+  if (PGGameStatus() & 16) return false;
+  const uint8_t *m = (const uint8_t *)(void *)env.memory.data;
+  const uint64_t msize = env.memory.size;
+  uint64_t info, ped;
+  if (pg_context_u64(m, msize, 20159720, &info) && info && pg_context_u64(m, msize, info + 8, &ped) && ped && ped + 156 < msize) {
+    if (position) memcpy(position, m + ped + 144, 12);
+    return true;
+  }
+  return false;
+}
+float PGGetPlayerHeading(void) {
+  if (PGGameStatus() & 16) return 0.0f;
+  const uint8_t *m = (const uint8_t *)(void *)env.memory.data;
+  const uint64_t msize = env.memory.size;
+  uint64_t info, ped;
+  if (pg_context_u64(m, msize, 20159720, &info) && info && pg_context_u64(m, msize, info + 8, &ped) && ped && ped + 156 < msize) {
+    float fx = 0.0f, fy = 0.0f;
+    memcpy(&fx, m + ped + 112, 4);
+    memcpy(&fy, m + ped + 116, 4);
+    float heading = atan2f(-fx, fy) * 180.0f / (float)M_PI;
+    if (heading < 0.0f) heading += 360.0f;
+    return heading;
+  }
+  return 0.0f;
+}
 // The radio wheel reads INPUT_RADIO_WHEEL_UD/LR (332/333) from the main frontend control
 // (CRadioWheel::GetInputAxis f35894 -> CControlMgr::GetMainFrontendControl f65461: 24660320, or
 // 24488864 once a session runs), and neither has a controller binding here, so their value stays 0.
@@ -2467,6 +2494,196 @@ static void pg_trackify_tick(w2c_game *instance) {
 #if TARGET_OS_SIMULATOR
 #include "NativeDebugChannel.inc"
 #endif
+// MARK: Multiplayer Online P2P Synchronization
+static _Atomic bool pg_online_teleport_requested = false;
+static float pg_online_teleport_target[3];
+
+void PGTeleportPlayer(float x, float y, float z) {
+  pg_online_teleport_target[0] = x;
+  pg_online_teleport_target[1] = y;
+  pg_online_teleport_target[2] = z;
+  atomic_store(&pg_online_teleport_requested, true);
+}
+
+static void pg_apply_online_teleport(w2c_game *instance) {
+  if (!atomic_load(&pg_online_teleport_requested)) return;
+  if (PGGameStatus() & 16) return;
+  static u64 tpVector;
+  if (!tpVector) tpVector = PG_FN_OPERATOR_NEW(instance, 32);
+  if (!tpVector) return;
+  u32 ped = PG_FN_PLAYER_PED_ID(instance);
+  if (!ped) return;
+  
+  uint64_t previous = pg_asi_enter_script(instance);
+  const uint64_t inVehicle[2] = {ped, 0};
+  const uint64_t vehicle = pg_test_call(instance, 0x9a9112a0fe9a4713ull, 2, inVehicle) & 0xffffffff;
+  u32 entity = (vehicle && PG_FN_ENTITY_EXISTS(instance, (u32)vehicle)) ? (u32)vehicle : ped;
+  
+  float *v = pg_pointer(&env, tpVector, 24);
+  v[0] = pg_online_teleport_target[0];
+  v[2] = pg_online_teleport_target[1];
+  v[4] = pg_online_teleport_target[2];
+  
+  PG_FN_SET_ENTITY_COORDS_NO_OFFSET(instance, entity, tpVector, 0, 0, 0);
+  pg_asi_leave_script(instance, previous);
+  
+  atomic_store(&pg_online_teleport_requested, false);
+  char line[128];
+  snprintf(line, sizeof line, "Online: player teleported to host spawn %.1f, %.1f, %.1f.", v[0], v[2], v[4]);
+  pg_log(line);
+}
+
+#define PG_MAX_ONLINE_PEERS 8
+
+typedef struct {
+  char id[32];
+  float x, y, z;
+  float heading;
+  uint32_t vehicleModel;
+  bool active;
+  double lastUpdated;
+  uint32_t blipHandle;
+  uint32_t pedHandle;
+  uint32_t pedModel;
+} PGOnlinePeerInternal;
+
+static PGOnlinePeerInternal pg_online_peers[PG_MAX_ONLINE_PEERS];
+static pthread_mutex_t pg_online_peers_lock = PTHREAD_MUTEX_INITIALIZER;
+
+void PGUpdateRemotePeer(const char *peerId, float x, float y, float z, float heading, uint32_t vehicleModel) {
+  if (!peerId || !peerId[0]) return;
+  pthread_mutex_lock(&pg_online_peers_lock);
+  int slot = -1;
+  for (int i = 0; i < PG_MAX_ONLINE_PEERS; i++) {
+    if (pg_online_peers[i].active && !strncmp(pg_online_peers[i].id, peerId, sizeof(pg_online_peers[i].id))) {
+      slot = i;
+      break;
+    }
+  }
+  if (slot < 0) {
+    for (int i = 0; i < PG_MAX_ONLINE_PEERS; i++) {
+      if (!pg_online_peers[i].active) {
+        slot = i;
+        memset(&pg_online_peers[slot], 0, sizeof(PGOnlinePeerInternal));
+        snprintf(pg_online_peers[slot].id, sizeof(pg_online_peers[slot].id), "%s", peerId);
+        pg_online_peers[slot].active = true;
+        break;
+      }
+    }
+  }
+  if (slot >= 0) {
+    pg_online_peers[slot].x = x;
+    pg_online_peers[slot].y = y;
+    pg_online_peers[slot].z = z;
+    pg_online_peers[slot].heading = heading;
+    pg_online_peers[slot].vehicleModel = vehicleModel;
+    pg_online_peers[slot].lastUpdated = timeMS(CLOCK_MONOTONIC);
+  }
+  pthread_mutex_unlock(&pg_online_peers_lock);
+}
+
+void PGRemoveRemotePeer(const char *peerId) {
+  if (!peerId || !peerId[0]) return;
+  pthread_mutex_lock(&pg_online_peers_lock);
+  for (int i = 0; i < PG_MAX_ONLINE_PEERS; i++) {
+    if (pg_online_peers[i].active && !strncmp(pg_online_peers[i].id, peerId, sizeof(pg_online_peers[i].id))) {
+      pg_online_peers[i].active = false;
+      break;
+    }
+  }
+  pthread_mutex_unlock(&pg_online_peers_lock);
+}
+
+static void pg_online_peers_tick(w2c_game *instance) {
+  if (PGGameStatus() & 16) return;
+  const double now = timeMS(CLOCK_MONOTONIC);
+  uint64_t previous = 0;
+  bool enteredScript = false;
+  static u64 pedVec;
+  if (!pedVec) pedVec = PG_FN_OPERATOR_NEW(instance, 32);
+
+  pthread_mutex_lock(&pg_online_peers_lock);
+  for (int i = 0; i < PG_MAX_ONLINE_PEERS; i++) {
+    PGOnlinePeerInternal *p = &pg_online_peers[i];
+    if (p->active && (now - p->lastUpdated > 15000)) {
+      p->active = false;
+    }
+    if (!p->active) {
+      if (p->blipHandle) {
+        if (!enteredScript) { previous = pg_asi_enter_script(instance); enteredScript = true; }
+        pg_test_call(instance, 0x9029b2f3da924928ull, 2, (uint64_t[]){p->blipHandle, 0});
+        static u64 blipBuf; if (!blipBuf) blipBuf = PG_FN_OPERATOR_NEW(instance, 16);
+        *(u32 *)pg_pointer(&env, blipBuf, 4) = p->blipHandle;
+        pg_test_call(instance, 0x86a652570e5f25ddull, 1, (uint64_t[]){blipBuf});
+        p->blipHandle = 0;
+      }
+      if (p->pedHandle) {
+        if (!enteredScript) { previous = pg_asi_enter_script(instance); enteredScript = true; }
+        static u64 scratch; if (!scratch) scratch = PG_FN_OPERATOR_NEW(instance, 16);
+        *(u32 *)pg_pointer(&env, scratch, 4) = p->pedHandle;
+        pg_test_call(instance, 0x9614299dcb53e54bull, 1, (uint64_t[]){scratch});
+        p->pedHandle = 0;
+      }
+      continue;
+    }
+
+    if (!enteredScript) { previous = pg_asi_enter_script(instance); enteredScript = true; }
+
+    uint32_t fx, fy, fz;
+    memcpy(&fx, &p->x, 4); memcpy(&fy, &p->y, 4); memcpy(&fz, &p->z, 4);
+
+    // 1. Radar & Map Blip
+    if (!p->blipHandle) {
+      uint32_t blip = (uint32_t)(pg_test_call(instance, 0x5a039bb0bca604b6ull, 3, (uint64_t[]){fx, fy, fz}) & 0xffffffff);
+      if (blip) {
+        p->blipHandle = blip;
+        pg_test_call(instance, 0xdf735600a4696dafull, 2, (uint64_t[]){blip, 1});
+        pg_test_call(instance, 0x03d7fb09e75d6b7eull, 2, (uint64_t[]){blip, 3});
+        float scale = 0.9f; uint32_t sb; memcpy(&sb, &scale, 4);
+        pg_test_call(instance, 0xd38744167b2fa257ull, 2, (uint64_t[]){blip, sb});
+        pg_test_call(instance, 0xbe8be4fe60e27b72ull, 2, (uint64_t[]){blip, 0});
+        pg_test_call(instance, 0x5fbca48327b914dfull, 2, (uint64_t[]){blip, 1});
+      }
+    } else {
+      pg_test_call(instance, 0xae2af67e9d9af65dull, 4, (uint64_t[]){p->blipHandle, fx, fy, fz});
+      pg_test_call(instance, 0xf87683cdf73c3f6eull, 2, (uint64_t[]){p->blipHandle, (uint32_t)(int32_t)p->heading});
+    }
+
+    // 2. Avatar Ped
+    bool pedAlive = p->pedHandle && PG_FN_ENTITY_EXISTS(instance, p->pedHandle);
+    if (!pedAlive) {
+      p->pedHandle = 0;
+      u32 localPed = PG_FN_PLAYER_PED_ID(instance);
+      u32 model = localPed ? PG_FN_GET_ENTITY_MODEL(instance, localPed) : 0;
+      if (model && PG_FN_HAS_MODEL_LOADED(instance, model)) {
+        uint32_t fh; memcpy(&fh, &p->heading, 4);
+        uint64_t pedArgs[7] = {26, model, fx, fy, fz, fh, 0};
+        uint32_t ped = (uint32_t)(pg_test_call(instance, 0xd49f9b0955c367deull, 7, pedArgs) & 0xffffffff);
+        if (ped && PG_FN_ENTITY_EXISTS(instance, ped)) {
+          p->pedHandle = ped;
+          p->pedModel = model;
+          pg_test_call(instance, 0x3882114bde571ad4ull, 2, (uint64_t[]){ped, 1});
+          pg_test_call(instance, 0x9f8aa94d6d97dbf4ull, 2, (uint64_t[]){ped, 1});
+          pg_test_call(instance, 0xad738c3085fe7e11ull, 3, (uint64_t[]){ped, 1, 1});
+          char line[128];
+          snprintf(line, sizeof line, "Online: spawned peer avatar ped %u at %.1f, %.1f, %.1f.", ped, p->x, p->y, p->z);
+          pg_log(line);
+        }
+      }
+    } else if (pedVec) {
+      float *v = pg_pointer(&env, pedVec, 24);
+      v[0] = p->x; v[2] = p->y; v[4] = p->z;
+      PG_FN_SET_ENTITY_COORDS_NO_OFFSET(instance, p->pedHandle, pedVec, 0, 0, 0);
+      uint32_t fh; memcpy(&fh, &p->heading, 4);
+      pg_test_call(instance, 0x8e2530aa8ada980eull, 2, (uint64_t[]){p->pedHandle, fh});
+    }
+  }
+  pthread_mutex_unlock(&pg_online_peers_lock);
+
+  if (enteredScript) {
+    pg_asi_leave_script(instance, previous);
+  }
+}
 void pg_asi_script_tick(w2c_game *instance, u64 thread) {
 #if TARGET_OS_SIMULATOR
   if (thread && strcmp(pg_string(&env, thread + 428), "main")) pg_debug_tick(instance, false);
@@ -2481,6 +2698,7 @@ void pg_asi_script_tick(w2c_game *instance, u64 thread) {
   pg_sandbox_map_tick(instance);
   pg_turbo_tick(instance);
   pg_trackify_tick(instance);
+  pg_online_peers_tick(instance);
 #if TARGET_OS_SIMULATOR
   pg_debug_tick(instance, true);
   pg_test_spawn();
@@ -2505,6 +2723,7 @@ void pg_virtual_pad_apply(w2c_game *instance, uint64_t pad) {
   if (pad == 12840656) pg_tv_presentation_update(instance);
   if (pad == 12840656) pg_keep_on_test_map(instance);
   if (pad == 12840656) pg_keep_weapon_loaded(instance);
+  if (pad == 12840656) pg_apply_online_teleport(instance);
 #if TARGET_OS_SIMULATOR
   if (pad == 12840656) { pg_test_teleport(instance); pg_test_stale_job(instance); pg_test_speed(instance); pg_test_weapon(instance); pg_test_outfit(instance); pg_test_prompts(instance); pg_test_cash(instance); pg_test_tv(instance); pg_test_tv_flood(instance); pg_test_gfx_dirty(instance); pg_test_position(); pg_test_video(instance); pg_test_lester1_tv(instance); pg_test_photo(instance); pg_test_car(instance); pg_test_trailer_monitor(instance); pg_test_request_models(instance); pg_test_loadscene(instance); pg_test_loadscene_monitor(instance); }
 #endif

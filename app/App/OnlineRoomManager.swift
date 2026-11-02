@@ -63,7 +63,13 @@ final class OnlineRoomManager {
         set { UserDefaults.standard.set(newValue, forKey: "onlinePlayerName") }
     }
 
+    // Auto-spawn at host state
+    private(set) var hasSpawnedAtHost = false
+    private(set) var pendingSpawnCoords: [Float]?
+    private var lastStatePushTime: TimeInterval = 0
+
     private var listener: NWListener?
+    private var browser: NWBrowser?
     private var activeConnections: [NWConnection] = []
     private let queue = DispatchQueue(label: "vn.gta.online.room", qos: .userInitiated)
     private var syncTimer: Timer?
@@ -102,6 +108,7 @@ final class OnlineRoomManager {
         let code = Self.generateRoomCode()
         roomCode = code
         isHost = true
+        hasSpawnedAtHost = true // Host doesn't need to teleport to itself
         state = .hosting(code: code)
         startListener(code: code)
         startLocalBroadcast()
@@ -120,6 +127,7 @@ final class OnlineRoomManager {
         }
         roomCode = code
         isHost = false
+        hasSpawnedAtHost = false
         state = .connecting(code: code)
         connectToHost(code: code)
     }
@@ -132,13 +140,20 @@ final class OnlineRoomManager {
         }
         syncTimer?.invalidate()
         syncTimer = nil
+        browser?.cancel()
+        browser = nil
         listener?.cancel()
         listener = nil
         for conn in activeConnections { conn.cancel() }
         activeConnections.removeAll()
+        for (_, peer) in peers {
+            peer.id.withCString { PGRemoveRemotePeer($0) }
+        }
         peers.removeAll()
         roomCode = nil
         isHost = false
+        hasSpawnedAtHost = false
+        pendingSpawnCoords = nil
         state = .idle
     }
 
@@ -166,7 +181,7 @@ final class OnlineRoomManager {
     }
 
     private func connectToHost(code: String) {
-        // Connect via local broadcast / Bonjour or fallback port
+        // 1. Direct UDP broadcast fast-path on port 47520
         let hostEndpoint = NWEndpoint.hostPort(host: .ipv4(.broadcast), port: 47520)
         let connection = NWConnection(to: hostEndpoint, using: .udp)
         connection.stateUpdateHandler = { [weak self] connState in
@@ -183,12 +198,35 @@ final class OnlineRoomManager {
         connection.start(queue: queue)
         activeConnections.append(connection)
 
+        // 2. Bonjour discovery (_gtavmp._udp) for reliable local network discovery
+        let descriptor = NWBrowser.Descriptor.bonjour(type: "_gtavmp._udp", domain: nil)
+        let browserParams = NWParameters.udp
+        let browser = NWBrowser(for: descriptor, using: browserParams)
+        browser.browseResultsChangedHandler = { [weak self] results, _ in
+            guard let self = self else { return }
+            for result in results {
+                if case .service(let name, _, _, _) = result.endpoint, name.contains(code) {
+                    let bonjourConn = NWConnection(to: result.endpoint, using: .udp)
+                    bonjourConn.stateUpdateHandler = { [weak self] state in
+                        if state == .ready {
+                            self?.sendJoinRequest(connection: bonjourConn, code: code)
+                            self?.receive(on: bonjourConn)
+                        }
+                    }
+                    bonjourConn.start(queue: self.queue)
+                    self.activeConnections.append(bonjourConn)
+                }
+            }
+        }
+        browser.start(queue: queue)
+        self.browser = browser
+
         // Set a timeout for connection
         queue.asyncAfter(deadline: .now() + 8.0) { [weak self] in
             guard let self = self else { return }
             if case .connecting = self.state {
-                // Connected locally or proceed as peer room
                 self.state = .connected(code: code, isHost: false)
+                self.startLocalBroadcast()
             }
         }
     }
@@ -227,14 +265,33 @@ final class OnlineRoomManager {
                     self.peers[packet.senderId] = OnlinePeer(id: packet.senderId, name: packet.senderName)
                     self.state = .connected(code: self.roomCode ?? "", isHost: true)
                     self.onPeersUpdated?(Array(self.peers.values))
-                    let reply = RoomPacket(type: .joinAccept, roomCode: packet.roomCode, senderId: String(self.localPlayerId), senderName: self.localPlayerName)
+
+                    // Host includes current position so the joining guest can spawn directly at host!
+                    var hostPos = [Float](repeating: 0, count: 3)
+                    _ = PGGetPlayerPosition(&hostPos)
+                    let hostHeading = PGGetPlayerHeading()
+
+                    var reply = RoomPacket(type: .joinAccept, roomCode: packet.roomCode, senderId: String(self.localPlayerId), senderName: self.localPlayerName)
+                    if hostPos[0] != 0 || hostPos[1] != 0 {
+                        reply.position = hostPos
+                        reply.heading = hostHeading
+                    }
                     self.send(packet: reply, over: connection)
                 }
 
             case .joinAccept:
-                self.peers[packet.senderId] = OnlinePeer(id: packet.senderId, name: packet.senderName)
+                var peer = OnlinePeer(id: packet.senderId, name: packet.senderName)
+                if let pos = packet.position { peer.position = pos }
+                if let h = packet.heading { peer.heading = h }
+                self.peers[packet.senderId] = peer
                 self.state = .connected(code: packet.roomCode, isHost: false)
+                self.startLocalBroadcast()
                 self.onPeersUpdated?(Array(self.peers.values))
+
+                // Auto-spawn guest at host's position
+                if let pos = packet.position, pos[0] != 0 || pos[1] != 0 {
+                    self.spawnAtHost(coords: pos)
+                }
 
             case .stateSync:
                 if var peer = self.peers[packet.senderId] {
@@ -246,6 +303,18 @@ final class OnlineRoomManager {
                     peer.lastSeen = Date()
                     self.peers[packet.senderId] = peer
                     self.onPeersUpdated?(Array(self.peers.values))
+
+                    // If guest hasn't spawned at host yet, auto-teleport on receiving host's coordinates
+                    if !self.isHost && !self.hasSpawnedAtHost, let pos = packet.position, pos[0] != 0 || pos[1] != 0 {
+                        self.spawnAtHost(coords: pos)
+                    }
+
+                    // Feed into C engine
+                    if let pos = packet.position {
+                        peer.id.withCString { cId in
+                            PGUpdateRemotePeer(cId, pos[0], pos[1], pos[2], packet.heading ?? 0, packet.vehicleModel ?? 0)
+                        }
+                    }
                 } else {
                     var peer = OnlinePeer(id: packet.senderId, name: packet.senderName)
                     if let pos = packet.position { peer.position = pos }
@@ -254,6 +323,7 @@ final class OnlineRoomManager {
                 }
 
             case .leave:
+                packet.senderId.withCString { PGRemoveRemotePeer($0) }
                 self.peers.removeValue(forKey: packet.senderId)
                 self.onPeersUpdated?(Array(self.peers.values))
 
@@ -287,7 +357,68 @@ final class OnlineRoomManager {
         broadcast(packet: packet)
     }
 
-    // MARK: - Game Sync
+    // MARK: - Game Sync & Spawn at Host
+
+    /// Teleports the guest to the host's coordinates, offsetting slightly (+1.5m) to avoid collisions.
+    func spawnAtHost(coords: [Float]) {
+        guard coords.count >= 3, (coords[0] != 0 || coords[1] != 0) else { return }
+        let gameStatus = PGGameStatus()
+        if (gameStatus & 16) == 0 {
+            // Player is alive and active in gameplay: teleport now!
+            PGTeleportPlayer(coords[0] + 1.5, coords[1] + 1.5, coords[2])
+            hasSpawnedAtHost = true
+            pendingSpawnCoords = nil
+        } else {
+            // Still loading: hold pending coordinates until gameplay starts
+            pendingSpawnCoords = coords
+        }
+    }
+
+    /// Manually teleports the player to a peer (or host) in the room.
+    func teleportToPartner() -> Bool {
+        for (_, peer) in peers {
+            if peer.position.count >= 3 && (peer.position[0] != 0 || peer.position[1] != 0) {
+                PGTeleportPlayer(peer.position[0] + 1.5, peer.position[1] + 1.5, peer.position[2])
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Called on every frame from NativePortViewController.pollController()
+    func gameLoopTick() {
+        guard inRoom else { return }
+        let gameStatus = PGGameStatus()
+        guard (gameStatus & 16) == 0 else { return }
+
+        // Execute pending spawn at host if player was previously in a loading screen
+        if !hasSpawnedAtHost, let target = pendingSpawnCoords {
+            PGTeleportPlayer(target[0] + 1.5, target[1] + 1.5, target[2])
+            hasSpawnedAtHost = true
+            pendingSpawnCoords = nil
+        }
+
+        // Throttle network state broadcasting to 10 Hz (every 100ms)
+        let now = CACurrentMediaTime()
+        if now - lastStatePushTime >= 0.1 {
+            lastStatePushTime = now
+            var localPos = [Float](repeating: 0, count: 3)
+            if PGGetPlayerPosition(&localPos) && (localPos[0] != 0 || localPos[1] != 0) {
+                let heading = PGGetPlayerHeading()
+                let hints = PGReadControlHints(PGCurrentTouchContext())
+                pushLocalState(position: localPos, heading: heading, vehicleModel: hints.vehicleModel, weapon: 0, health: 200)
+            }
+        }
+
+        // Continually feed active peers to C engine for smooth radar blips and avatar ped tracking
+        for (_, peer) in peers {
+            if peer.position.count >= 3 && (peer.position[0] != 0 || peer.position[1] != 0) {
+                peer.id.withCString { cId in
+                    PGUpdateRemotePeer(cId, peer.position[0], peer.position[1], peer.position[2], peer.heading, peer.vehicleModel)
+                }
+            }
+        }
+    }
 
     /// Pushes local player position, vehicle, weapon to all peers in the room.
     func pushLocalState(position: [Float], heading: Float, vehicleModel: UInt32, weapon: UInt32, health: Int) {
