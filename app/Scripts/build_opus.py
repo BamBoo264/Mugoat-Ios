@@ -18,7 +18,12 @@ import urllib.request
 from pathlib import Path
 
 VERSION = '1.5.2'
-URL = f'https://downloads.xiph.org/releases/opus/opus-{VERSION}.tar.gz'
+URLS = [
+    f'https://github.com/xiph/opus/releases/download/v{VERSION}/opus-{VERSION}.tar.gz',
+    f'https://ftp.osuosl.org/pub/xiph/releases/opus/opus-{VERSION}.tar.gz',
+    f'https://downloads.xiph.org/releases/opus/opus-{VERSION}.tar.gz',
+    f'https://archive.mozilla.org/pub/opus/opus-{VERSION}.tar.gz',
+]
 SHA256 = '65c1d2f78b9f2fb20082c38cbe47c951ad5839345876e46941612ee87f9a7ce1'
 root = Path(__file__).resolve().parents[1]
 source = root / f'Tools/opus-{VERSION}'
@@ -31,10 +36,31 @@ if not (source / 'CMakeLists.txt').exists():
     archive = root / f'Tools/opus-{VERSION}.tar.gz'
     archive.parent.mkdir(parents=True, exist_ok=True)
     if not archive.exists() or hashlib.sha256(archive.read_bytes()).hexdigest() != SHA256:
-        with urllib.request.urlopen(URL) as response:
-            archive.write_bytes(response.read())
-    if hashlib.sha256(archive.read_bytes()).hexdigest() != SHA256:
-        sys.exit('libopus archive checksum mismatch.')
+        downloaded = False
+        for url in URLS:
+            for attempt in range(3):
+                try:
+                    print(f'Fetching libopus from {url} (attempt {attempt + 1})...')
+                    req = urllib.request.Request(url, headers={'User-Agent': 'curl/8.7.1'})
+                    with urllib.request.urlopen(req, timeout=30) as response:
+                        data = response.read()
+                        if hashlib.sha256(data).hexdigest() == SHA256:
+                            archive.write_bytes(data)
+                            downloaded = True
+                            break
+                except Exception as e:
+                    print(f'Download failed: {e}')
+            if downloaded:
+                break
+        if not downloaded:
+            for url in URLS:
+                print(f'Attempting curl for {url}...')
+                res = subprocess.run(['curl', '-fSL', '--retry', '3', url, '-o', str(archive)], capture_output=True)
+                if res.returncode == 0 and archive.exists() and hashlib.sha256(archive.read_bytes()).hexdigest() == SHA256:
+                    downloaded = True
+                    break
+        if not downloaded or hashlib.sha256(archive.read_bytes()).hexdigest() != SHA256:
+            sys.exit('libopus archive checksum mismatch or download failure.')
     sys.path.insert(0, str(Path(__file__).parent))
     from safe_extract import extract
     with tarfile.open(archive) as package:
