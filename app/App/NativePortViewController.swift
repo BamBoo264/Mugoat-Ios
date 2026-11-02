@@ -243,7 +243,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         home.onlineButton.addAction(UIAction { [weak self] _ in
             let roomVC = OnlineRoomViewController()
             roomVC.onPlayTapped = { [weak self] in
-                self?.launch()
+                self?.startEngine()
             }
             roomVC.modalPresentationStyle = .formSheet
             self?.present(roomVC, animated: true)
