@@ -49,5 +49,20 @@ class TestPortRPFLoader(unittest.TestCase):
         self.assertIn("isPortRPF", gf_content)
         self.assertIn("checkPortRPF", gf_content)
 
+    def test_cache_root_declared_before_use(self):
+        root = Path(__file__).resolve().parents[1]
+        assets_m = root / "app/Source/NativeAssets.m"
+        lines = assets_m.read_text(encoding="utf-8").splitlines()
+        cache_root_decl = -1
+        set_folder_decl = -1
+        for idx, line in enumerate(lines):
+            if "static NSString *cacheRoot;" in line and cache_root_decl == -1:
+                cache_root_decl = idx
+            if "void PGSetLocalGameFolder(" in line and set_folder_decl == -1:
+                set_folder_decl = idx
+        self.assertGreater(cache_root_decl, -1, "cacheRoot must be declared")
+        self.assertGreater(set_folder_decl, -1, "PGSetLocalGameFolder must exist")
+        self.assertLess(cache_root_decl, set_folder_decl, "cacheRoot must be declared before PGSetLocalGameFolder")
+
 if __name__ == "__main__":
     unittest.main()

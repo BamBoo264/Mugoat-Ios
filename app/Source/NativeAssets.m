@@ -46,6 +46,7 @@ NSString *PGAssetServer(void){return assetServer;}
 // A folder on this device with the game's data/ files (chosen in the app):
 // every asset read goes straight to the file; no server, no download cache.
 static NSString *localDataRoot;
+static NSString *cacheRoot;
 #include "NativePortRPF.h"
 void PGSetLocalGameFolder(const char *dataPath){
   localDataRoot=dataPath&&*dataPath?[NSString stringWithUTF8String:dataPath]:nil;
@@ -74,7 +75,6 @@ bool PGUsingLocalGameFolder(void){return localDataRoot!=nil;}
 static NSArray *assetFiles;
 static NSString *assetVersion;
 static NSArray<PGAssetCondition *> *assetLocks;
-static NSString *cacheRoot;
 static NSURLSession *assetSession;
 static struct w2c_env *assetHost;
 static uint64_t assetTable;
