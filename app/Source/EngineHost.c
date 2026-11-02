@@ -2509,6 +2509,14 @@ void pg_virtual_pad_apply(w2c_game *instance, uint64_t pad) {
   if (pad == 12840656) { pg_test_teleport(instance); pg_test_stale_job(instance); pg_test_speed(instance); pg_test_weapon(instance); pg_test_outfit(instance); pg_test_prompts(instance); pg_test_cash(instance); pg_test_tv(instance); pg_test_tv_flood(instance); pg_test_gfx_dirty(instance); pg_test_position(); pg_test_video(instance); pg_test_lester1_tv(instance); pg_test_photo(instance); pg_test_car(instance); pg_test_trailer_monitor(instance); pg_test_request_models(instance); pg_test_loadscene(instance); pg_test_loadscene_monitor(instance); }
 #endif
   if (pad != 12840656 || !atomic_load(&virtualPadActive)) return;
+  // Ensure the engine's last input device is Pad 0 whenever the virtual pad is active,
+  // enabling native auto-lock and aim assist both on foot and in vehicle.
+  if (env.memory.size >= 24627140) {
+    _Atomic int32_t *device = (_Atomic int32_t *)(void *)((uint8_t *)(void *)env.memory.data + 24627136);
+    if (atomic_load_explicit(device, memory_order_relaxed) < 0) {
+      atomic_store_explicit(device, 0, memory_order_relaxed);
+    }
+  }
   uint64_t packed = atomic_load(&virtualPad);
   // Use the last actual engine-sample interval (not display-link callbacks).
   static _Thread_local double lastSwipePollMS;

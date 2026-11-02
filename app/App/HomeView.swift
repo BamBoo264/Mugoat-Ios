@@ -9,6 +9,7 @@ final class HomeView: UIView {
     let playButton = Theme.primaryButton(AppLanguage.choose("Play"), symbol: "play.fill")
     let settingsButton = Theme.glassButton(AppLanguage.choose("Settings"), symbol: "gearshape.fill")
     let modsButton = Theme.glassButton("Quản lý mod", symbol: "shippingbox.fill")
+    let onlineButton = Theme.glassButton("Chơi Online (Mã phòng)", symbol: "antenna.radiowaves.left.and.right")
     let layoutButton = Theme.glassButton(AppLanguage.choose("Controls layout"), symbol: "hand.tap.fill")
     let telegramButton = Theme.glassButton(AppLanguage.choose("Telegram"), symbol: "paperplane.fill")
     let preloadLabel = UILabel()
@@ -80,7 +81,7 @@ final class HomeView: UIView {
 
         settingsButton.accessibilityLabel="Cài đặt"
         layoutButton.accessibilityLabel="Bố trí điều khiển"
-        secondary.addArrangedSubviews([modsButton,layoutButton,settingsButton])
+        secondary.addArrangedSubviews([onlineButton, modsButton, layoutButton, settingsButton])
         secondary.spacing=10;secondary.axis = .vertical
         secondary.translatesAutoresizingMaskIntoConstraints=false
         for label in [preloadLabel,controllerLabel]{label.font = .monospacedSystemFont(ofSize:12,weight:.medium);label.textColor=Theme.secondaryText;label.numberOfLines=0}

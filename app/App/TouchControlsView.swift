@@ -333,11 +333,11 @@ final class TouchControlsView: UIView {
         pendingCameraTravel.y += point.y - previous.y
     }
     /// Flush only after the gesture roles have been reconciled, before sending
-    /// the pad. The mouse path feeds native mouse deltas but does not replace
-    /// the virtual pad, so we can observe whether the game still grants aim assist.
+    /// the pad. Feeds both the virtual pad stick bridge and mouse deltas so crosshair
+    /// swiping works continuously in vehicles and on foot without freezing.
     private func flushCameraTravel() {
         let mode = effectiveCameraMode
-        if mode != lastCameraMode { clearCameraTravel(); lastCameraMode = mode }
+        if mode != lastCameraMode { lastCameraMode = mode }
         guard swipeCameraEnabled, !has(isSelectionWheel) else {
             clearCameraTravel()
             return
@@ -349,22 +349,19 @@ final class TouchControlsView: UIView {
         let raw = CGPoint(x: pendingCameraTravel.x * gain, y: pendingCameraTravel.y * gain)
         pendingCameraTravel = .zero
         guard raw != .zero else { return }
-        switch mode {
-        case .stick: break
-        case .swipePad:
-            // Existing proven engine-thread bridge expects rightY positive up.
-            PGQueueCameraSwipe(Float(raw.x), Float(-raw.y))
-        case .swipeMouse:
-            // UIKit is Y-down, matching the engine's relative mouse pixels.
-            // Preserve subpixel movement so very slow aiming is not lost.
-            // Drop rather than defer an abnormally large single-frame jump:
-            // deferred overflow would look like camera glide after finger-up.
-            let total = CGPoint(x: max(-1600, min(1600, raw.x + fractionalMousePixels.x)),
-                                y: max(-1600, min(1600, raw.y + fractionalMousePixels.y)))
-            let dx = Int32(total.x.rounded(.towardZero))
-            let dy = Int32(total.y.rounded(.towardZero))
-            fractionalMousePixels = CGPoint(x: total.x - CGFloat(dx), y: total.y - CGFloat(dy))
-            if dx != 0 || dy != 0 { PGMouseInput(dx, dy, mouseButtons) }
+
+        // Always feed the controller stick bridge for smooth camera turning and pad aiming:
+        PGQueueCameraSwipe(Float(raw.x), Float(-raw.y))
+
+        // Also feed mouse deltas so in-vehicle drive-by crosshair and mouse look
+        // can move seamlessly without getting stuck in one place:
+        let total = CGPoint(x: max(-1600, min(1600, raw.x + fractionalMousePixels.x)),
+                            y: max(-1600, min(1600, raw.y + fractionalMousePixels.y)))
+        let dx = Int32(total.x.rounded(.towardZero))
+        let dy = Int32(total.y.rounded(.towardZero))
+        fractionalMousePixels = CGPoint(x: total.x - CGFloat(dx), y: total.y - CGFloat(dy))
+        if dx != 0 || dy != 0 {
+            PGMouseInput(dx, dy, mouseButtons)
         }
     }
 
@@ -1683,7 +1680,11 @@ final class TouchControlsView: UIView {
     private func sendKeyboardMouseEquivalents(_ state: PGPadState) {
         var buttons: Int32 = 0
         var shift = false
-        if experimentalMouseLookActive || swipeCameraEnabled {
+        // When assisted targeting (Traditional lock-on, Assisted aim) is preferred (< 3),
+        // do not send mouse button equivalents because GTA V turns off aim assist/lock-on
+        // when mouse clicks are received. Let the virtual pad handle aim and shoot natively.
+        let targetingAssisted = GameSettings.shared.targetingMode < 3
+        if (experimentalMouseLookActive || swipeCameraEnabled) && !targetingAssisted {
             switch context {
             case .onFoot:
                 if state.leftTrigger > 0.5 { buttons |= 2 }
@@ -1693,6 +1694,10 @@ final class TouchControlsView: UIView {
                 if driveAim.pressed || driveBy.pressed { buttons |= 2 }
                 if driveBy.pressed { buttons |= 1 }
             default: break
+            }
+        } else {
+            if context == .onFoot {
+                shift = moveStick.sprinting || sprint.pressed
             }
         }
         if buttons != mouseButtons || buttons != 0 { PGMouseInput(0, 0, buttons) }

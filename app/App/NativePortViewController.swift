@@ -240,6 +240,14 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         NotificationCenter.default.addObserver(self, selector: #selector(languageChanged), name: AppLanguage.changed, object: nil)
         home.settingsButton.addAction(UIAction { [weak self] _ in self?.showSettings() }, for: .touchUpInside)
         home.layoutButton.addAction(UIAction { [weak self] _ in self?.showLayoutEditor() }, for: .touchUpInside)
+        home.onlineButton.addAction(UIAction { [weak self] _ in
+            let roomVC = OnlineRoomViewController()
+            roomVC.onPlayTapped = { [weak self] in
+                self?.launch()
+            }
+            roomVC.modalPresentationStyle = .formSheet
+            self?.present(roomVC, animated: true)
+        }, for: .touchUpInside)
         home.modsButton.addAction(UIAction { [weak self] _ in
             let page=ModsViewController();let nav=UINavigationController(rootViewController:page)
             page.navigationItem.rightBarButtonItem=UIBarButtonItem(title:"Đóng",primaryAction:UIAction{[weak nav] _ in nav?.dismiss(animated:true)})
@@ -619,6 +627,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         DispatchQueue.main.async { [weak self] in self?.updateExternalDisplay(resize: false) }
         launchButton.isEnabled = false
         home.modsButton.isHidden = true
+        home.onlineButton.isHidden = true
         home.settingsButton.isHidden = true
         home.layoutButton.isHidden = true
         engineStarted = true

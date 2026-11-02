@@ -1,6 +1,6 @@
 from pathlib import Path
 import subprocess,sys
-root=Path(__file__).resolve().parents[1];out=Path(sys.argv[1]);s=(root/'app/Source/NativeASI.c').read_text();a=s.index('static uint64_t k_CreateDirectoryW(');b=s.index('// Settings files (.ini)',a)
+root=Path(__file__).resolve().parents[1];out=Path(sys.argv[1]);s=(root/'app/Source/NativeASI.c').read_text(encoding='utf-8');a=s.index('static uint64_t k_CreateDirectoryW(');b=s.index('// Settings files (.ini)',a)
 source=r"""#include <stdint.h>
 #include <stdbool.h>
 #include <string.h>

@@ -86,6 +86,7 @@ targets:
       - sdk: MetalKit.framework
       - sdk: GameController.framework
       - sdk: AVFAudio.framework
+      - sdk: Network.framework
       # Unpacking game archives on the device (libarchive, BSD license: Vendor/LICENSE-libarchive.txt).
       - framework: Vendor/libarchive.xcframework
         embed: false
@@ -127,6 +128,9 @@ targets:
         # A game: iOS turns on Game Mode while it plays (more CPU/GPU priority, lower controller latency).
         LSApplicationCategoryType: public.app-category.action-games
         GCSupportsGameMode: true
+        NSBonjourServices:
+          - _gtavmp._udp
+        NSLocalNetworkUsageDescription: "Kết nối phòng chơi GTA Online trên mạng nội bộ và chia sẻ phiên với bạn bè."
         GCSupportedGameControllers:
           - ProfileName: ExtendedGamepad
 schemes:

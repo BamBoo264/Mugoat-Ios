@@ -14,7 +14,7 @@ class NovaIntegrity(unittest.TestCase):
   # Locate the recorded source hashes without relying on incidental lock metadata.
   raw=(ROOT/'upstream-source-lock.json').read_text()
   for rel in ['app/Scripts/prepare_plain_dsp.py','app/Scripts/prepare_native_opus.py']:
-   self.assertIn(hashlib.sha256((ROOT/rel).read_bytes()).hexdigest(),raw)
+   self.assertIn(hashlib.sha256((ROOT/rel).read_bytes().replace(b'\r\n', b'\n')).hexdigest(),raw)
  def test_pack_bounds_and_english_bank(self):
   if not (ROOT/'app/Resources/VietnameseAccented.nvp').exists():self.skipTest('Bundled resources pending public redistribution approval')
   for kind in ['Accented','Plain']:
