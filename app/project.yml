@@ -1,7 +1,7 @@
 name: PlayGTA5Native
 options:
   deploymentTarget:
-    iOS: "16.0"
+    iOS: "15.0"
 settings:
   base:
     # Your Apple team only matters for signing on a Mac (scripts/build_ipa.sh

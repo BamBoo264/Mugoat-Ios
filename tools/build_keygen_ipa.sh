@@ -10,7 +10,7 @@ mkdir -p "$APP_DIR"
 
 xcrun swiftc \
   -parse-as-library \
-  -target arm64-apple-ios16.0 \
+  -target arm64-apple-ios15.0 \
   -sdk "$SDK_PATH" \
   -O \
   -framework UIKit \

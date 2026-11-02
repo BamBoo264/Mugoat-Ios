@@ -71,7 +71,7 @@ for sdk in sdks:
     # CMAKE_SYSTEM_PROCESSOR: a cross build for iOS doesn't set it, and without it libopus leaves out its
     # NEON code (every 64-bit iPhone has NEON, so it is presumed rather than detected).
     args = ['-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_SYSTEM_NAME=iOS', '-DCMAKE_SYSTEM_PROCESSOR=aarch64',
-            f'-DCMAKE_OSX_SYSROOT={sdk}', '-DCMAKE_OSX_ARCHITECTURES=arm64', '-DCMAKE_OSX_DEPLOYMENT_TARGET=16.0',
+            f'-DCMAKE_OSX_SYSROOT={sdk}', '-DCMAKE_OSX_ARCHITECTURES=arm64', '-DCMAKE_OSX_DEPLOYMENT_TARGET=15.0',
             '-DOPUS_BUILD_TESTING=OFF', '-DOPUS_BUILD_PROGRAMS=OFF', '-DBUILD_SHARED_LIBS=OFF',
             '-DOPUS_INSTALL_PKG_CONFIG_MODULE=OFF', '-DOPUS_INSTALL_CMAKE_CONFIG_MODULE=OFF']
     stamp = library.with_suffix('.args')

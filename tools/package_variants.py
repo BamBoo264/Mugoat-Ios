@@ -8,7 +8,7 @@ for low in [False]:
  name='Mugoat-Nova-N002'
  with tempfile.TemporaryDirectory(prefix='nova-package-') as tmp:
   stage=Path(tmp);app=stage/'Payload/PlayGTA5Native.app';app.parent.mkdir();shutil.copytree(source,app,symlinks=True)
-  p=app/'Info.plist';info=plistlib.loads(p.read_bytes());info.update(PGLiteMode=False,CFBundleDisplayName='Mugoat Nova',CFBundleIdentifier='vn.gta.newgen',CFBundleShortVersionString='1.0.2',CFBundleVersion='2');p.write_bytes(plistlib.dumps(info))
+  p=app/'Info.plist';info=plistlib.loads(p.read_bytes());info.update(PGLiteMode=False,CFBundleDisplayName='Mugoat Nova',CFBundleIdentifier='vn.gta.newgen',CFBundleShortVersionString='1.0.2',CFBundleVersion='2',MinimumOSVersion='15.0');p.write_bytes(plistlib.dumps(info))
   subprocess.run(['codesign','--force','--sign','-','--entitlements',str(entitlements),'--generate-entitlement-der',str(app)],check=True)
   granted=plistlib.loads(subprocess.check_output(['codesign','-d','--entitlements',':-',str(app)],stderr=subprocess.DEVNULL))
   for key in ['com.apple.developer.kernel.increased-memory-limit','com.apple.developer.kernel.extended-virtual-addressing']:assert granted.get(key) is True

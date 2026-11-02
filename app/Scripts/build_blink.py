@@ -22,7 +22,7 @@ from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
 source = root / 'Vendor/blink'
-TARGETS = {'iphoneos': 'arm64-apple-ios16.0', 'iphonesimulator': 'arm64-apple-ios16.0-simulator'}
+TARGETS = {'iphoneos': 'arm64-apple-ios15.0', 'iphonesimulator': 'arm64-apple-ios15.0-simulator'}
 FLAGS = ['-O3', '-DNDEBUG', '-w', '-D_GNU_SOURCE', f'-I{source}']
 
 parser = argparse.ArgumentParser()

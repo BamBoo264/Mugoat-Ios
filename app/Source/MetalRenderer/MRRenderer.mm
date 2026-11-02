@@ -2078,30 +2078,37 @@ extern "C" void PGMetalRendererSetUpscaling(int on) { gUpscale.store(on != 0); }
 #if PG_METALFX
 static struct { id<MTLFXSpatialScaler> scaler; id<MTLTexture> out; uint32_t inW, inH, outW, outH; MTLPixelFormat format; bool unsupported; } FX;
 static id<MTLTexture> upscaled(Texture *t) {
-	if (!gUpscale.load() || FX.unsupported || !R->layer) return nil;
-	if (![MTLFXSpatialScalerDescriptor supportsDevice:R->device]) { FX.unsupported = true; pg_log("Sharper upscaling: MetalFX isn't available on this device."); return nil; }
-	CGSize screen = R->layer.bounds.size; CGFloat scale = R->layer.contentsScale;
-	uint32_t outW = (uint32_t)std::min<double>(screen.width * scale, t->width * 3.0), outH = (uint32_t)std::min<double>(screen.height * scale, t->height * 3.0);
-	if(gNovaOutW.load() && gNovaOutH.load()){outW=gNovaOutW.load();outH=gNovaOutH.load();}
-	if (outW < t->width * 1.05 || outH < t->height * 1.05) return nil;		// the picture is already about screen size
-	if (!FX.scaler || FX.inW != t->width || FX.inH != t->height || FX.outW != outW || FX.outH != outH || FX.format != t->tex.pixelFormat) {
-		MTLFXSpatialScalerDescriptor *d = [MTLFXSpatialScalerDescriptor new];
-		d.inputWidth = t->width; d.inputHeight = t->height; d.outputWidth = outW; d.outputHeight = outH;
-		d.colorTextureFormat = t->tex.pixelFormat; d.outputTextureFormat = t->tex.pixelFormat;
-		d.colorProcessingMode = MTLFXSpatialScalerColorProcessingModePerceptual;
-		FX.scaler = [d newSpatialScalerWithDevice:R->device];
-		MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:t->tex.pixelFormat width:outW height:outH mipmapped:NO];
-		td.storageMode = MTLStorageModePrivate;
-		td.usage = (FX.scaler ? FX.scaler.outputTextureUsage : 0) | MTLTextureUsageShaderRead;
-		FX.out = FX.scaler ? [R->device newTextureWithDescriptor:td] : nil;
-		FX.inW = t->width; FX.inH = t->height; FX.outW = outW; FX.outH = outH; FX.format = t->tex.pixelFormat;
-		if (!FX.scaler || !FX.out) { FX.unsupported = true; FX.scaler = nil; FX.out = nil; logf("Sharper upscaling: MetalFX couldn't scale format %lu; off.", (unsigned long)t->tex.pixelFormat); return nil; }
-		logf("Sharper upscaling: MetalFX %ux%u to %ux%u.", t->width, t->height, outW, outH);
+	if (!gUpscale.load() || !R->layer) return nil;
+	if (@available(iOS 16.0, *)) {
+		if (FX.unsupported) return nil;
+		if (![MTLFXSpatialScalerDescriptor supportsDevice:R->device]) { FX.unsupported = true; pg_log("Sharper upscaling: MetalFX isn't available on this device."); return nil; }
+		CGSize screen = R->layer.bounds.size; CGFloat scale = R->layer.contentsScale;
+		uint32_t outW = (uint32_t)std::min<double>(screen.width * scale, t->width * 3.0), outH = (uint32_t)std::min<double>(screen.height * scale, t->height * 3.0);
+		if(gNovaOutW.load() && gNovaOutH.load()){outW=gNovaOutW.load();outH=gNovaOutH.load();}
+		if (outW < t->width * 1.05 || outH < t->height * 1.05) return nil;		// the picture is already about screen size
+		if (!FX.scaler || FX.inW != t->width || FX.inH != t->height || FX.outW != outW || FX.outH != outH || FX.format != t->tex.pixelFormat) {
+			MTLFXSpatialScalerDescriptor *d = [MTLFXSpatialScalerDescriptor new];
+			d.inputWidth = t->width; d.inputHeight = t->height; d.outputWidth = outW; d.outputHeight = outH;
+			d.colorTextureFormat = t->tex.pixelFormat; d.outputTextureFormat = t->tex.pixelFormat;
+			d.colorProcessingMode = MTLFXSpatialScalerColorProcessingModePerceptual;
+			FX.scaler = [d newSpatialScalerWithDevice:R->device];
+			MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:t->tex.pixelFormat width:outW height:outH mipmapped:NO];
+			td.storageMode = MTLStorageModePrivate;
+			td.usage = (FX.scaler ? FX.scaler.outputTextureUsage : 0) | MTLTextureUsageShaderRead;
+			FX.out = FX.scaler ? [R->device newTextureWithDescriptor:td] : nil;
+			FX.inW = t->width; FX.inH = t->height; FX.outW = outW; FX.outH = outH; FX.format = t->tex.pixelFormat;
+			if (!FX.scaler || !FX.out) { FX.unsupported = true; FX.scaler = nil; FX.out = nil; logf("Sharper upscaling: MetalFX couldn't scale format %lu; off.", (unsigned long)t->tex.pixelFormat); return nil; }
+			logf("Sharper upscaling: MetalFX %ux%u to %ux%u.", t->width, t->height, outW, outH);
+		}
+		FX.scaler.colorTexture = t->tex; FX.scaler.outputTexture = FX.out;
+		FX.scaler.inputContentWidth = t->width; FX.scaler.inputContentHeight = t->height;
+		[FX.scaler encodeToCommandBuffer:commandBuffer()];
+		return FX.out;
+	} else {
+		static bool told;
+		if (!told) { told = true; pg_log("Sharper upscaling: MetalFX requires iOS 16.0 or later."); }
+		return nil;
 	}
-	FX.scaler.colorTexture = t->tex; FX.scaler.outputTexture = FX.out;
-	FX.scaler.inputContentWidth = t->width; FX.scaler.inputContentHeight = t->height;
-	[FX.scaler encodeToCommandBuffer:commandBuffer()];
-	return FX.out;
 }
 #else
 static id<MTLTexture> upscaled(Texture *) {

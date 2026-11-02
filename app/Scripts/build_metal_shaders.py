@@ -18,7 +18,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WORK = os.path.join(ROOT, 'Build', 'MetalShaders')
 OUT = os.path.join(ROOT, 'GeneratedResources')
 # The oldest iOS the app runs on (project.yml deploymentTarget); a metallib built for a newer one won't load.
-TARGETS = {'iphoneos': 'air64-apple-ios16.0', 'iphonesimulator': 'air64-apple-ios16.0-simulator'}
+TARGETS = {'iphoneos': 'air64-apple-ios15.0', 'iphonesimulator': 'air64-apple-ios15.0-simulator'}
 
 
 def run(cmd, cwd=None):
@@ -31,7 +31,7 @@ def compile_batch(sdk, compiler, sources, air):
     """Compiles a batch of .metal files in one compiler process (process start-up dominates single-file compiles)."""
     tmp = tempfile.mkdtemp(dir=air)
     try:
-        run([compiler, '-c', '-std=metal3.0', '-target', TARGETS[sdk], '-ffast-math', '-Wno-unused-variable'] + sources, cwd=tmp)
+        run([compiler, '-c', '-std=metal2.4', '-target', TARGETS[sdk], '-ffast-math', '-Wno-unused-variable'] + sources, cwd=tmp)
         for src in sources:
             name = os.path.splitext(os.path.basename(src))[0] + '.air'
             os.replace(os.path.join(tmp, name), os.path.join(air, name))
