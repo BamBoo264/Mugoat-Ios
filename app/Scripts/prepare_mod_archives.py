@@ -59,7 +59,7 @@ else:
     if s.count(head) != 1: raise RuntimeError(f'Pinned f{decrypt} (AES::Decrypt) changed')
     start = s.index(head); end = s.index('\n}\n', start) + 3
     original = s[start:end].replace(head, f'static void pg_aes_decrypt_original_f{decrypt}(w2c_game* instance, u32 var_p0, u64 var_p1, u32 var_p2) {{', 1)
-    wrapper = (f'{head}\n  if (var_p0 == {OPEN}u) return; /* OPEN archive: not encrypted */\n'
+    wrapper = (f'{head}\n  if (var_p0 == {OPEN}u || var_p0 == 0u) return; /* OPEN / unencrypted archive: not encrypted */\n'
                f'  pg_aes_decrypt_original_f{decrypt}(instance, var_p0, var_p1, var_p2);\n}}\n')
     path.write_text(s[:start] + original + wrapper + s[end:])
     print(f'mod archives: patched f{decrypt} in {path.name}')

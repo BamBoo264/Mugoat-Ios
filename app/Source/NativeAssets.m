@@ -205,9 +205,6 @@ bool PGModFileProblem(const char *path,char *why,size_t n){
   uint32_t header[4]={0};bool problem=false;
   if(fread(header,4,4,file)==4){
     if(header[0]==0x37435352)problem=pg_resource_version_problem(path,header[1],why,n);
-    // An archive saved with no encryption at all (key 0; OpenIV saves OPEN, some RPF tools save none) stops
-    // the engine: "Unencrypted archives no longer supported" (log 1121, a PC audio archive).
-    else if(header[0]==0x52504637&&header[3]==0){snprintf(why,n,"an archive saved without encryption, which this game can't read (re-save it with OpenIV, or use the original file)");problem=true;}
     else if(header[0]==0x52504637)problem=pg_rpf_version_problem(file,0,0,why,n);
   }
   fclose(file);return problem;
@@ -695,7 +692,11 @@ static int64_t readLocalAsset(uint32_t id,uint64_t offset,uint8_t *destination,u
   int descriptor=open(file.fileSystemRepresentation,O_RDONLY);
   if(descriptor<0 && isLocalPortRPF){
     int64_t rpfGot = PGReadPortRPFAsset(entry[0], offset, destination, length);
-    if(rpfGot >= 0){ assetReadSource=4; return rpfGot; }
+    if(rpfGot >= 0){
+      assetReadSource=4;
+      PGPatchRPFEncryptionHeader(entry[0], offset, destination, rpfGot);
+      return rpfGot;
+    }
   }
   if(descriptor<0){NSString *message=[@"Game file missing from your folder: " stringByAppendingString:entry[0]];pg_log(message.UTF8String);return -1;}
   uint64_t done=0;
@@ -711,6 +712,7 @@ static int64_t readLocalAsset(uint32_t id,uint64_t offset,uint8_t *destination,u
     done+=(uint64_t)n;
   }
   close(descriptor);assetReadSource=4;
+  if(done>0)PGPatchRPFEncryptionHeader(entry[0], offset, destination, (int64_t)done);
   return (int64_t)done;
 }
 static int64_t readAssetImpl(uint32_t id,uint64_t offset,uint8_t *destination,uint32_t length) {

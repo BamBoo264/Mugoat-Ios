@@ -230,6 +230,30 @@ static void PGInitPortRPF(NSString *dataPath, NSString *cacheDir) {
     pthread_mutex_unlock(&portRPFLock);
 }
 
+static inline void PGPatchRPFEncryptionHeader(NSString *relPath, uint64_t offset, uint8_t *destination, int64_t length) {
+    if (!destination || length <= 0) return;
+    if (offset <= 12 && (offset + (uint64_t)length) >= 16) {
+        size_t encIdx = 12 - (size_t)offset;
+        if (encIdx + 4 <= (size_t)length) {
+            uint32_t enc = 0;
+            memcpy(&enc, destination + encIdx, 4);
+            if (enc == 0) {
+                if (offset == 0) {
+                    uint32_t magic = 0;
+                    memcpy(&magic, destination, 4);
+                    if (magic == 0x52504637) { // 'RPF7'
+                        uint32_t openVal = 0x4E45504F; // 'OPEN'
+                        memcpy(destination + encIdx, &openVal, 4);
+                    }
+                } else if (relPath && [relPath.lowercaseString hasSuffix:@".rpf"]) {
+                    uint32_t openVal = 0x4E45504F; // 'OPEN'
+                    memcpy(destination + encIdx, &openVal, 4);
+                }
+            }
+        }
+    }
+}
+
 static int64_t PGReadPortRPFAsset(NSString *relPath, uint64_t offset, uint8_t *destination, uint32_t length) {
     if (!portRPFRoot || !length) return -1;
 
@@ -240,7 +264,10 @@ static int64_t PGReadPortRPFAsset(NSString *relPath, uint64_t offset, uint8_t *d
         if (cfd >= 0) {
             ssize_t n = pread(cfd, destination, length, (off_t)offset);
             close(cfd);
-            if (n >= 0) return (int64_t)n;
+            if (n >= 0) {
+                PGPatchRPFEncryptionHeader(relPath, offset, destination, (int64_t)n);
+                return (int64_t)n;
+            }
         }
     }
 
@@ -250,7 +277,10 @@ static int64_t PGReadPortRPFAsset(NSString *relPath, uint64_t offset, uint8_t *d
     if (lfd >= 0) {
         ssize_t n = pread(lfd, destination, length, (off_t)offset);
         close(lfd);
-        if (n >= 0) return (int64_t)n;
+        if (n >= 0) {
+            PGPatchRPFEncryptionHeader(relPath, offset, destination, (int64_t)n);
+            return (int64_t)n;
+        }
     }
 
     // 3. Fallbacks for audio
@@ -260,7 +290,10 @@ static int64_t PGReadPortRPFAsset(NSString *relPath, uint64_t offset, uint8_t *d
         if (afd >= 0) {
             ssize_t n = pread(afd, destination, length, (off_t)offset);
             close(afd);
-            if (n >= 0) return (int64_t)n;
+            if (n >= 0) {
+                PGPatchRPFEncryptionHeader(relPath, offset, destination, (int64_t)n);
+                return (int64_t)n;
+            }
         }
     }
 
@@ -275,7 +308,10 @@ static int64_t PGReadPortRPFAsset(NSString *relPath, uint64_t offset, uint8_t *d
         if (afd >= 0) {
             ssize_t n = pread(afd, destination, length, (off_t)(child.blockOffset * 512 + offset));
             close(afd);
-            if (n >= 0) return (int64_t)n;
+            if (n >= 0) {
+                PGPatchRPFEncryptionHeader(relPath, offset, destination, (int64_t)n);
+                return (int64_t)n;
+            }
         }
     }
 
