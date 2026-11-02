@@ -31,7 +31,13 @@ def compile_batch(sdk, compiler, sources, air):
     """Compiles a batch of .metal files in one compiler process (process start-up dominates single-file compiles)."""
     tmp = tempfile.mkdtemp(dir=air)
     try:
-        run([compiler, '-c', '-std=metal2.4', '-target', TARGETS[sdk], '-ffast-math', '-Wno-unused-variable'] + sources, cwd=tmp)
+        cmd = [compiler, '-c', '-std=ios-metal2.4', '-target', TARGETS[sdk], '-ffast-math', '-Wno-unused-variable'] + sources
+        r = subprocess.run(cmd, capture_output=True, text=True, cwd=tmp)
+        if r.returncode:
+            cmd_fallback = [compiler, '-c', '-std=metal3.0', '-target', TARGETS[sdk], '-ffast-math', '-Wno-unused-variable'] + sources
+            rf = subprocess.run(cmd_fallback, capture_output=True, text=True, cwd=tmp)
+            if rf.returncode:
+                raise RuntimeError(' '.join(cmd) + '\n' + r.stderr[-1000:] + '\n' + rf.stderr[-1000:])
         for src in sources:
             name = os.path.splitext(os.path.basename(src))[0] + '.air'
             os.replace(os.path.join(tmp, name), os.path.join(air, name))
@@ -94,6 +100,8 @@ def main():
                     if failed <= 3:
                         print(str(e)[-3000:])
         print('%s: compiled %d shaders in %d batches' % (sdk, len(stale), len(batches)))
+        if failed > 0:
+            sys.exit('Shader compilation failed: %d batches failed.' % failed)
         files = os.path.join(WORK, 'air-' + sdk + '.txt')
         with open(files, 'w') as f:
             for h in hashes:
