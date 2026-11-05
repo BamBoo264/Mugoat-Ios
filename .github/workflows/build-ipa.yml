@@ -1,9 +1,10 @@
-name: Build Mugoat Nova
+name: Build Mugoat Nova Native Runtime V1
 on:
   push:
     branches:
       - nova-2
       - nova-online
+      - nova-native-runtime-v1
   workflow_dispatch:
     inputs:
       runner:
@@ -33,6 +34,7 @@ jobs:
         run: |
           test "$(uname -m)" = arm64
           xcodebuild -version
+          python3 tools/test_native_codegen.py
           python3 tools/test_nova_integrity.py
           python3 tools/test_nova_online.py
           python3 tools/test_port_rpf_loader.py
@@ -80,28 +82,36 @@ jobs:
           command -v xcodegen || brew install xcodegen
           xcrun -sdk iphoneos metal --version > /dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain
           echo "PGMSL_PREBUILT_URL=file://$PWD/build-tools/pgmsl-macos-arm64.tar.gz" >> "$GITHUB_ENV"
-      - name: Release IPA from original 1.4.4 native renderer
+      - name: Prepare and validate generated native engine before Release build
+        if: github.event_name == 'push' || inputs.build_ipa
+        run: |
+          cd app
+          python3 Scripts/check_game_files.py --mirror "$RUNNER_TEMP/game-files"
+          python3 Scripts/prepare.py --mirror "$RUNNER_TEMP/game-files"
+          python3 Scripts/verify_nova_native_base.py
+          INCLUDES="-I Source -I Generated -I Tools/wabt-1.0.42/include -I Tools/wabt-1.0.42/share/wabt/wasm2c -I Tools/simde"
+          clang -std=c11 -O2 -fsanitize=address,undefined -DNOVA_CACHED_MEMORY_BASE=1 $INCLUDES Tests/nova_cached_memory.c -o "$RUNNER_TEMP/cached-memory-tests"
+          "$RUNNER_TEMP/cached-memory-tests"
+          clang -std=c11 -O2 -fsanitize=address,undefined -DNOVA_CACHED_MEMORY_BASE=0 $INCLUDES Tests/nova_cached_memory.c -o "$RUNNER_TEMP/baseline-memory-tests"
+          "$RUNNER_TEMP/baseline-memory-tests"
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          for UNIT in Generated/game_*.c; do
+            xcrun clang -fsyntax-only -w -std=c11 -target arm64-apple-ios15.0 -isysroot "$SDK" $INCLUDES -include Source/NativeRuntime.h -DNOVA_CACHED_MEMORY_BASE=1 -DPG_UNCHECKED_MEMORY=1 -DWASM_RT_USE_MMAP=0 -DWASM_RT_MEMCHECK_BOUNDS_CHECK=1 -DWASM_RT_SKIP_SIGNAL_RECOVERY=1 "$UNIT"
+          done
+      - name: Release Nova gameplay IPA after all preflight checks
         if: github.event_name == 'push' || inputs.build_ipa
         env:
           JOBS: "3"
+          NOVA_PREPARED: "1"
         run: bash build_ipa.sh --mirror "$RUNNER_TEMP/game-files"
       - name: Package and verify memory-entitled Release IPA without rebuilding engine
         if: github.event_name == 'push' || inputs.build_ipa
         run: python3 tools/package_variants.py
-      - name: Build Standalone Nova Keygen IPA
-        if: github.event_name == 'push' || inputs.build_ipa
-        run: bash tools/build_keygen_ipa.sh
       - uses: actions/upload-artifact@v4
         if: success() && (github.event_name == 'push' || inputs.build_ipa)
         with:
-          name: Mugoat-Nova-N002-Release
-          path: Mugoat-Nova-N002.ipa
-          retention-days: 14
-      - uses: actions/upload-artifact@v4
-        if: success() && (github.event_name == 'push' || inputs.build_ipa)
-        with:
-          name: Nova-Keygen-Tool
-          path: Nova-Keygen.ipa
+          name: Mugoat-Nova-NativeRuntime-V1
+          path: Mugoat-Nova-NativeRuntime-V1.ipa
           retention-days: 14
       - uses: actions/upload-artifact@v4
         if: failure()
@@ -109,5 +119,5 @@ jobs:
           name: Nova-build-diagnostics
           path: |
             app/Build/xcodebuild.log
-            app/Generated/*.tsv
+            app/Generated/nova-native-codegen.json
           retention-days: 7

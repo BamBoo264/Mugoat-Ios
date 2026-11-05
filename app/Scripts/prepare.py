@@ -111,6 +111,8 @@ run('python3', 'Scripts/prepare_streaming_health.py')
 run('python3', 'Scripts/prepare_heap_return.py')
 run('python3', 'Scripts/prepare_memory_file_create.py')
 run('python3', 'Scripts/prepare_longjmp.py')
+# Last code-generation transform: no guest memory semantics or scheduling changes.
+run('python3', 'Scripts/prepare_nova_native_base.py')
 # The BC texture decoder header (MIT): phones without BC texture support get decoded textures.
 bcdec = root / 'Tools/bcdec'
 if not bcdec.exists():

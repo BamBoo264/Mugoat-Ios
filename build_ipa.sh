@@ -20,7 +20,7 @@ for option in "$@"; do
     --lite) LITE=true ;;
   esac
 done
-IPA=Mugoat-Nova-N001.ipa
+IPA=Mugoat-Nova-NativeRuntime-V1.ipa
 $LITE && IPA=GTA5Port-Lite.ipa
 cd "$(dirname "$0")/app"
 JOBS="${JOBS:-$(sysctl -n hw.ncpu)}"
@@ -33,7 +33,11 @@ if [ -n "$SERVER" ]; then
   MIRROR="$PWD/Build/Inputs/mirror"
 fi
 "$PY" Scripts/check_game_files.py --mirror "$MIRROR"
-"$PY" Scripts/prepare.py --mirror "$MIRROR"
+if [ "${NOVA_PREPARED:-0}" = 1 ]; then
+  "$PY" Scripts/verify_nova_native_base.py
+else
+  "$PY" Scripts/prepare.py --mirror "$MIRROR"
+fi
 # The app opens with your server already filled in (without one, it asks where your files are).
 /usr/libexec/PlistBuddy -c "Set :PGDefaultAssetServer $SERVER" App/Info.plist
 /usr/libexec/PlistBuddy -c "Set :PGLiteMode $LITE" App/Info.plist

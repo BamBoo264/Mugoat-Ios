@@ -3194,6 +3194,7 @@ static void *boot(void *ignored) {
     pg_log(message);
     return NULL;
   }
+  pg_log("Nova Native Runtime V1: ARM64 AOT, cached stable heap base; atomic operations and renderer unchanged.");
   pg_threads_main(&env);
   wasm2c_game_instantiate(&env.game, &env, &wasi);
   uint32_t actual = w2c_game_htons(&env.game, 0x1234);
