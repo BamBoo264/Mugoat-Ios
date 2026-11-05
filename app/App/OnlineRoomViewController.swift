@@ -49,7 +49,7 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
         header.alignment = .center
         header.distribution = .equalSpacing
 
-        titleLabel.text = "PHÒNG NOVA / IP TRỰC TIẾP"
+        titleLabel.text = "PHÒNG NOVA INTERNET"
         titleLabel.font = Theme.display(18)
         titleLabel.textColor = Theme.text
 
@@ -115,7 +115,7 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
         hostButton.addAction(UIAction { [weak self] _ in
             guard let self = self else { return }
             self.dismissKeyboard()
-            let code = self.roomManager.createRoom()
+            let code = self.roomManager.createRoom(internet:true)
             self.roomCodeDisplay.text = code
             self.updateUI()
         }, for: .touchUpInside)
@@ -173,8 +173,8 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
         pasteButton.widthAnchor.constraint(equalToConstant: 100).isActive = true
 
         addressInput.placeholder="IP máy chủ nếu Bonjour không tìm được (tuỳ chọn)";addressInput.textColor=Theme.text;addressInput.font=Theme.body(13);addressInput.autocapitalizationType = .none;addressInput.autocorrectionType = .no;addressInput.borderStyle = .roundedRect
-        let note=UILabel();note.text="Hai máy dùng Nova cùng phiên bản. Bonjour tìm trong mạng nội bộ; IP trực tiếp cần định tuyến/mở UDP 47520. Chưa có relay vượt NAT hoặc tương thích server GTAV-v10.1.";note.font=Theme.body(11);note.textColor=Theme.secondaryText;note.numberOfLines=0
-        let joinStack = UIStackView(arrangedSubviews: [joinTitle, inputRow, addressInput, note, joinButton])
+        let note=UILabel();note.text="Chơi qua Wi-Fi hoặc 4G/5G: một người tạo phòng, người còn lại nhập mã. Cần Nova cùng phiên bản. Đồng bộ nhân vật thử nghiệm; chưa đồng bộ đầy đủ nhiệm vụ, xe hoặc tương thích GTAV-v10.1. Relay Free có hạn mức.";note.font=Theme.body(11);note.textColor=Theme.secondaryText;note.numberOfLines=0
+        let joinStack = UIStackView(arrangedSubviews: [joinTitle, inputRow, note, joinButton])
         joinStack.axis = .vertical
         joinStack.spacing = 8
         joinStack.translatesAutoresizingMaskIntoConstraints = false
@@ -257,7 +257,7 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
     @objc private func performJoin() {
         dismissKeyboard()
         guard let text = joinInput.text, !text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-        roomManager.joinRoom(code:text,hostAddress:addressInput.text)
+        roomManager.joinRoom(code:text,internet:true)
         updateUI()
     }
 

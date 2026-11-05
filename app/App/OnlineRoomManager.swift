@@ -69,6 +69,11 @@ final class OnlineRoomManager {
     private var lastStatePushTime: TimeInterval = 0
     private var lastPeerFeedTime: TimeInterval = 0
 
+    private var internet:NovaInternetTransport?
+    static var relayURL:URL? {
+        guard let text=Bundle.main.object(forInfoDictionaryKey:"NovaRelayURL") as? String,let url=URL(string:text),url.scheme=="wss" else{return nil}
+        return url
+    }
     private var listener: NWListener?
     private var browser: NWBrowser?
     private var activeConnections: [NWConnection] = []
@@ -108,12 +113,13 @@ final class OnlineRoomManager {
     // MARK: - Host Room
 
     /// Creates a new room as host, assigns a room code, and listens for connections.
-    func createRoom(advertise:Bool=true) -> String {
+    func createRoom(advertise:Bool=true, internet useInternet:Bool=false) -> String {
         leaveRoom()
         let code = Self.generateRoomCode()
         roomCode = code
         isHost = true
         hasSpawnedAtHost = true // Host doesn't need to teleport to itself
+        if useInternet {state = .connecting(code:code);startInternet(code:code,host:true);return code}
         state = .hosting(code: code)
         startListener(code:code,advertise:advertise)
         startLocalBroadcast()
@@ -123,7 +129,7 @@ final class OnlineRoomManager {
     // MARK: - Join Room
 
     /// Joins an existing room with a room code.
-    func joinRoom(code rawCode:String, hostAddress:String?=nil) {
+    func joinRoom(code rawCode:String, hostAddress:String?=nil, internet useInternet:Bool=false) {
         leaveRoom()
         let code = Self.normalizeCode(rawCode)
         guard code.count==9,code.replacingOccurrences(of:"-",with:"").utf8.allSatisfy({($0>=65 && $0<=90)||($0>=48 && $0<=57)}) else {
@@ -134,6 +140,7 @@ final class OnlineRoomManager {
         isHost = false
         hasSpawnedAtHost = false
         state = .connecting(code: code)
+        if useInternet{startInternet(code:code,host:false);return}
         connectToHost(code:code,address:hostAddress)
         let generation=sessionGeneration
         queue.asyncAfter(deadline:.now()+8){[weak self] in
@@ -146,6 +153,7 @@ final class OnlineRoomManager {
 
     func leaveRoom() {
         sessionGeneration &+= 1
+        internet?.close();internet=nil
         if inRoom, let code = roomCode {
             broadcast(packet: RoomPacket(type: .leave, roomCode: code, senderId: String(localPlayerId), senderName: localPlayerName))
         }
@@ -166,6 +174,36 @@ final class OnlineRoomManager {
         hasSpawnedAtHost = false
         pendingSpawnCoords = nil
         state = .idle
+    }
+
+    private func startInternet(code:String,host:Bool){
+        guard let url=Self.relayURL else{state = .error("Bản này chưa cấu hình relay Internet.");return}
+        let transport=NovaInternetTransport();internet=transport
+        let generation=sessionGeneration
+        transport.onError={[weak self] message in guard let self,self.sessionGeneration==generation else{return};self.leaveRoom();self.state = .error(message)}
+        transport.onPacket={[weak self] packet in guard let self,self.sessionGeneration==generation else{return};self.handleInternet(packet)}
+        transport.connect(base:url,code:code,host:host,hello:RoomPacket(type:.joinRequest,roomCode:code,senderId:String(localPlayerId),senderName:localPlayerName))
+    }
+    private func handleInternet(_ p:RoomPacket){
+        guard p.roomCode==roomCode else{return}
+        if p.type == .joinAccept{
+            guard case .connecting=state else{return}
+            if isHost{guard p.senderId==String(localPlayerId) else{return};state = .hosting(code:p.roomCode)}
+            else{hostPeerId=p.senderId;state = .connected(code:p.roomCode,isHost:false);var peer=OnlinePeer(id:p.senderId,name:p.senderName);if let pos=p.position{peer.position=pos;pendingSpawnCoords=pos};peers[p.senderId]=peer}
+            startLocalBroadcast();onPeersUpdated?(Array(peers.values));return
+        }
+        guard inRoom,p.senderId != String(localPlayerId) else{return}
+        if p.type == .leave{
+            if !isHost,p.senderId==hostPeerId{leaveRoom();state = .error("Máy chủ đã rời phòng.");return}
+            peers.removeValue(forKey:p.senderId);p.senderId.withCString{PGRemoveRemotePeer($0)}
+        }else if p.type == .stateSync || p.type == .ping{
+            guard peers[p.senderId] != nil || peers.count<NovaRoomProtocol.maxPeers else{return}
+            var peer=peers[p.senderId] ?? OnlinePeer(id:p.senderId,name:p.senderName)
+            if let pos=p.position{peer.position=pos};if let h=p.heading{peer.heading=h};if let v=p.vehicleModel{peer.vehicleModel=v}
+            if let w=p.weapon{peer.weapon=w};if let hp=p.health{peer.health=hp};peer.lastSeen=Date();peers[p.senderId]=peer
+            if !isHost,!hasSpawnedAtHost,p.senderId==hostPeerId,let pos=p.position{pendingSpawnCoords=pos}
+        }
+        onPeersUpdated?(Array(peers.values))
     }
 
     // MARK: - Network Engine (Network.framework)
@@ -367,6 +405,7 @@ final class OnlineRoomManager {
     }
 
     private func broadcast(packet: RoomPacket) {
+        if let internet{internet.send(packet);return}
         guard let data = try? JSONEncoder().encode(packet) else { return }
         for conn in activeConnections {
             conn.send(content: data, completion: .idempotent)

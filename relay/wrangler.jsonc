@@ -1,0 +1,7 @@
+{
+ "name":"mugoat-nova-relay", "main":"worker.mjs", "compatibility_date":"2026-11-01",
+ "account_id":"8b4986f225d3d4a1a995198f13e07a1d", "workers_dev":true,
+ "durable_objects":{"bindings":[{"name":"ROOMS","class_name":"NovaRoom"}]},
+ "migrations":[{"tag":"v1","new_sqlite_classes":["NovaRoom"]}],
+ "observability":{"enabled":false}
+}
