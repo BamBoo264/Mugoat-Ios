@@ -38,7 +38,7 @@ Hai log V1 ở `E:\nova native log` của iPhone 14 Pro Max/A16. Giới hạn ti
 ## Kiểm thử và giới hạn
 Preflight commit b53594e: GitHub run42005411169 thành công. Swift iOS, renderer, importer xe/skin/audio, PAD/scaling, language reader, log/camera và UDP thật 1host2khách đã qua. Không phải kiểm thử gameplay trên iPhone.
 Relay local qua Workers runtime thật: no-host, host collision,2khách ACK, chuyển state, giả sender, vector lỗi, leave/reconnect và host shutdown đã qua.
-Client Internet bổ sung cần typecheck và kiểm tra production relay sau cấp quyền; V2 chưa build ở thời điểm ghi báo cáo.
+Client Internet đã qua typecheck iOS ở run42008221017. Relay production https://mugoat-nova-relay.hutaolee264.workers.dev đã qua cùng bộ kiểm thử Node qua WSS; bài kiểm tra client Swift thực tế sẽ chặn build nếu thất bại.
 Cần tester iPhone: chơi20–30phút, chuyển khu vực/lái nhanh, chết/qua nhiệm vụ, theo dõi texture/nhiệt, hai điện thoại khác mạng và host ra nền.
 
 ## Tham khảo chính thức

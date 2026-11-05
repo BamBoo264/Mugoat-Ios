@@ -132,6 +132,7 @@ targets:
         NSBonjourServices:
           - _gtavmp._udp
           - _novamp._udp
+        NovaRelayURL: wss://mugoat-nova-relay.hutaolee264.workers.dev
         NSLocalNetworkUsageDescription: "Tìm phòng Nova trên cùng mạng và kết nối trực tiếp máy chủ do bạn chọn."
         GCSupportedGameControllers:
           - ProfileName: ExtendedGamepad

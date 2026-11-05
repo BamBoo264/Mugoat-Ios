@@ -46,7 +46,7 @@ final class SettingsHomeViewController: UITableViewController {
                 AppLanguage.choose("Where the game is, checking and downloading its files")
             }, sections: [.files]))
         }
-                list.append(Category(icon: "person.2.fill", title: "Chơi chung Nova / IP trực tiếp", summary: {
+                list.append(Category(icon: "person.2.fill", title: "Chơi chung Nova qua Internet", summary: {
             OnlineRoomManager.shared.inRoom ? "Đang trong phòng (\(OnlineRoomManager.shared.roomCode ?? ""))" : "Tạo phòng, nhập mã, dịch chuyển"
         }, sections: [], page: { OnlineRoomViewController() }))
 list.append(Category(icon: "shippingbox", title: AppLanguage.choose("Mods"), summary: {

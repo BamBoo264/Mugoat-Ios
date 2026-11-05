@@ -70,6 +70,8 @@ final class OnlineRoomManager {
     private var lastPeerFeedTime: TimeInterval = 0
 
     private var internet:NovaInternetTransport?
+    private let relayBase:URL?
+    init(relayBase:URL?=OnlineRoomManager.relayURL){self.relayBase=relayBase}
     static var relayURL:URL? {
         guard let text=Bundle.main.object(forInfoDictionaryKey:"NovaRelayURL") as? String,let url=URL(string:text),url.scheme=="wss" else{return nil}
         return url
@@ -177,7 +179,7 @@ final class OnlineRoomManager {
     }
 
     private func startInternet(code:String,host:Bool){
-        guard let url=Self.relayURL else{state = .error("Bản này chưa cấu hình relay Internet.");return}
+        guard let url=relayBase else{state = .error("Bản này chưa cấu hình relay Internet.");return}
         let transport=NovaInternetTransport();internet=transport
         let generation=sessionGeneration
         transport.onError={[weak self] message in guard let self,self.sessionGeneration==generation else{return};self.leaveRoom();self.state = .error(message)}

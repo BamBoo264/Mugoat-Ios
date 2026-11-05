@@ -52,6 +52,10 @@ jobs:
           clang -c app/Tests/online_stubs.c -I app/Source -I app/Tests -o "$RUNNER_TEMP/online-stubs.o"
           swiftc -import-objc-header app/Tests/online_bridge.h -I app/Source app/App/OnlineRoomManager.swift app/App/NovaRoomProtocol.swift app/App/NovaInternetTransport.swift app/Tests/nova_lan.swift "$RUNNER_TEMP/online-stubs.o" -framework Network -framework QuartzCore -o "$RUNNER_TEMP/nova-lan"
           "$RUNNER_TEMP/nova-lan"
+      - name: Production Internet client against live Free relay
+        run: |
+          swiftc -import-objc-header app/Tests/online_bridge.h -I app/Source app/App/OnlineRoomManager.swift app/App/NovaRoomProtocol.swift app/App/NovaInternetTransport.swift app/Tests/nova_internet.swift "$RUNNER_TEMP/online-stubs.o" -framework Network -framework QuartzCore -o "$RUNNER_TEMP/nova-internet"
+          "$RUNNER_TEMP/nova-internet"
       - name: Production PAD layout and spatial scaling tests
         run: |
           python3 tools/test_manual_layout.py "$RUNNER_TEMP"
