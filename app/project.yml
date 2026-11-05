@@ -41,7 +41,7 @@ settings:
       - $(inherited)
       - -lopus
       - -lblink
-    # MetalFX (Settings › Sharper upscaling) exists in the iPhone SDK only.
+    # MetalFX (Settings Ã¢â‚¬Âº Sharper upscaling) exists in the iPhone SDK only.
     "OTHER_LDFLAGS[sdk=iphoneos*]":
       - $(inherited)
       - -lopus
@@ -131,7 +131,8 @@ targets:
         GCSupportsGameMode: true
         NSBonjourServices:
           - _gtavmp._udp
-        NSLocalNetworkUsageDescription: "Kết nối phòng chơi GTA Online trên mạng nội bộ và chia sẻ phiên với bạn bè."
+          - _novamp._udp
+        NSLocalNetworkUsageDescription: "Tìm phòng Nova trên cùng mạng và kết nối trực tiếp máy chủ do bạn chọn."
         GCSupportedGameControllers:
           - ProfileName: ExtendedGamepad
 schemes:

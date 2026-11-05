@@ -1,6 +1,6 @@
 import Foundation
 import Network
-import UIKit
+import QuartzCore
 
 /// Represents a remote player connected to the current multiplayer room.
 struct OnlinePeer: Identifiable {
@@ -67,11 +67,16 @@ final class OnlineRoomManager {
     private(set) var hasSpawnedAtHost = false
     private(set) var pendingSpawnCoords: [Float]?
     private var lastStatePushTime: TimeInterval = 0
+    private var lastPeerFeedTime: TimeInterval = 0
 
     private var listener: NWListener?
     private var browser: NWBrowser?
     private var activeConnections: [NWConnection] = []
-    private let queue = DispatchQueue(label: "vn.gta.online.room", qos: .userInitiated)
+    private let queue=DispatchQueue.main // NW callbacks, UI and peer state have one owner.
+    private var sessionGeneration=0
+    private var connectionPeers:[ObjectIdentifier:String]=[:]
+    private var endpoints=Set<NWEndpoint>()
+    private var hostPeerId:String?
     private var syncTimer: Timer?
 
     var inRoom: Bool {
@@ -103,14 +108,14 @@ final class OnlineRoomManager {
     // MARK: - Host Room
 
     /// Creates a new room as host, assigns a room code, and listens for connections.
-    func createRoom() -> String {
+    func createRoom(advertise:Bool=true) -> String {
         leaveRoom()
         let code = Self.generateRoomCode()
         roomCode = code
         isHost = true
         hasSpawnedAtHost = true // Host doesn't need to teleport to itself
         state = .hosting(code: code)
-        startListener(code: code)
+        startListener(code:code,advertise:advertise)
         startLocalBroadcast()
         return code
     }
@@ -118,10 +123,10 @@ final class OnlineRoomManager {
     // MARK: - Join Room
 
     /// Joins an existing room with a room code.
-    func joinRoom(code rawCode: String) {
+    func joinRoom(code rawCode:String, hostAddress:String?=nil) {
         leaveRoom()
         let code = Self.normalizeCode(rawCode)
-        guard code.count >= 8 else {
+        guard code.count==9,code.replacingOccurrences(of:"-",with:"").utf8.allSatisfy({($0>=65 && $0<=90)||($0>=48 && $0<=57)}) else {
             state = .error("Mã phòng không hợp lệ (cần 8 ký tự, ví dụ: ABCD-1234)")
             return
         }
@@ -129,12 +134,18 @@ final class OnlineRoomManager {
         isHost = false
         hasSpawnedAtHost = false
         state = .connecting(code: code)
-        connectToHost(code: code)
+        connectToHost(code:code,address:hostAddress)
+        let generation=sessionGeneration
+        queue.asyncAfter(deadline:.now()+8){[weak self] in
+         guard let self,self.sessionGeneration==generation else{return}
+         if case .connecting=self.state{self.leaveRoom();self.state = .error("Chưa nhận xác nhận từ máy chủ. Kiểm tra cùng Wi-Fi/IP, mã phòng và quyền Mạng cục bộ.")}
+        }
     }
 
     // MARK: - Leave Room
 
     func leaveRoom() {
+        sessionGeneration &+= 1
         if inRoom, let code = roomCode {
             broadcast(packet: RoomPacket(type: .leave, roomCode: code, senderId: String(localPlayerId), senderName: localPlayerName))
         }
@@ -145,7 +156,7 @@ final class OnlineRoomManager {
         listener?.cancel()
         listener = nil
         for conn in activeConnections { conn.cancel() }
-        activeConnections.removeAll()
+        activeConnections.removeAll();connectionPeers.removeAll();endpoints.removeAll();hostPeerId=nil
         for (_, peer) in peers {
             peer.id.withCString { PGRemoveRemotePeer($0) }
         }
@@ -159,13 +170,13 @@ final class OnlineRoomManager {
 
     // MARK: - Network Engine (Network.framework)
 
-    private func startListener(code: String) {
+    private func startListener(code:String,advertise:Bool) {
         do {
             let params = NWParameters.udp
             params.allowLocalEndpointReuse = true
             params.includePeerToPeer = true
             let listener = try NWListener(using: params, on: 47520)
-            listener.service = NWListener.Service(name: "GTAV-\(code)", type: "_gtavmp._udp")
+            if advertise{listener.service=NWListener.Service(name:"GTAV-\(code)",type:NovaRoomProtocol.service)}
             listener.newConnectionHandler = { [weak self] connection in
                 self?.handleIncomingConnection(connection)
             }
@@ -181,66 +192,61 @@ final class OnlineRoomManager {
         }
     }
 
-    private func connectToHost(code: String) {
-        // 1. Direct UDP broadcast fast-path on port 47520
-        let udpParams = NWParameters.udp
-        udpParams.allowLocalEndpointReuse = true
-        udpParams.includePeerToPeer = true
-        let hostEndpoint = NWEndpoint.hostPort(host: .ipv4(.broadcast), port: 47520)
-        let connection = NWConnection(to: hostEndpoint, using: udpParams)
-        connection.stateUpdateHandler = { [weak self] connState in
-            guard let self = self else { return }
-            switch connState {
-            case .ready:
-                self.sendJoinRequest(connection: connection, code: code)
-                self.receive(on: connection)
-            case .failed(let err):
-                self.state = .error("Không tìm thấy phòng \(code): \(err.localizedDescription)")
-            default: break
-            }
+    private func connectToHost(code:String,address:String?){
+        let generation=sessionGeneration
+        if let address=address?.trimmingCharacters(in:.whitespacesAndNewlines),!address.isEmpty{
+            connect(endpoint:.hostPort(host:NWEndpoint.Host(address),port:47520),code:code,generation:generation);return
         }
-        connection.start(queue: queue)
-        activeConnections.append(connection)
-
-        // 2. Bonjour discovery (_gtavmp._udp) for reliable local network discovery
-        let descriptor = NWBrowser.Descriptor.bonjour(type: "_gtavmp._udp", domain: nil)
-        let browserParams = NWParameters.udp
-        browserParams.allowLocalEndpointReuse = true
-        browserParams.includePeerToPeer = true
-        let browser = NWBrowser(for: descriptor, using: browserParams)
-        browser.browseResultsChangedHandler = { [weak self] results, _ in
-            guard let self = self else { return }
-            for result in results {
-                if case .service(let name, _, _, _) = result.endpoint, name.contains(code) {
-                    let bonjourConn = NWConnection(to: result.endpoint, using: browserParams)
-                    bonjourConn.stateUpdateHandler = { [weak self] state in
-                        if state == .ready {
-                            self?.sendJoinRequest(connection: bonjourConn, code: code)
-                            self?.receive(on: bonjourConn)
-                        }
-                    }
-                    bonjourConn.start(queue: self.queue)
-                    self.activeConnections.append(bonjourConn)
+        let params=NWParameters.udp;params.includePeerToPeer=true
+        let browser=NWBrowser(for:.bonjour(type:NovaRoomProtocol.service,domain:nil),using:params)
+        browser.browseResultsChangedHandler={[weak self] results,_ in
+            guard let self,self.sessionGeneration==generation else{return}
+            guard case .connecting=self.state else{return}
+            for result in results{
+                if case .service(let name,_,_,_)=result.endpoint,name=="GTAV-"+code,!self.endpoints.contains(result.endpoint){
+                    self.endpoints.insert(result.endpoint);self.connect(endpoint:result.endpoint,code:code,generation:generation)
                 }
             }
         }
-        browser.start(queue: queue)
-        self.browser = browser
-
-        // Set a timeout for connection
-        queue.asyncAfter(deadline: .now() + 8.0) { [weak self] in
-            guard let self = self else { return }
-            if case .connecting = self.state {
-                self.state = .connected(code: code, isHost: false)
-                self.startLocalBroadcast()
-            }
+        browser.start(queue:queue);self.browser=browser
+    }
+    private func connect(endpoint:NWEndpoint,code:String,generation:Int){
+        let params=NWParameters.udp;params.includePeerToPeer=true
+        let connection=NWConnection(to:endpoint,using:params)
+        connection.stateUpdateHandler={[weak self,weak connection] status in
+            guard let self,let connection,self.sessionGeneration==generation else{return}
+            if case .ready=status{self.sendJoinRequest(connection:connection,code:code);self.receive(on:connection);self.retryJoin(connection,code:code,generation:generation)}
+            if case .failed=status{self.drop(connection)}
         }
+        activeConnections.append(connection);connection.start(queue:queue)
+    }
+    private func retryJoin(_ connection:NWConnection,code:String,generation:Int){
+        queue.asyncAfter(deadline:.now()+1){[weak self,weak connection] in
+            guard let self,let connection,self.sessionGeneration==generation,self.activeConnections.contains(where:{$0===connection}) else{return}
+            if case .connecting=self.state{self.sendJoinRequest(connection:connection,code:code);self.retryJoin(connection,code:code,generation:generation)}
+        }
+    }
+    private func drop(_ connection:NWConnection){
+        activeConnections.removeAll{$0===connection}
+        if let id=connectionPeers.removeValue(forKey:ObjectIdentifier(connection)){
+            peers.removeValue(forKey:id);id.withCString{PGRemoveRemotePeer($0)};onPeersUpdated?(Array(peers.values))
+            if !isHost,id==hostPeerId{leaveRoom();state = .error("Đã mất kết nối máy chủ.")}
+        }
+        connection.cancel()
     }
 
     private func handleIncomingConnection(_ connection: NWConnection) {
+        guard activeConnections.count<NovaRoomProtocol.maxPeers else{connection.cancel();return}
+        let generation=sessionGeneration
         activeConnections.append(connection)
-        connection.start(queue: queue)
-        receive(on: connection)
+        connection.stateUpdateHandler={[weak self,weak connection] state in
+            guard let self,let connection,self.sessionGeneration==generation else{return}
+            if case .failed=state{self.drop(connection)}
+        }
+        connection.start(queue:queue);receive(on:connection)
+        queue.asyncAfter(deadline:.now()+10){[weak self,weak connection] in
+            guard let self,let connection,self.sessionGeneration==generation,self.connectionPeers[ObjectIdentifier(connection)]==nil else{return};self.drop(connection)
+        }
     }
 
     private func sendJoinRequest(connection: NWConnection, code: String) {
@@ -249,25 +255,30 @@ final class OnlineRoomManager {
     }
 
     private func receive(on connection: NWConnection) {
+        let generation=sessionGeneration
         connection.receiveMessage { [weak self] content, _, _, error in
-            guard let self = self else { return }
-            if let data = content, let packet = try? JSONDecoder().decode(RoomPacket.self, from: data) {
+            guard let self,self.sessionGeneration==generation else{return}
+            if let data=content,data.count<=NovaRoomProtocol.maxPacketBytes,let packet=try? JSONDecoder().decode(RoomPacket.self,from:data),NovaRoomProtocol.valid(packet){
                 self.handlePacket(packet, from: connection)
             }
-            if error == nil {
-                self.receive(on: connection)
-            }
+            if error==nil{self.receive(on:connection)}else{self.drop(connection)}
         }
     }
 
     private func handlePacket(_ packet: RoomPacket, from connection: NWConnection) {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            guard packet.roomCode == self.roomCode else { return }
+            guard packet.roomCode==self.roomCode,packet.senderId != String(self.localPlayerId),NovaRoomProtocol.valid(packet) else{return}
+            let bound=self.connectionPeers[ObjectIdentifier(connection)]
+            if packet.type == .stateSync || packet.type == .ping || packet.type == .leave{
+                guard self.isHost ? bound==packet.senderId : bound==self.hostPeerId && self.hostPeerId != nil else{return}
+            }
 
             switch packet.type {
             case .joinRequest:
                 if self.isHost {
+                    guard self.peers[packet.senderId] != nil || self.peers.count<NovaRoomProtocol.maxPeers else{return}
+                    self.connectionPeers[ObjectIdentifier(connection)]=packet.senderId
                     self.peers[packet.senderId] = OnlinePeer(id: packet.senderId, name: packet.senderName)
                     self.state = .connected(code: self.roomCode ?? "", isHost: true)
                     self.onPeersUpdated?(Array(self.peers.values))
@@ -286,6 +297,9 @@ final class OnlineRoomManager {
                 }
 
             case .joinAccept:
+                guard !self.isHost else{return}
+                guard case .connecting=self.state else{return}
+                self.connectionPeers[ObjectIdentifier(connection)]=packet.senderId;self.hostPeerId=packet.senderId;self.browser?.cancel();self.browser=nil
                 var peer = OnlinePeer(id: packet.senderId, name: packet.senderName)
                 if let pos = packet.position { peer.position = pos }
                 if let h = packet.heading { peer.heading = h }
@@ -300,6 +314,7 @@ final class OnlineRoomManager {
                 }
 
             case .stateSync:
+                if self.isHost{self.relay(packet,excluding:connection)}
                 if var peer = self.peers[packet.senderId] {
                     if let pos = packet.position { peer.position = pos }
                     if let h = packet.heading { peer.heading = h }
@@ -328,7 +343,12 @@ final class OnlineRoomManager {
                     self.onPeersUpdated?(Array(self.peers.values))
                 }
 
+            case .ping:
+                if var peer=self.peers[packet.senderId]{peer.lastSeen=Date();self.peers[packet.senderId]=peer}
+                if self.isHost{self.relay(packet,excluding:connection)}
             case .leave:
+                if self.isHost{self.relay(packet,excluding:connection)}
+                if !self.isHost,packet.senderId==self.hostPeerId{self.leaveRoom();self.state = .error("Máy chủ đã rời phòng.");return}
                 packet.senderId.withCString { PGRemoveRemotePeer($0) }
                 self.peers.removeValue(forKey: packet.senderId)
                 self.onPeersUpdated?(Array(self.peers.values))
@@ -338,6 +358,9 @@ final class OnlineRoomManager {
         }
     }
 
+    private func relay(_ packet:RoomPacket,excluding origin:NWConnection){
+        for c in activeConnections where c !== origin && connectionPeers[ObjectIdentifier(c)] != nil{send(packet:packet,over:c)}
+    }
     private func send(packet: RoomPacket, over connection: NWConnection) {
         guard let data = try? JSONEncoder().encode(packet) else { return }
         connection.send(content: data, completion: .idempotent)
@@ -352,13 +375,20 @@ final class OnlineRoomManager {
 
     private func startLocalBroadcast() {
         syncTimer?.invalidate()
-        syncTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+        syncTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.heartbeatTick()
         }
     }
 
     private func heartbeatTick() {
         guard inRoom, let code = roomCode else { return }
+        let expired=peers.values.filter{Date().timeIntervalSince($0.lastSeen)>15}.map{$0.id}
+        for id in expired{
+            peers.removeValue(forKey:id);id.withCString{PGRemoveRemotePeer($0)}
+            if isHost{for c in activeConnections.filter({connectionPeers[ObjectIdentifier($0)]==id}){drop(c)}}
+        }
+        if !expired.isEmpty{onPeersUpdated?(Array(peers.values))}
+        if !isHost,let hostPeerId,expired.contains(hostPeerId){leaveRoom();state = .error("Máy chủ không phản hồi.");return}
         let packet = RoomPacket(type: .ping, roomCode: code, senderId: String(localPlayerId), senderName: localPlayerName)
         broadcast(packet: packet)
     }
@@ -416,6 +446,8 @@ final class OnlineRoomManager {
             }
         }
 
+        guard now-lastPeerFeedTime>=0.1 else{return};lastPeerFeedTime=now
+        // Feed peers at network update rate, not every UI frame.
         // Continually feed active peers to C engine for smooth radar blips and avatar ped tracking
         for (_, peer) in peers {
             if peer.position.count >= 3 && (peer.position[0] != 0 || peer.position[1] != 0) {

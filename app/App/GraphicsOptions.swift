@@ -129,10 +129,10 @@ struct DeviceTier {
     /// Presets shown with a warning because they may run out of memory or heat up.
     func risky(_ preset: GraphicsPreset) -> Bool { preset.rawValue > recommended.rawValue }
     /// For the log (kept in English).
-    var summary: String { "\(model) · \(physicalMemoryMB / 1024) GB · app limit \(memoryLimitMB) MB\(supportsBCTextures ? " · BC textures" : "")" }
+    var summary: String { "\(model) · \(Int((Double(physicalMemoryMB) * 1_048_576 / 1_000_000_000).rounded())) GB · app limit \(memoryLimitMB) MB\(supportsBCTextures ? " · BC textures" : "")" }
     /// The same line for Settings, in the app's language.
     var displaySummary: String {
-        AppLanguage.interpolate(AppLanguage.choose("{arg0} · {arg1} GB · app limit {arg2} MB"), [model, String(physicalMemoryMB / 1024), String(memoryLimitMB)])
+        AppLanguage.interpolate(AppLanguage.choose("{arg0} · {arg1} GB · app limit {arg2} MB"), [model, String(Int((Double(physicalMemoryMB) * 1_048_576 / 1_000_000_000).rounded())), String(memoryLimitMB)])
             + (supportsBCTextures ? " · " + AppLanguage.choose("BC textures") : "")
     }
 

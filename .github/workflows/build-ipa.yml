@@ -1,4 +1,4 @@
-name: Build Mugoat Nova Native Runtime V1
+name: Build Mugoat Nova Runtime V2 RAM and rooms
 on:
   push:
     branches:
@@ -45,6 +45,13 @@ jobs:
         run: |
           xcrun clang++ -std=c++20 -fobjc-arc -target arm64-apple-ios15.0 -isysroot "$(xcrun --sdk iphoneos --show-sdk-path)" -I app/Source -c app/Source/MetalGraphicsHost.mm -o "$RUNNER_TEMP/nova-graphics.o"
           nm -g "$RUNNER_TEMP/nova-graphics.o" | grep ' T _PGSetNovaOutput$'
+      - name: Type-check production archive persistence and renderer diagnostics
+        run: xcrun clang++ -std=c++20 -fobjc-arc -fsyntax-only -target arm64-apple-ios15.0 -isysroot "$(xcrun --sdk iphoneos --show-sdk-path)" -I app/Source -I app/Source/MetalRenderer app/Source/MetalRenderer/MRRenderer.mm
+      - name: Real UDP room handshake and relay tests on macOS
+        run: |
+          clang -c app/Tests/online_stubs.c -I app/Source -I app/Tests -o "$RUNNER_TEMP/online-stubs.o"
+          swiftc -import-objc-header app/Tests/online_bridge.h -I app/Source app/App/OnlineRoomManager.swift app/App/NovaRoomProtocol.swift app/Tests/nova_lan.swift "$RUNNER_TEMP/online-stubs.o" -framework Network -framework QuartzCore -o "$RUNNER_TEMP/nova-lan"
+          "$RUNNER_TEMP/nova-lan"
       - name: Production PAD layout and spatial scaling tests
         run: |
           python3 tools/test_manual_layout.py "$RUNNER_TEMP"
@@ -110,8 +117,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success() && (github.event_name == 'push' || inputs.build_ipa)
         with:
-          name: Mugoat-Nova-NativeRuntime-V1
-          path: Mugoat-Nova-NativeRuntime-V1.ipa
+          name: Mugoat-Nova-NativeRuntime-V2-RAM
+          path: Mugoat-Nova-NativeRuntime-V2-RAM.ipa
           retention-days: 14
       - uses: actions/upload-artifact@v4
         if: failure()

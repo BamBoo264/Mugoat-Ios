@@ -661,7 +661,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         SoundAssignments.resolveDuplicatePacks(log: { self.appendLog($0) })
         SoundAssignments.configure()
         _ = TurboSettings.apply()
-        appendLog("Nova baseline: original PCM/DSP/Opus; custom sound assignments only. RAM policy: " + (Theme.isLite && NovaMemorySettings.enabled ? "movement \(NovaMemorySettings.distance) m, reserve \(NovaMemorySettings.reserve) MiB":"original memory guard"))
+        appendLog("Nova baseline: original PCM/DSP/Opus; custom sound assignments only. RAM policy: " + (NovaMemorySettings.enabled ? "movement \(NovaMemorySettings.distance) m, auto/effective reserve \(NovaMemorySettings.effectiveReserve(limit:GameSettings.shared.tier.memoryLimitMB)) MiB":"original memory guard"))
         noticeMods()
         startAudio()
         let (root, rootNote) = EnginePaths.filesRoot()
@@ -1213,6 +1213,11 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         present(alert, animated: true)
     }
 
+    override func didReceiveMemoryWarning(){
+        super.didReceiveMemoryWarning()
+        PGNotifyMemoryPressure()
+        appendLog("RAM: iOS memory warning; bounded unused-resource reclaim requested; active entities remain engine-owned.")
+    }
     private var healthLines = 0
     private var lastStoryMission = "", lastReplayState: Int32 = -1
     private func logHealth() {
@@ -1241,6 +1246,10 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         var stream = [UInt64](repeating: 0, count: 6)
         stream.withUnsafeMutableBufferPointer { PGStreamingHealth($0.baseAddress) }
         let gpuMS = PGGPUFrameMilliseconds()
+        var ram=[UInt64](repeating:0,count:8)
+        ram.withUnsafeMutableBufferPointer{PGMovementCleanupHealth($0.baseAddress)}
+        appendLog("RAM policy: movement \(ram[0] != 0 ? "on":"off"), distance \(ram[1]) m, reserve \(ram[2]) MiB, proactive target \(ram[3]) MiB; move events \(ram[4]), reclaim requests \(ram[5]), requested \(ram[6]) MiB, pressure requests \(ram[7]); requests are not measured freed memory.")
+
         let d = zip(now, lastHealth).map { $0 &- $1 }
         lastHealth = now
         let avgMS = d[1] > 0 ? Double(d[6]) / Double(d[1]) / 1000 : 0
@@ -1250,7 +1259,8 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         var usage = rusage(); getrusage(RUSAGE_SELF, &usage)
         let cpu = Double(usage.ru_utime.tv_sec + usage.ru_stime.tv_sec) + Double(usage.ru_utime.tv_usec + usage.ru_stime.tv_usec) / 1e6
         let wall = CACurrentMediaTime()
-        let cores = lastCPU.map { (cpu - $0.cpu) / max(0.001, wall - $0.wall) } ?? 0
+        let cores = lastCPU.map { (cpu - $0.cpu) / max(0.001, wall - $0.wall) } ?? -1
+        let cpuText=cores>=0 ? String(format:"%.2f",cores):"n/a"
         lastCPU = (cpu, wall)
         // Which mission and where (GTA-106), so a report can be replayed at the same moment in the simulator.
         var name = [CChar](repeating: 0, count: 64), position: (Float, Float, Float) = (0, 0, 0), replay: Int32 = -1
@@ -1261,8 +1271,8 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             if replay != lastReplayState { if replay == 1 { appendLog("Story: Mission failed screen") }; lastReplayState = replay }
         }
         playStats.health(fps: Double(PGRenderedFramesPerSecond()), thermal: ProcessInfo.processInfo.thermalState.rawValue, mission: story ? String(cString: name) : nil, failedScreen: replay == 1)
-        appendLog(String(format: "Health: memory %d MB used, %d MB free · guard stopped streaming growth %llu×, asked to evict %llu× · reads %llu (%.1f MB, avg %.1f ms, slow %llu, errors %llu) · %.0f FPS · thermal %@ · CPU %.2f cores · GPU %.1f ms · streaming %llu waiting (%llu over 10 s), loaded %llu (median %llu ms, 95%% %llu ms), unloaded %llu · at %.0f, %.0f, %.0f",
-                         used, free, d[0], d[7], d[1], Double(d[2]) / 1_048_576, avgMS, d[5], d[3], PGRenderedFramesPerSecond(), thermal, cores, gpuMS, stream[0], stream[1], stream[2], stream[3], stream[4], stream[5], position.0, position.1, position.2))
+        appendLog(String(format: "Health: memory %d MB used, %d MB free · guard stopped streaming growth %llu×, asked to evict %llu× · reads %llu (%.1f MB, avg %.1f ms, slow %llu, errors %llu) · %.0f FPS · thermal %@ · CPU %@ cores · GPU/command-buffer %.1f ms · streaming %llu waiting (%llu over 10 s), loaded %llu (median %llu ms, 95%% %llu ms), unloaded %llu · at %.0f, %.0f, %.0f",
+                         used, free, d[0], d[7], d[1], Double(d[2]) / 1_048_576, avgMS, d[5], d[3], PGRenderedFramesPerSecond(), thermal, cpuText, gpuMS, stream[0], stream[1], stream[2], stream[3], stream[4], stream[5], position.0, position.1, position.2))
     }
 
     @objc private func leftApp() {

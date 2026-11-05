@@ -20,7 +20,7 @@ for option in "$@"; do
     --lite) LITE=true ;;
   esac
 done
-IPA=Mugoat-Nova-NativeRuntime-V1.ipa
+IPA=Mugoat-Nova-NativeRuntime-V2-RAM.ipa
 $LITE && IPA=GTA5Port-Lite.ipa
 cd "$(dirname "$0")/app"
 JOBS="${JOBS:-$(sysctl -n hw.ncpu)}"

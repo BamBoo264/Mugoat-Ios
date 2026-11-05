@@ -42,7 +42,8 @@ static struct TextureStats {
 // What the textures hold on the GPU (an estimate in the simulator). On an iPhone that memory counts
 // against the app's limit; the simulator's GPU is the Mac's, so the simulated limit adds it (EngineHost.c).
 extern "C" uint64_t PGGPUTextureBytes(void) { int64_t v = gTextureStats.gpuBytes.load(); return v > 0 ? (uint64_t)v : 0; }
-// GPU time per frame for the Health line (GTA-116): FPS alone can't tell a busy GPU from a busy CPU.
+// Compatibility API name: mean measured GPU duration PER COMMAND BUFFER, not per presented frame.
+// Buffers may overlap; this alone does not establish GPU utilization or the CPU/GPU bottleneck.
 static std::atomic<uint64_t> gGPUMicros{0}, gGPUFrames{0};
 extern "C" double PGGPUFrameMilliseconds(void) {
 	uint64_t frames = gGPUFrames.exchange(0), micros = gGPUMicros.exchange(0);
@@ -255,7 +256,7 @@ struct Renderer {
 	double statT = 0, busyMs = 0, lastCommitMs = 0, lastPresentMs = 0;
 	// stutter: presents more than 50 ms apart since the last report, and the longest gap
 	double statPresentAt = 0, worstFrameMs = 0; uint64_t longFrames = 0;
-	FrameWork work;
+	FrameWork work,reportWork;
 	uint64_t statDraws = 0, statPresents = 0, statSkips = 0, statPending = 0, statCommits = 0;
 	PGFrameRateWindow fpsWindow;
 	std::atomic<double> fps{0}, lastPresent{0};
@@ -291,20 +292,44 @@ static NSURL *gBinaryArchiveURL = nil;
 static std::atomic<int> gArchiveDirtyEntries{0};
 static std::mutex gArchiveMutex;
 
+static dispatch_queue_t archiveQueue(){
+ static dispatch_queue_t queue;static dispatch_once_t once;
+ dispatch_once(&once,^{queue=dispatch_queue_create("vn.gta.nova.pipeline-cache",dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL,QOS_CLASS_UTILITY,0));});
+ return queue;
+}
+static std::atomic<bool> gArchiveSaveQueued{false};
 static void flushBinaryArchive(bool force = false) {
-	if (!force || !gBinaryArchive || !gBinaryArchiveURL) return;
-	int dirty = gArchiveDirtyEntries.load(std::memory_order_relaxed);
-	if (dirty == 0) return;
-	dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
-		std::lock_guard<std::mutex> guard(gArchiveMutex);
-		NSError *serr = nil;
-		if ([gBinaryArchive serializeToURL:gBinaryArchiveURL error:&serr]) {
-			gArchiveDirtyEntries.store(0, std::memory_order_relaxed);
-			logf("Metal renderer: Binary shader archive serialized (%d new PSOs saved to disk).", dirty);
-		} else {
-			logOnce("archive_save_fail", "Metal renderer: Failed to serialize binary archive: %s", serr.localizedDescription.UTF8String);
-		}
-	});
+ if(!force||!gBinaryArchive||!gBinaryArchiveURL||gArchiveDirtyEntries.load()==0||gArchiveSaveQueued.exchange(true))return;
+ dispatch_async(archiveQueue(),^{ @autoreleasepool {
+  std::lock_guard<std::mutex> guard(gArchiveMutex);
+  int dirty=gArchiveDirtyEntries.load();NSError *error=nil;
+  NSURL *temporary=[gBinaryArchiveURL URLByAppendingPathExtension:@"pending"];
+  if(dirty&&[gBinaryArchive serializeToURL:temporary error:&error]){
+   NSFileManager *fm=NSFileManager.defaultManager;BOOL saved=NO;
+   if([fm fileExistsAtPath:gBinaryArchiveURL.path])saved=[fm replaceItemAtURL:gBinaryArchiveURL withItemAtURL:temporary backupItemName:nil options:0 resultingItemURL:nil error:&error];
+   else saved=[fm moveItemAtURL:temporary toURL:gBinaryArchiveURL error:&error];
+   if(saved){gArchiveDirtyEntries.store(0);logf("Metal renderer: binary archive checkpoint saved (%d new PSOs).",dirty);}
+  }
+  if(error)logOnce("nova_archive_save_fail","Metal renderer: archive checkpoint failed: %s",error.localizedDescription.UTF8String);
+  gArchiveSaveQueued.store(false);
+ }});
+}
+static void archiveRenderDescriptor(MTLRenderPipelineDescriptor *descriptor){
+ if(!gBinaryArchive)return;
+ MTLRenderPipelineDescriptor *copy=[descriptor copy];
+ dispatch_async(archiveQueue(),^{ @autoreleasepool {
+  std::lock_guard<std::mutex> guard(gArchiveMutex);
+  NSError *error=nil;if([gBinaryArchive addRenderPipelineFunctionsWithDescriptor:copy error:&error])gArchiveDirtyEntries.fetch_add(1);
+  else logOnce("nova_archive_render_fail","Metal renderer: archive render entry failed: %s",error.localizedDescription.UTF8String);
+ }});
+}
+static void archiveComputeDescriptor(MTLComputePipelineDescriptor *descriptor){
+ if(!gBinaryArchive)return;
+ MTLComputePipelineDescriptor *copy=[descriptor copy];
+ dispatch_async(archiveQueue(),^{ @autoreleasepool {
+  std::lock_guard<std::mutex> guard(gArchiveMutex);
+  if([gBinaryArchive addComputePipelineFunctionsWithDescriptor:copy error:nil])gArchiveDirtyEntries.fetch_add(1);
+ }});
 }
 
 // ---- command buffers and encoders -----------------------------------------------------------------------------------
@@ -1137,18 +1162,13 @@ static Pipe *getPipeline(Shader *vs, Shader *ps, Layout *lay) {
 	Renderer *r = R;
 	std::string label = pipe->label;
 	[R->device newRenderPipelineStateWithDescriptor:d completionHandler:^(id<MTLRenderPipelineState> s, NSError *error) {
-		std::lock_guard<std::mutex> guard(r->pipeLock);
-		if (!s) { pipe->failed = true; logOnce("pipe" + label, "Metal renderer: pipeline failed (%s): %s", label.c_str(), error.localizedDescription.UTF8String); }
-		pipe->state = s;
-		pipe->ready.store(true, std::memory_order_release);
-		r->pipesPending--;
-		if (s && gBinaryArchive) {
-			std::lock_guard<std::mutex> archiveGuard(gArchiveMutex);
-			NSError *aerr = nil;
-			if ([gBinaryArchive addRenderPipelineFunctionsWithDescriptor:d error:&aerr]) {
-				gArchiveDirtyEntries.fetch_add(1, std::memory_order_relaxed);
-			}
-		}
+        {
+         std::lock_guard<std::mutex> guard(r->pipeLock);
+         if(!s){pipe->failed=true;logOnce("pipe"+label,"Metal renderer: pipeline failed (%s): %s",label.c_str(),error.localizedDescription.UTF8String);}
+         pipe->state=s;pipe->ready.store(true,std::memory_order_release);r->pipesPending--;
+        }
+        // Never compile/archive while holding the lock used by draw submission.
+        if(s)archiveRenderDescriptor(d);
 	}];
 	return pipe;
 }
@@ -1680,12 +1700,7 @@ static void dispatch(uint32_t x, uint32_t y, uint32_t z) {
 			cd.computeFunction = fn;
 			if (gBinaryArchive) cd.binaryArchives = @[ gBinaryArchive ];
 			cp.state = [R->device newComputePipelineStateWithDescriptor:cd options:0 reflection:nil error:&error];
-			if (cp.state && gBinaryArchive) {
-				std::lock_guard<std::mutex> archiveGuard(gArchiveMutex);
-				if ([gBinaryArchive addComputePipelineFunctionsWithDescriptor:cd error:nil]) {
-					gArchiveDirtyEntries.fetch_add(1, std::memory_order_relaxed);
-				}
-			}
+			if(cp.state)archiveComputeDescriptor(cd);
 		}
 		if (!cp.state) { cp.failed = true; logf("Metal renderer: compute pipeline failed (%s): %s", info->label.c_str(), error.localizedDescription.UTF8String ?: "no function"); }
 	}
@@ -2197,6 +2212,7 @@ static void present(uint32_t texId) {
 	double tn = nowMs();
 	if (R->lastPresentMs) frameReportsRecord(tn, tn - R->lastPresentMs, d, R->worldSent, R->work);
 	R->lastPresentMs = tn;
+    R->reportWork.idle+=R->work.idle;R->reportWork.pipeline+=R->work.pipeline;R->reportWork.uploads+=R->work.uploads;R->reportWork.uploadBytes+=R->work.uploadBytes;R->reportWork.gpuWait+=R->work.gpuWait;R->reportWork.submit+=R->work.submit;
 	R->work = FrameWork();
 }
 
@@ -2424,7 +2440,7 @@ static void execute(uint32_t op, const uint32_t *p, uint32_t n) {
 
 static void report() {
 	double now = nowMs();
-	if (!R->statT) { R->statT = now; R->statDraws = R->draws; R->statPresents = R->presents; R->statSkips = R->skipped; R->statPending = R->pendingSkips; R->statCommits = R->commits; return; }
+	if (!R->statT) { R->statT = now; R->statDraws = R->draws; R->statPresents = R->presents; R->statSkips = R->skipped; R->statPending = R->pendingSkips; R->statCommits = R->commits; R->reportWork=FrameWork(); return; }
 	if (now - R->statT < 10000) return;
 	double frames = (double)(R->presents - R->statPresents);
 	logf("[metal] fps: %.1f (%.0f frames, %.0f draws/frame, %.1f command buffers/frame), skipped +%llu (waiting for pipelines +%llu), clamped %llu, pipelines %u (%u compiling), renderer busy %.1f ms/frame",
@@ -2444,6 +2460,8 @@ static void report() {
 	     gTextureStats.gpuBytes / MB, gTextureStats.bcGameBytes / MB, gTextureStats.bcGpuBytes / MB, gTextureStats.shadowBytes / MB,
 	     (unsigned long long)gTextureStats.bcReadbacks.load(), (unsigned long long)gTextureStats.bcCopies.load(),
 	     (unsigned long long)gTextureStats.createFailures.load(), (unsigned long long)gTextureStats.decodeFailures.load());
+    logf("[metal] CPU work/frame: submit %.2f ms, GPU wait %.2f ms, uploads %.2f ms (%.1f MiB), ring idle %.2f ms; work is renderer-thread timing, not total game CPU",R->reportWork.submit/std::max(1.0,frames),R->reportWork.gpuWait/std::max(1.0,frames),R->reportWork.uploads/std::max(1.0,frames),R->reportWork.uploadBytes/1048576.0,R->reportWork.idle/std::max(1.0,frames));
+    R->reportWork=FrameWork();
 	PGNoteTextureRatio(gTextureStats.bcGpuBytes.load(), gTextureStats.bcGameBytes.load());		// the next boot's texture budget (GTA-123)
 	std::string kinds;
 	for (int k = 1; k < 8; k++) for (int srgb = 0; srgb < 2; srgb++) if (int64_t v = gTextureStats.kindBytes[k][srgb]) {
@@ -2561,7 +2579,7 @@ static bool setup() {
 	R->borderColors = [R->device supportsFamily:MTLGPUFamilyApple7];
 	if (!loadShaderLibrary(R->device)) return false;
 
-	// Persistent Metal Binary Archive: pre-caches compiled pipeline states to disk, eliminating runtime shader stutter
+	// Persist observed pipelines; unseen combinations still compile and require device timing.
 	@try {
 		if ([R->device respondsToSelector:@selector(newBinaryArchiveWithDescriptor:error:)]) {
 			NSString *caches = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES).firstObject;
@@ -2591,6 +2609,11 @@ static bool setup() {
 				}
 			}
 
+            // Checkpoint observed pipelines while foregrounded; termination notifications are not guaranteed.
+            static dispatch_source_t archiveTimer;
+            archiveTimer=dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER,0,0,dispatch_get_global_queue(QOS_CLASS_UTILITY,0));
+            dispatch_source_set_timer(archiveTimer,dispatch_time(DISPATCH_TIME_NOW,30*NSEC_PER_SEC),60*NSEC_PER_SEC,5*NSEC_PER_SEC);
+            dispatch_source_set_event_handler(archiveTimer,^{flushBinaryArchive(true);});dispatch_resume(archiveTimer);
 			// Automatically flush archive to disk when app goes to background or terminates
 			[NSNotificationCenter.defaultCenter addObserverForName:UIApplicationDidEnterBackgroundNotification object:nil queue:nil usingBlock:^(NSNotification *) {
 				flushBinaryArchive(true);

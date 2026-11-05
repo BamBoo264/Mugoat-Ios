@@ -16,6 +16,7 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
 
     private let joinCard = UIView()
     private let joinInput = UITextField()
+    private let addressInput = UITextField()
     private let pasteButton = Theme.glassButton("Dán mã", symbol: "doc.on.clipboard.fill")
     private let joinButton = Theme.primaryButton("Vào phòng", symbol: "arrow.right.circle.fill")
 
@@ -48,7 +49,7 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
         header.alignment = .center
         header.distribution = .equalSpacing
 
-        titleLabel.text = "GTA ONLINE — PHÒNG CHƠI"
+        titleLabel.text = "PHÒNG NOVA / IP TRỰC TIẾP"
         titleLabel.font = Theme.display(18)
         titleLabel.textColor = Theme.text
 
@@ -171,7 +172,9 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
         inputRow.spacing = 8
         pasteButton.widthAnchor.constraint(equalToConstant: 100).isActive = true
 
-        let joinStack = UIStackView(arrangedSubviews: [joinTitle, inputRow, joinButton])
+        addressInput.placeholder="IP máy chủ nếu Bonjour không tìm được (tuỳ chọn)";addressInput.textColor=Theme.text;addressInput.font=Theme.body(13);addressInput.autocapitalizationType = .none;addressInput.autocorrectionType = .no;addressInput.borderStyle = .roundedRect
+        let note=UILabel();note.text="Hai máy dùng Nova cùng phiên bản. Bonjour tìm trong mạng nội bộ; IP trực tiếp cần định tuyến/mở UDP 47520. Chưa có relay vượt NAT hoặc tương thích server GTAV-v10.1.";note.font=Theme.body(11);note.textColor=Theme.secondaryText;note.numberOfLines=0
+        let joinStack = UIStackView(arrangedSubviews: [joinTitle, inputRow, addressInput, note, joinButton])
         joinStack.axis = .vertical
         joinStack.spacing = 8
         joinStack.translatesAutoresizingMaskIntoConstraints = false
@@ -254,7 +257,7 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
     @objc private func performJoin() {
         dismissKeyboard()
         guard let text = joinInput.text, !text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-        roomManager.joinRoom(code: text)
+        roomManager.joinRoom(code:text,hostAddress:addressInput.text)
         updateUI()
     }
 

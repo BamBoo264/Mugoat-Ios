@@ -342,7 +342,16 @@ void PGConfigureMovementCleanup(bool enabled,unsigned metres,unsigned reserveMB)
  if(atomic_load(&started))return;
  novaMovementEnabled=enabled;
  novaMovement.distanceMeters=(metres==40||metres==60||metres==80||metres==120||metres==160)?metres:80;
- novaMovement.reserveBytes=(uint64_t)(reserveMB==64||reserveMB==128||reserveMB==192||reserveMB==256?reserveMB:128)<<20;
+ novaMovement.reserveBytes=(uint64_t)(reserveMB==64||reserveMB==128||reserveMB==192||reserveMB==256||reserveMB==384||reserveMB==512?reserveMB:128)<<20;
+}
+void PGMovementCleanupHealth(uint64_t out[8]){
+ if(!out)return;
+ bool moving=novaMovementEnabled&&!PGLoadSceneActive();
+ out[0]=novaMovementEnabled;out[1]=novaMovement.distanceMeters;out[2]=(moving?novaMovement.reserveBytes:guardReserve())>>20;out[3]=(moving?novaMovement.targetBytes:guardReserve()+guardBand())>>20;
+ out[4]=atomic_load(&novaMovement.movementEvents);out[5]=atomic_load(&novaMovement.reclaimRequests);out[6]=atomic_load(&novaMovement.requestedBytes)>>20;out[7]=atomic_load(&novaMovement.emergencyRequests);
+}
+void PGNotifyMemoryPressure(void){
+ if(novaMovementEnabled)atomic_store(&novaMovement.pressureUntilMS,(uint64_t)timeMS(CLOCK_MONOTONIC)+5000);
 }
 static _Atomic double weaponGrantUntil;
 static int64_t weaponGrant(int64_t result){
@@ -353,7 +362,7 @@ static int64_t weaponGrant(int64_t result){
 uint64_t pg_streaming_available_memory(uint64_t engineAvailable){
  uint64_t available;
  if(!nativeProcessHeadroom(&available))return engineAvailable;
- if(novaMovementEnabled)return pg_nova_move_available(&novaMovement,engineAvailable,available);
+ if(novaMovementEnabled&&!PGLoadSceneActive()){uint64_t result=pg_nova_move_available(&novaMovement,engineAvailable,available);int64_t granted=weaponGrant((int64_t)result);return available>=(64ull<<20)&&granted>(int64_t)result&&(uint64_t)granted<=engineAvailable?(uint64_t)granted:result;}
  uint64_t result=pg_streaming_headroom_budget(engineAvailable,available,guardReserve(),guardBand());
  int64_t granted=weaponGrant((int64_t)result);
  return granted>(int64_t)result&&(uint64_t)granted<=engineAvailable?(uint64_t)granted:result;
@@ -418,7 +427,7 @@ uint64_t pg_streaming_resource_memory(uint64_t engineAvailable){
  uint64_t available;
  int64_t result=(int64_t)engineAvailable;
  if(nativeProcessHeadroom(&available)){
-  if(novaMovementEnabled)result=pg_nova_move_budget(&novaMovement,(uint64_t)timeMS(CLOCK_MONOTONIC),(int64_t)engineAvailable,available);
+  if(novaMovementEnabled&&!PGLoadSceneActive()){result=pg_nova_move_budget(&novaMovement,(uint64_t)timeMS(CLOCK_MONOTONIC),(int64_t)engineAvailable,available);if(available>=(64ull<<20))result=weaponGrant(result);}
   else result=weaponGrant(guardNudge(pg_streaming_resource_budget((int64_t)engineAvailable,available,guardReserve(),guardBand())));
  }
  if(result>(int64_t)engineAvailable)result=(int64_t)engineAvailable;
@@ -2548,6 +2557,7 @@ typedef struct {
 } PGOnlinePeerInternal;
 
 static PGOnlinePeerInternal pg_online_peers[PG_MAX_ONLINE_PEERS];
+static _Atomic bool pg_online_has_work;
 static pthread_mutex_t pg_online_peers_lock = PTHREAD_MUTEX_INITIALIZER;
 
 void PGUpdateRemotePeer(const char *peerId, float x, float y, float z, float heading, uint32_t vehicleModel) {
@@ -2562,7 +2572,7 @@ void PGUpdateRemotePeer(const char *peerId, float x, float y, float z, float hea
   }
   if (slot < 0) {
     for (int i = 0; i < PG_MAX_ONLINE_PEERS; i++) {
-      if (!pg_online_peers[i].active) {
+      if (!pg_online_peers[i].active && !pg_online_peers[i].pedHandle && !pg_online_peers[i].blipHandle) {
         slot = i;
         memset(&pg_online_peers[slot], 0, sizeof(PGOnlinePeerInternal));
         snprintf(pg_online_peers[slot].id, sizeof(pg_online_peers[slot].id), "%s", peerId);
@@ -2578,6 +2588,7 @@ void PGUpdateRemotePeer(const char *peerId, float x, float y, float z, float hea
     pg_online_peers[slot].heading = heading;
     pg_online_peers[slot].vehicleModel = vehicleModel;
     pg_online_peers[slot].lastUpdated = timeMS(CLOCK_MONOTONIC);
+    atomic_store(&pg_online_has_work,true);
   }
   pthread_mutex_unlock(&pg_online_peers_lock);
 }
@@ -2595,6 +2606,7 @@ void PGRemoveRemotePeer(const char *peerId) {
 }
 
 static void pg_online_peers_tick(w2c_game *instance) {
+  if(!atomic_load(&pg_online_has_work))return;
   if (PGGameStatus() & 16) return;
   const double now = timeMS(CLOCK_MONOTONIC);
   uint64_t previous = 0;
@@ -2660,8 +2672,8 @@ static void pg_online_peers_tick(w2c_game *instance) {
           PG_FN_REQUEST_MODEL(instance, model);
         } else {
           uint32_t fh; memcpy(&fh, &p->heading, 4);
-          uint64_t pedArgs[7] = {26, model, fx, fy, fz, fh, 0};
-          uint32_t ped = (uint32_t)(pg_test_call(instance, 0xd49f9b0955c367deull, 7, pedArgs) & 0xffffffff);
+          uint64_t pedArgs[8] = {26, model, fx, fy, fz, fh, 0, 0};
+          uint32_t ped = (uint32_t)(pg_test_call(instance, 0xd49f9b0955c367deull, 8, pedArgs) & 0xffffffff);
           if (ped && PG_FN_ENTITY_EXISTS(instance, ped)) {
             p->pedHandle = ped;
             p->pedModel = model;
@@ -2682,6 +2694,7 @@ static void pg_online_peers_tick(w2c_game *instance) {
       pg_test_call(instance, 0x8e2530aa8ada980eull, 2, (uint64_t[]){p->pedHandle, fh});
     }
   }
+  bool more=false;for(int i=0;i<PG_MAX_ONLINE_PEERS;i++)if(pg_online_peers[i].active||pg_online_peers[i].pedHandle||pg_online_peers[i].blipHandle){more=true;break;}atomic_store(&pg_online_has_work,more);
   pthread_mutex_unlock(&pg_online_peers_lock);
 
   if (enteredScript) {
@@ -3140,7 +3153,7 @@ static void *boot(void *ignored) {
   const char *limit=getenv("PG_STREAM_MEMORY_LIMIT_MB");
   if(limit){char *end;unsigned long mb=strtoul(limit,&end,10);if(end!=limit&&!*end&&mb>=2048&&mb<=8192)simulatedProcessLimit=(uint64_t)mb*1048576;}
 #endif
-  if(nativeMemoryGuard)pg_log("Native streaming memory guard enabled with 384 MB of reserve.");
+  if(nativeMemoryGuard&&!novaMovementEnabled)pg_log("Native streaming memory guard enabled with 384 MiB reserve and 256 MiB growth band.");
   // Device A/B switches (GTA-117, GTA-128), named in the log so each run says which side it was.
   if(nativeMemoryGuard&&getenv("PG_GUARD_SPARE_MB"))pg_log("Memory guard A/B: fast nudges only with PG_GUARD_SPARE_MB to spare.");
   if(nativeMemoryGuard&&getenv("PG_GUARD_POOL_ROOM")&&atoi(getenv("PG_GUARD_POOL_ROOM"))==0)pg_log("Memory guard: the resource pool's free space doesn't count as room (PG_GUARD_POOL_ROOM=0).");
@@ -3150,6 +3163,12 @@ static void *boot(void *ignored) {
   char coresLog[96];snprintf(coresLog,sizeof coresLog,"Native engine worker configuration: %u logical cores.",nativeEngineCores);pg_log(coresLog);
   wasm_rt_init();
   uint64_t engineMB=pg_engine_memory_mb();
+  if(novaMovementEnabled){
+   novaMovement.reserveBytes=pg_nova_move_reserve_for_limit(novaMovement.reserveBytes>>20,processLimitMB);
+   novaMovement.targetBytes=pg_nova_move_target(novaMovement.reserveBytes,processLimitMB);
+   char line[224];snprintf(line,sizeof line,"Nova RAM: movement cleanup on, %u m, reserve %llu MiB, proactive target %llu MiB, requests <=16 MiB, cooldown 8 s; engine owns entity lifetimes.",novaMovement.distanceMeters,(unsigned long long)(novaMovement.reserveBytes>>20),(unsigned long long)(novaMovement.targetBytes>>20));pg_log(line);
+  }
+
   char reserveLog[128];snprintf(reserveLog,sizeof reserveLog,"Reserving %llu MB virtual engine memory, starting with a 3328 MB shared heap.",(unsigned long long)engineMB);pg_log(reserveLog);
 #if defined(PG_HAS_ARM64_SHARED_VECTORS) && !defined(PG_SHARED_SIMD_BYTEWISE)
   pg_log("Shared vector memory uses native ARM64 instructions with bounds checks.");

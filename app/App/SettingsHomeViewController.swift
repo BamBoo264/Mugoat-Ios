@@ -46,7 +46,7 @@ final class SettingsHomeViewController: UITableViewController {
                 AppLanguage.choose("Where the game is, checking and downloading its files")
             }, sections: [.files]))
         }
-                list.append(Category(icon: "person.2.fill", title: "GTA Online / Phòng chơi", summary: {
+                list.append(Category(icon: "person.2.fill", title: "Chơi chung Nova / IP trực tiếp", summary: {
             OnlineRoomManager.shared.inRoom ? "Đang trong phòng (\(OnlineRoomManager.shared.roomCode ?? ""))" : "Tạo phòng, nhập mã, dịch chuyển"
         }, sections: [], page: { OnlineRoomViewController() }))
 list.append(Category(icon: "shippingbox", title: AppLanguage.choose("Mods"), summary: {
@@ -54,7 +54,7 @@ list.append(Category(icon: "shippingbox", title: AppLanguage.choose("Mods"), sum
             return count == 0 ? AppLanguage.choose("Install car, skin and script mods") : AppLanguage.interpolate(AppLanguage.choose("{arg0} mods on"), [String(count)])
         }, sections: [], page: { ModsViewController() }))
         list.append(Category(icon:"puzzlepiece.extension",title:"Plugin Menyoo",summary:{BundledMenyoo.enabled ? "Đang bật":"Đang tắt"},sections:[],page:{BundledMenyooViewController()}))
-        if Theme.isLite {list.append(Category(icon:"memorychip",title:"RAM • máy 4 GB",summary:{"Thu hồi theo di chuyển · \(NovaMemorySettings.distance) m · \(NovaMemorySettings.reserve) MiB dự phòng"},sections:[],page:{NovaMemoryViewController()}))}
+        list.append(Category(icon:"memorychip",title:"RAM và streaming",summary:{NovaMemorySettings.enabled ? "Thu hồi theo di chuyển · \(NovaMemorySettings.distance) m · dự phòng \(NovaMemorySettings.reserve==0 ? "tự động":String(NovaMemorySettings.reserve)+" MiB")":"Guard RAM gốc · thu hồi theo di chuyển tắt"},sections:[],page:{NovaMemoryViewController()}))
         list.append(Category(icon:"camera",title:"Camera góc nhìn thứ nhất",summary:{"Plugin camera và cấu hình cảm ứng/PAD"},sections:[],page:{NovaCameraViewController()}))
         list.append(Category(icon:"sparkles",title:"Nova Super Resolution",summary:{NovaUpscaling.titles[NovaUpscaling.mode]},sections:[],page:{NovaUpscalingViewController()}))
         list.append(Category(icon:"flame",title:"Turbo / lửa bô",summary:{"Tuỳ chọn, mặc định tắt"},sections:[],page:{TurboSettingsViewController()}))

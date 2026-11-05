@@ -203,3 +203,7 @@ uint32_t PGCurrentSoundVehicle(void);
 bool PGSelectVehicleSound(uint32_t model,const char *profile);
 
 void PGConfigureMovementCleanup(bool enabled,unsigned metres,unsigned reserveMB);
+
+// Advisory memory cleanup statistics; requests are not measured bytes actually freed.
+void PGMovementCleanupHealth(uint64_t values[8]);
+void PGNotifyMemoryPressure(void);
