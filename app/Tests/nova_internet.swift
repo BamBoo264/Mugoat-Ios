@@ -2,6 +2,8 @@ import Foundation
 @main struct InternetTests {
  static func wait(_ seconds:Double,_ condition:()->Bool){let end=Date().addingTimeInterval(seconds);while !condition() && Date()<end{RunLoop.main.run(until:Date().addingTimeInterval(0.02))};precondition(condition(),"Internet condition timed out")}
  static func main(){
+  precondition(OnlineRoomManager.normalizedPlayerName("  Tên    Tiếng Việt  ") == "Tên Tiếng Việt")
+  precondition(OnlineRoomManager.normalizedPlayerName(String(repeating:"🚗",count:30)).utf8.count == 64)
   let url=URL(string:"wss://mugoat-nova-relay.hutaolee264.workers.dev")!
   let host=OnlineRoomManager(relayBase:url),one=OnlineRoomManager(relayBase:url),two=OnlineRoomManager(relayBase:url)
   let code=host.createRoom(internet:true);wait(15){host.inRoom}

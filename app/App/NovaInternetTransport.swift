@@ -13,7 +13,7 @@ final class NovaInternetTransport {
  func connect(base:URL,code:String,host:Bool,pvp:Bool,hello:RoomPacket){
   close();let g=generation
   var c=URLComponents(url:base.appendingPathComponent("room").appendingPathComponent(code),resolvingAgainstBaseURL:false)!
-  c.queryItems=[URLQueryItem(name:"role",value:host ? "host":"guest"), URLQueryItem(name:"v",value:"3")]
+  c.queryItems=[URLQueryItem(name:"role",value:host ? "host":"guest"), URLQueryItem(name:"v",value:"4")]
   if host && pvp { c.queryItems?.append(URLQueryItem(name:"pvp",value:"1")) }
   guard let url=c.url,url.scheme=="wss" else{onError?("Relay URL invalid");return}
   let config=URLSessionConfiguration.ephemeral;config.timeoutIntervalForRequest=15;config.urlCache=nil

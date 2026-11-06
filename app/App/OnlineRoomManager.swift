@@ -36,6 +36,7 @@ struct RoomPacket: Codable {
     var health: Int?
     var rideOwner: String?
     var rideSeat: Int32?
+    var publicRoom: Bool?
     var pvp: Bool?
     var targetId: String?
     var damage: UInt32?
@@ -44,6 +45,8 @@ struct RoomPacket: Codable {
 /// Central manager for creating, joining, and synchronizing GTA V online multiplayer rooms.
 final class OnlineRoomManager {
     static let shared = OnlineRoomManager()
+    static let publicRoomCode = "NOVA-CITY"
+    private static let publicServerID = "NOVA_SERVER"
 
     enum RoomState: Equatable {
         case idle
@@ -63,12 +66,33 @@ final class OnlineRoomManager {
     private(set) var roomCode: String?
     private(set) var isHost = false
     private(set) var pvpEnabled = false
+    private(set) var isPublicRoom = false
     private var nextHitSend: TimeInterval = 0
     private(set) var peers: [String: OnlinePeer] = [:]
     let localPlayerId = UUID().uuidString.prefix(8).uppercased()
     var localPlayerName: String {
-        get { UserDefaults.standard.string(forKey: "onlinePlayerName") ?? "Player_\(localPlayerId)" }
-        set { UserDefaults.standard.set(newValue, forKey: "onlinePlayerName") }
+        get {
+            let saved = UserDefaults.standard.string(forKey: "onlinePlayerName") ?? ""
+            let name = Self.normalizedPlayerName(saved)
+            return name.isEmpty ? "Player_\(localPlayerId)" : name
+        }
+        set {
+            UserDefaults.standard.set(Self.normalizedPlayerName(newValue), forKey: "onlinePlayerName")
+        }
+    }
+
+    static func normalizedPlayerName(_ raw: String) -> String {
+        let clean = raw.components(separatedBy: .controlCharacters).joined(separator: " ")
+            .split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        var result = ""
+        var bytes = 0
+        for character in clean.prefix(24) {
+            let size = String(character).utf8.count
+            guard bytes + size <= 64 else { break }
+            result.append(character)
+            bytes += size
+        }
+        return result.trimmingCharacters(in: .whitespaces)
     }
 
     // Auto-spawn at host state
@@ -127,7 +151,8 @@ final class OnlineRoomManager {
     /// Creates a new room as host, assigns a room code, and listens for connections.
     func createRoom(advertise:Bool=true, internet useInternet:Bool=false, pvp:Bool=false) -> String {
         leaveRoom()
-        let code = Self.generateRoomCode()
+        var code = Self.generateRoomCode()
+        while code == Self.publicRoomCode { code = Self.generateRoomCode() }
         roomCode = code
         isHost = true
         hasSpawnedAtHost = true // Host doesn't need to teleport to itself
@@ -150,7 +175,8 @@ final class OnlineRoomManager {
         }
         roomCode = code
         isHost = false
-        hasSpawnedAtHost = false
+        isPublicRoom = useInternet && code == Self.publicRoomCode
+        hasSpawnedAtHost = isPublicRoom
         state = .connecting(code: code)
         if useInternet{startInternet(code:code,host:false);return}
         connectToHost(code:code,address:hostAddress)
@@ -167,6 +193,7 @@ final class OnlineRoomManager {
         sessionGeneration &+= 1
         internet?.close();internet=nil
         pvpEnabled = false
+        isPublicRoom = false
         nextHitSend = 0
         PGSetOnlinePvP(false)
         PGSetOnlineSession(false)
@@ -204,13 +231,31 @@ final class OnlineRoomManager {
         guard p.roomCode==roomCode else{return}
         if p.type == .joinAccept{
             guard case .connecting=state else{return}
-            if isHost{guard p.senderId==String(localPlayerId) else{return};state = .hosting(code:p.roomCode)}
-            else{hostPeerId=p.senderId;state = .connected(code:p.roomCode,isHost:false);var peer=OnlinePeer(id:p.senderId,name:p.senderName);if let pos=p.position{peer.position=pos;pendingSpawnCoords=pos};peers[p.senderId]=peer}
+            if isPublicRoom {
+                guard p.publicRoom == true, p.senderId == Self.publicServerID else {
+                    leaveRoom()
+                    state = .error("Máy chủ chung chưa xác nhận phòng.")
+                    return
+                }
+                state = .connected(code:p.roomCode,isHost:false)
+            } else if isHost {
+                guard p.senderId == String(localPlayerId) else { return }
+                state = .hosting(code:p.roomCode)
+            } else {
+                hostPeerId = p.senderId
+                var peer = OnlinePeer(id:p.senderId,name:p.senderName)
+                if let position = p.position {
+                    peer.position = position
+                    pendingSpawnCoords = position
+                }
+                peers[p.senderId] = peer
+                state = .connected(code:p.roomCode,isHost:false)
+            }
             pvpEnabled = p.pvp == true
             PGSetOnlinePvP(pvpEnabled)
             startLocalBroadcast();onPeersUpdated?(Array(peers.values));return
         }
-        guard inRoom,p.senderId != String(localPlayerId) else{return}
+        guard inRoom,p.senderId != String(localPlayerId),p.senderId != Self.publicServerID else{return}
         if p.type == .hit {
             if pvpEnabled, p.targetId == String(localPlayerId), let damage = p.damage {
                 PGQueueOnlineHit(damage)
@@ -223,6 +268,7 @@ final class OnlineRoomManager {
         }else if p.type == .stateSync || p.type == .ping{
             guard peers[p.senderId] != nil || peers.count<NovaRoomProtocol.maxPeers else{return}
             var peer=peers[p.senderId] ?? OnlinePeer(id:p.senderId,name:p.senderName)
+            peer.name = p.senderName
             if let pos=p.position{peer.position=pos};if let h=p.heading{peer.heading=h};if let v=p.vehicleModel{peer.vehicleModel=v}
             if let w=p.weapon{peer.weapon=w};if let hp=p.health{peer.health=hp};peer.lastSeen=Date();peers[p.senderId]=peer
             if p.type == .stateSync { feedRemoteState(p) }

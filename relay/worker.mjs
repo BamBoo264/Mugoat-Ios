@@ -25,6 +25,9 @@ export default {async fetch(req,env){
  if(req.headers.get("Upgrade")?.toLowerCase()!=="websocket")return new Response("WebSocket required",{status:426});
  return env.ROOMS.get(env.ROOMS.idFromName(m[1])).fetch(req);
 }};
+const PUBLIC_ROOM = "NOVA-CITY";
+const PUBLIC_SERVER_ID = "NOVA_SERVER";
+
 export class NovaRoom extends DurableObject {
  constructor(ctx,env){super(ctx,env);this.ctx=ctx;ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("keepalive","alive"));}
  sockets(){return this.ctx.getWebSockets().filter(s=>s.deserializeAttachment()?.id);}
@@ -33,15 +36,19 @@ export class NovaRoom extends DurableObject {
  async fetch(req){
   if(this.ctx.getWebSockets().length>=16)return new Response("Room full",{status:429});
   const url=new URL(req.url),host=url.searchParams.get("role")==="host",code=url.pathname.split("/").pop();
-  if(host && this.ctx.getWebSockets().some(s=>s.deserializeAttachment()?.host))return new Response("Room already exists",{status:409});
-  if(!host && !this.host())return new Response("Host not present",{status:404});
+  const publicRoom = code === PUBLIC_ROOM;
   const protocol = url.searchParams.get("v");
-  const pvp = host && protocol==="3" && url.searchParams.get("pvp")==="1";
-  if (!host && this.host()?.deserializeAttachment().pvp && protocol!=="3") {
+  if (publicRoom && host) return new Response("Public room is server-managed",{status:403});
+  if (publicRoom && protocol !== "4") return new Response("Update Nova to join the public room",{status:426});
+  if(host && this.ctx.getWebSockets().some(s=>s.deserializeAttachment()?.host))return new Response("Room already exists",{status:409});
+  if(!publicRoom && !host && !this.host())return new Response("Host not present",{status:404});
+  const supportsPvP = protocol === "3" || protocol === "4";
+  const pvp = host && supportsPvP && url.searchParams.get("pvp")==="1";
+  if (!host && this.host()?.deserializeAttachment().pvp && !supportsPvP) {
    return new Response("Nova update required for PvP rooms",{status:426});
   }
   const pair=new WebSocketPair(),[client,server]=Object.values(pair);
-  this.ctx.acceptWebSocket(server);server.serializeAttachment({host,code,pvp,opened:Date.now(),bucket:Date.now(),count:0});
+  this.ctx.acceptWebSocket(server);server.serializeAttachment({host,code,pvp,publicRoom,opened:Date.now(),bucket:Date.now(),count:0});
   await this.ctx.storage.setAlarm(Date.now()+30000);
   return new Response(null,{status:101,webSocket:client});
  }
@@ -53,14 +60,25 @@ export class NovaRoom extends DurableObject {
   let p;try{p=JSON.parse(message);}catch{ws.close(1008,"Invalid JSON");return;}
   if(!valid(p)||p.roomCode!==a.code || (a.id && p.senderId!==a.id)){ws.close(1008,"Invalid packet");return;}
   if(!a.id){
-   if(p.type!=="JOIN_REQ"||this.sockets().some(s=>s.deserializeAttachment().id===p.senderId)){ws.close(1008,"Invalid join");return;}
+   if(p.type!=="JOIN_REQ"||p.senderId===PUBLIC_SERVER_ID||this.sockets().some(s=>s.deserializeAttachment().id===p.senderId)){ws.close(1008,"Invalid join");return;}
    a.id=p.senderId;a.name=p.senderName;a.seen=now;ws.serializeAttachment(a);
+   if (a.publicRoom) {
+    this.send(ws,{type:"JOIN_ACC",roomCode:a.code,senderId:PUBLIC_SERVER_ID,senderName:"Nova City",publicRoom:true,pvp:false});
+    for (const other of this.sockets()) {
+     if (other === ws) continue;
+     const peer = other.deserializeAttachment();
+     this.send(ws,{type:"PING",roomCode:a.code,senderId:peer.id,senderName:peer.name});
+     this.send(other,{type:"PING",roomCode:a.code,senderId:a.id,senderName:a.name});
+    }
+    return;
+   }
    const host=this.host();if(!host){ws.close(1008,"Host not present");return;}
    const ha=host.deserializeAttachment();
    this.send(ws,{type:"JOIN_ACC",roomCode:a.code,senderId:ha.id,senderName:ha.name,pvp:ha.pvp===true,...(ha.state||{})});
    return;
   }
   a.seen=now;
+  a.name=p.senderName;
   if (p.type === "STATE" && p.rideOwner) {
    const owner = this.sockets().find(socket=>socket.deserializeAttachment().id===p.rideOwner)?.deserializeAttachment();
    const ownerPosition = owner?.state?.position;

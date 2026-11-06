@@ -79,5 +79,22 @@ try{
  await wait(()=>victim.packets.some(p=>p.type==='PING' && p.senderName==='AFTER_FAR_HIT'));
  assert.equal(victim.packets.filter(p=>p.type==='HIT').length,1);
  console.log('PASS: opt-in PvP, legacy rejection, target-only hits, throttling and distance rejection');
+ if (process.argv.includes('--public')) {
+  const publicCode = 'NOVA-CITY';
+  await assert.rejects(open('host&v=4','HOSTCLAIM',publicCode));
+  await assert.rejects(open('guest&v=3','OUTDATED',publicCode));
+  const first = await open('guest&v=4','PUBLICONE',publicCode);
+  await wait(()=>first.packets.some(p=>p.type==='JOIN_ACC' && p.publicRoom && p.senderId==='NOVA_SERVER'));
+  const second = await open('guest&v=4','PUBLICTWO',publicCode);
+  await wait(()=>second.packets.some(p=>p.type==='JOIN_ACC' && p.publicRoom) &&
+    first.packets.some(p=>p.type==='PING' && p.senderId==='PUBLICTWO'));
+  first.close();
+  await wait(()=>second.packets.some(p=>p.type==='LEAVE' && p.senderId==='PUBLICONE'));
+  assert.equal(second.readyState,WebSocket.OPEN);
+  second.close();
+  const later = await open('guest&v=4','PUBLICLATER',publicCode);
+  await wait(()=>later.packets.some(p=>p.type==='JOIN_ACC' && p.publicRoom));
+  console.log('PASS: public room reserved to server, first join without host, first player can leave, room can reopen');
+ }
  console.log('PASS: no-host rejection, host collision, 2 guests ACK, state relay, spoof/malformed rejection, leave, reconnect, host shutdown');
 }finally{for(const ws of all)try{ws.close()}catch{}}

@@ -16,7 +16,9 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
 
     private let joinCard = UIView()
     private let joinInput = UITextField()
-    private let addressInput = UITextField()
+    private let playerNameInput = UITextField()
+    private let publicRoomButton = Theme.primaryButton("Vào máy chủ chung", symbol: "globe.asia.australia.fill")
+    private let playerRosterLabel = UILabel()
     private let pvpSwitch = UISwitch()
     private let pasteButton = Theme.glassButton("Dán mã", symbol: "doc.on.clipboard.fill")
     private let joinButton = Theme.primaryButton("Vào phòng", symbol: "arrow.right.circle.fill")
@@ -116,6 +118,7 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
 
         hostButton.addAction(UIAction { [weak self] _ in
             guard let self = self else { return }
+            self.savePlayerName()
             self.dismissKeyboard()
             let code = self.roomManager.createRoom(internet:true,pvp:self.pvpSwitch.isOn)
             self.roomCodeDisplay.text = code
@@ -182,9 +185,17 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
         inputRow.spacing = 8
         pasteButton.widthAnchor.constraint(equalToConstant: 100).isActive = true
 
-        addressInput.placeholder="IP máy chủ nếu Bonjour không tìm được (tuỳ chọn)";addressInput.textColor=Theme.text;addressInput.font=Theme.body(13);addressInput.autocapitalizationType = .none;addressInput.autocorrectionType = .no;addressInput.borderStyle = .roundedRect
-        let note=UILabel();note.text="Chơi qua Wi-Fi hoặc 4G/5G: một người tạo phòng, người còn lại nhập mã. Cần Nova cùng phiên bản. Đồng bộ nhân vật thử nghiệm; chưa đồng bộ đầy đủ nhiệm vụ, xe hoặc tương thích GTAV-v10.1. Relay Free có hạn mức.";note.font=Theme.body(11);note.textColor=Theme.secondaryText;note.numberOfLines=0
-        let joinStack = UIStackView(arrangedSubviews: [joinTitle, inputRow, note, joinButton])
+        let note = UILabel()
+        note.text = "Máy chủ chung NOVA-CITY mở qua Wi-Fi hoặc 4G/5G. Phòng riêng vẫn dùng mã do chủ phòng tạo."
+        note.font = Theme.body(11)
+        note.textColor = Theme.secondaryText
+        note.numberOfLines = 0
+        let joinStack = UIStackView(arrangedSubviews: [publicRoomButton, note, joinTitle, inputRow, joinButton])
+        publicRoomButton.addAction(UIAction { [weak self] _ in
+            guard let self else { return }
+            self.joinInput.text = OnlineRoomManager.publicRoomCode
+            self.performJoin()
+        }, for: .touchUpInside)
         joinStack.axis = .vertical
         joinStack.spacing = 8
         joinStack.translatesAutoresizingMaskIntoConstraints = false
@@ -235,7 +246,26 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
         actionStack.addArrangedSubview(leaveButton)
 
         // Main Layout inside ScrollView
-        let mainStack = UIStackView(arrangedSubviews: [statusCard, joinCard, actionStack])
+        let nameLabel = UILabel()
+        nameLabel.text = "Tên nhân vật online"
+        nameLabel.font = Theme.body(13, .semibold)
+        nameLabel.textColor = Theme.text
+        playerNameInput.text = roomManager.localPlayerName
+        playerNameInput.placeholder = "Tên hiển thị trong phòng"
+        playerNameInput.textColor = .white
+        playerNameInput.backgroundColor = UIColor(white: 0.20, alpha: 0.95)
+        playerNameInput.borderStyle = .roundedRect
+        playerNameInput.returnKeyType = .done
+        playerNameInput.delegate = self
+        playerNameInput.accessibilityLabel = nameLabel.text
+        playerNameInput.addAction(UIAction { [weak self] _ in self?.savePlayerName() }, for: .editingDidEnd)
+        let nameSection = UIStackView(arrangedSubviews: [nameLabel, playerNameInput])
+        nameSection.axis = .vertical
+        nameSection.spacing = 5
+        playerRosterLabel.font = Theme.body(12)
+        playerRosterLabel.textColor = Theme.secondaryText
+        playerRosterLabel.numberOfLines = 2
+        let mainStack = UIStackView(arrangedSubviews: [nameSection, statusCard, joinCard, playerRosterLabel, actionStack])
         mainStack.axis = .vertical
         mainStack.spacing = 10
         mainStack.translatesAutoresizingMaskIntoConstraints = false
@@ -272,12 +302,18 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
     @objc private func performJoin() {
         dismissKeyboard()
         guard let text = joinInput.text, !text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        savePlayerName()
         roomManager.joinRoom(code:text,internet:true)
         updateUI()
     }
 
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
-        performJoin()
+        if textField === playerNameInput {
+            savePlayerName()
+            textField.resignFirstResponder()
+        } else {
+            performJoin()
+        }
         return true
     }
 
@@ -309,7 +345,16 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
         }
     }
 
+    private func savePlayerName() {
+        roomManager.localPlayerName = playerNameInput.text ?? ""
+        playerNameInput.text = roomManager.localPlayerName
+    }
+
     private func updateUI() {
+        let names = roomManager.peers.values.map(\.name).sorted()
+        playerRosterLabel.isHidden = !roomManager.inRoom || names.isEmpty
+        let suffix = names.count > 4 ? " +\(names.count - 4)" : ""
+        playerRosterLabel.text = names.prefix(4).joined(separator: " · ") + suffix
         pvpSwitch.isEnabled = !roomManager.inRoom
         passengerButton.isHidden = !roomManager.inRoom || roomManager.peers.isEmpty
         switch roomManager.state {
@@ -348,7 +393,7 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
 
         case .connected(let code, let isHost):
             let count = roomManager.peers.count + 1
-            let roleStr = isHost ? "👑 Chủ phòng (Host)" : "🎮 Khách tham gia (Guest - tự động spawn ở chủ phòng)"
+            let roleStr = roomManager.isPublicRoom ? "Máy chủ chung Nova City" : isHost ? "👑 Chủ phòng (Host)" : "🎮 Khách tham gia (Guest - tự động spawn ở chủ phòng)"
             let pvpText = roomManager.pvpEnabled ? "PvP bật" : "PvP tắt"
             statusLabel.text = "✅ ĐÃ KẾT NỐI PHÒNG (\(count) người chơi)\n\(roleStr) · \(pvpText)"
             roomCodeDisplay.text = code
