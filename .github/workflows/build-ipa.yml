@@ -1,4 +1,4 @@
-name: Build Mugoat Nova Runtime V3 Online
+name: Build Mugoat Nova Runtime V4 Online
 on:
   push:
     branches:
@@ -56,7 +56,11 @@ jobs:
         run: |
           swiftc -import-objc-header app/Tests/online_bridge.h -I app/Source app/App/OnlineRoomManager.swift app/App/NovaRoomProtocol.swift app/App/NovaInternetTransport.swift app/Tests/nova_internet.swift "$RUNNER_TEMP/online-stubs.o" -framework Network -framework QuartzCore -o "$RUNNER_TEMP/nova-internet"
           "$RUNNER_TEMP/nova-internet"
-      - name: PvP routing and legacy-room regression on live relay
+      - name: Replica vehicle pose interpolation
+        run: |
+          clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -I app/Source app/Tests/nova_vehicle_blend.c -o "$RUNNER_TEMP/nova-vehicle-blend"
+          "$RUNNER_TEMP/nova-vehicle-blend"
+      - name: Online seat, weapon, PvP and legacy-room regression on live relay
         run: node relay/test-relay.mjs wss://mugoat-nova-relay.hutaolee264.workers.dev
       - name: Production PAD layout and spatial scaling tests
         run: |
@@ -123,8 +127,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success() && (github.event_name == 'push' || inputs.build_ipa)
         with:
-          name: Mugoat-Nova-NativeRuntime-V3-Online
-          path: Mugoat-Nova-NativeRuntime-V3-Online.ipa
+          name: Mugoat-Nova-NativeRuntime-V4-Online
+          path: Mugoat-Nova-NativeRuntime-V4-Online.ipa
           retention-days: 14
       - uses: actions/upload-artifact@v4
         if: failure()

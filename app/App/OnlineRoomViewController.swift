@@ -22,6 +22,7 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
     private let joinButton = Theme.primaryButton("Vào phòng", symbol: "arrow.right.circle.fill")
 
     private let actionStack = UIStackView()
+    private let passengerButton = Theme.glassButton("Ngồi ghế phụ xe bạn chơi", symbol: "car.fill")
     private let teleportButton = Theme.glassButton("Dịch chuyển đến bạn chơi", symbol: "location.fill")
     private let leaveButton = Theme.glassButton("Rời phòng", symbol: "xmark.circle.fill")
     private let startGameButton = Theme.primaryButton("Vào Game (Bắt đầu)", symbol: "play.fill")
@@ -222,10 +223,15 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
             }
         }, for: .touchUpInside)
 
+        passengerButton.addAction(UIAction { [weak self] _ in
+            PGRequestOnlinePassenger()
+            self?.dismiss(animated: true)
+        }, for: .touchUpInside)
         actionStack.axis = .vertical
         actionStack.spacing = 8
         actionStack.addArrangedSubview(startGameButton)
         actionStack.addArrangedSubview(teleportButton)
+        actionStack.addArrangedSubview(passengerButton)
         actionStack.addArrangedSubview(leaveButton)
 
         // Main Layout inside ScrollView
@@ -305,6 +311,7 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
 
     private func updateUI() {
         pvpSwitch.isEnabled = !roomManager.inRoom
+        passengerButton.isHidden = !roomManager.inRoom || roomManager.peers.isEmpty
         switch roomManager.state {
         case .idle:
             statusLabel.text = "Bạn chưa tham gia phòng nào.\nHãy tạo phòng mới hoặc nhập mã phòng của bạn bè:"

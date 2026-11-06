@@ -90,6 +90,11 @@ bool PGGetPlayerPosition(float position[3]);
 float PGGetPlayerHeading(void);
 void PGUpdateRemotePeer(const char *peerId, float x, float y, float z, float heading, uint32_t vehicleModel);
 void PGRemoveRemotePeer(const char *peerId);
+void PGUpdateRemotePeerState(const char *peerId, float x, float y, float z, float heading,
+                             uint32_t vehicleModel, uint32_t weapon, const char *rideOwner, int32_t rideSeat);
+void PGSetOnlineSession(bool enabled);
+void PGRequestOnlinePassenger(void);
+uint32_t PGReadOnlineLoadout(char owner[32], int32_t *seat);
 void PGSetOnlinePvP(bool enabled);
 unsigned PGTakeOnlineHit(const char *peerId);
 void PGQueueOnlineHit(unsigned damage);

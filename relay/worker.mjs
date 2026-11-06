@@ -4,6 +4,11 @@ export function valid(p) {
  if (!p || !/^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(p.roomCode) || !/^[A-Za-z0-9_-]{1,31}$/.test(p.senderId) || typeof p.senderName!=="string" || new TextEncoder().encode(p.senderName).length>64 || /[\x00-\x1f]/.test(p.senderName)) return false;
  if (!["JOIN_REQ","STATE","PING","LEAVE","HIT"].includes(p.type)) return false;
  if (p.type==="STATE" && !p.position) return false;
+ if (p.rideOwner !== undefined) {
+  if (p.type !== "STATE" || typeof p.rideOwner !== "string" || p.rideOwner === p.senderId ||
+      !/^[A-Za-z0-9_-]{1,31}$/.test(p.rideOwner) || p.vehicleModel !== 0 ||
+      !Number.isInteger(p.rideSeat) || p.rideSeat < 0 || p.rideSeat > 7) return false;
+ } else if (p.rideSeat !== undefined) return false;
  if (p.type==="HIT" && (typeof p.targetId!=="string" || !/^[A-Za-z0-9_-]{1,31}$/.test(p.targetId) ||
      p.targetId===p.senderId || !Number.isInteger(p.damage) || p.damage<1 || p.damage>30)) return false;
  if(p.position && (!Array.isArray(p.position)||p.position.length!==3||!p.position.every(v=>Number.isFinite(v)&&Math.abs(v)<=100000))) return false;
@@ -56,6 +61,16 @@ export class NovaRoom extends DurableObject {
    return;
   }
   a.seen=now;
+  if (p.type === "STATE" && p.rideOwner) {
+   const owner = this.sockets().find(socket=>socket.deserializeAttachment().id===p.rideOwner)?.deserializeAttachment();
+   const ownerPosition = owner?.state?.position;
+   if (!owner?.state?.vehicleModel || !ownerPosition ||
+       Math.hypot(...p.position.map((value,index)=>value-ownerPosition[index])) > 35) {
+    p = {...p};
+    delete p.rideOwner;
+    delete p.rideSeat;
+   }
+  }
   if(p.type==="STATE")a.state={position:p.position,heading:p.heading,vehicleModel:p.vehicleModel,weapon:p.weapon,health:p.health};
   ws.serializeAttachment(a);
   if(p.type==="LEAVE"){await this.remove(ws);ws.close(1000,"Left room");return;}

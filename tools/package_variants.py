@@ -5,10 +5,10 @@ source=root/'app/Build/Release/Build/Products/Release-iphoneos/PlayGTA5Native.ap
 entitlements=root/'app/App/Full.entitlements'
 records=[]
 for low in [False]:
- name='Mugoat-Nova-NativeRuntime-V3-Online'
+ name='Mugoat-Nova-NativeRuntime-V4-Online'
  with tempfile.TemporaryDirectory(prefix='nova-package-') as tmp:
   stage=Path(tmp);app=stage/'Payload/PlayGTA5Native.app';app.parent.mkdir();shutil.copytree(source,app,symlinks=True)
-  p=app/'Info.plist';info=plistlib.loads(p.read_bytes());info.update(PGLiteMode=False,CFBundleDisplayName='Mugoat Nova',CFBundleIdentifier='vn.gta.newgen.nova.runtime',CFBundleShortVersionString='1.1.2',CFBundleVersion='103',MinimumOSVersion='15.0');p.write_bytes(plistlib.dumps(info))
+  p=app/'Info.plist';info=plistlib.loads(p.read_bytes());info.update(PGLiteMode=False,CFBundleDisplayName='Mugoat Nova',CFBundleIdentifier='vn.gta.newgen.nova.runtime',CFBundleShortVersionString='1.1.3',CFBundleVersion='104',MinimumOSVersion='15.0');p.write_bytes(plistlib.dumps(info))
   subprocess.run(['codesign','--force','--sign','-','--entitlements',str(entitlements),'--generate-entitlement-der',str(app)],check=True)
   granted=plistlib.loads(subprocess.check_output(['codesign','-d','--entitlements',':-',str(app)],stderr=subprocess.DEVNULL))
   for key in ['com.apple.developer.kernel.increased-memory-limit','com.apple.developer.kernel.extended-virtual-addressing']:assert granted.get(key) is True
@@ -18,5 +18,5 @@ for low in [False]:
   with zipfile.ZipFile(target) as z:
    packaged=plistlib.loads(z.read('Payload/PlayGTA5Native.app/Info.plist'));assert packaged['PGLiteMode']==low
   records.append({'file':target.name,'bytes':target.stat().st_size,'sha256':hashlib.sha256(target.read_bytes()).hexdigest(),'lowRAM':low,'requestedEntitlements':granted})
-(root/'Nova-NativeRuntime-V3-Online-artifacts.json').write_text(json.dumps(records,indent=2))
+(root/'Nova-NativeRuntime-V4-Online-artifacts.json').write_text(json.dumps(records,indent=2))
 print(json.dumps(records,indent=2))

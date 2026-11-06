@@ -7,6 +7,9 @@ final class NovaInternetTransport {
  private var generation=0,sending=false,joined=false
  private var pending:RoomPacket?
  private var pendingHit:RoomPacket?
+ private var pingStartedAt: UInt64?
+ private var nextPingAt: UInt64 = 0
+ private(set) var relayPingMilliseconds: Int?
  func connect(base:URL,code:String,host:Bool,pvp:Bool,hello:RoomPacket){
   close();let g=generation
   var c=URLComponents(url:base.appendingPathComponent("room").appendingPathComponent(code),resolvingAgainstBaseURL:false)!
@@ -20,7 +23,36 @@ final class NovaInternetTransport {
    guard let self,self.generation==g,!self.joined else{return};self.fail("Relay chưa xác nhận phòng. Kiểm tra Internet hoặc thử lại.")
   }
  }
- func close(){generation &+= 1;task?.cancel(with:.goingAway,reason:nil);task=nil;session?.invalidateAndCancel();session=nil;sending=false;pending=nil;pendingHit=nil;joined=false}
+ func close(){
+  generation &+= 1
+  task?.cancel(with:.goingAway,reason:nil);task=nil
+  session?.invalidateAndCancel();session=nil
+  sending=false;pending=nil;pendingHit=nil;joined=false
+  pingStartedAt = nil
+  nextPingAt = 0
+  relayPingMilliseconds = nil
+ }
+
+ func sampleRelayPing() {
+  guard joined, let task else { return }
+  let now = DispatchTime.now().uptimeNanoseconds
+  if let started = pingStartedAt {
+   if now - started >= 6_000_000_000 { relayPingMilliseconds = nil }
+   return
+  }
+  guard now >= nextPingAt else { return }
+  nextPingAt = now + 2_000_000_000
+  pingStartedAt = now
+  let currentGeneration = generation
+  task.sendPing { [weak self] error in
+   let elapsed = DispatchTime.now().uptimeNanoseconds - now
+   DispatchQueue.main.async {
+    guard let self, self.generation == currentGeneration else { return }
+    self.pingStartedAt = nil
+    self.relayPingMilliseconds = error == nil && elapsed < 6_000_000_000 ? Int(elapsed / 1_000_000) : nil
+   }
+  }
+ }
  private func fail(_ message:String){let callback=onError;close();callback?(message)}
  func send(_ packet:RoomPacket){
   guard let t=task,NovaRoomProtocol.valid(packet) else{return}

@@ -52,6 +52,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     private var queue: MTLCommandQueue?
     private let output = UITextView()
     private let fpsLabel = UILabel()
+    private lazy var fpsLabelWidth = fpsLabel.widthAnchor.constraint(equalToConstant: 68)
     // Top left, or bottom left while the minimap sits at the top (GTA-131).
     private lazy var fpsAtTop = fpsLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8)
     private lazy var fpsAtBottom = fpsLabel.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -8)
@@ -353,7 +354,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         NSLayoutConstraint.activate([
             fpsLabel.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 12),
             fpsAtTop,
-            fpsLabel.widthAnchor.constraint(equalToConstant: 68),
+            fpsLabelWidth,
             fpsLabel.heightAnchor.constraint(equalToConstant: 24),
             inputTestLabel.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 12),
             inputTestLabel.topAnchor.constraint(equalTo: fpsLabel.bottomAnchor, constant: 5),
@@ -1553,7 +1554,18 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         if now - lastFPSLabelUpdate >= 0.25 {
             if touchControlsAvailable { fpsLabel.isHidden = !GameSettings.shared.showFPS }
             let fps = PGRenderedFramesPerSecond()
-            fpsLabel.text = fps > 0 ? String(format: "%.0f FPS", fps) : "— FPS"
+            let frameRate = fps > 0 ? String(format: "%.0f FPS", fps) : "— FPS"
+            let room = OnlineRoomManager.shared
+            if room.inInternetRoom {
+                let ping = room.relayPingMilliseconds.map { "\($0) ms" } ?? "— ms"
+                if fpsLabelWidth.constant != 152 { fpsLabelWidth.constant = 152 }
+                fpsLabel.text = "\(frameRate) · \(ping)"
+                fpsLabel.accessibilityValue = "\(frameRate), relay \(ping)"
+            } else {
+                if fpsLabelWidth.constant != 68 { fpsLabelWidth.constant = 68 }
+                fpsLabel.text = frameRate
+                fpsLabel.accessibilityValue = frameRate
+            }
             lastFPSLabelUpdate = now
         }
         let elapsed = lastControllerPoll.map { now - $0 } ?? (1.0 / 60.0)

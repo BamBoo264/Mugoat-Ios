@@ -34,6 +34,8 @@ struct RoomPacket: Codable {
     var vehicleModel: UInt32?
     var weapon: UInt32?
     var health: Int?
+    var rideOwner: String?
+    var rideSeat: Int32?
     var pvp: Bool?
     var targetId: String?
     var damage: UInt32?
@@ -73,7 +75,6 @@ final class OnlineRoomManager {
     private(set) var hasSpawnedAtHost = false
     private(set) var pendingSpawnCoords: [Float]?
     private var lastStatePushTime: TimeInterval = 0
-    private var lastPeerFeedTime: TimeInterval = 0
 
     private var internet:NovaInternetTransport?
     private let relayBase:URL?
@@ -91,6 +92,9 @@ final class OnlineRoomManager {
     private var endpoints=Set<NWEndpoint>()
     private var hostPeerId:String?
     private var syncTimer: Timer?
+
+    var inInternetRoom: Bool { inRoom && internet != nil }
+    var relayPingMilliseconds: Int? { internet?.relayPingMilliseconds }
 
     var inRoom: Bool {
         if case .connected = state { return true }
@@ -165,6 +169,7 @@ final class OnlineRoomManager {
         pvpEnabled = false
         nextHitSend = 0
         PGSetOnlinePvP(false)
+        PGSetOnlineSession(false)
         if inRoom, let code = roomCode {
             broadcast(packet: RoomPacket(type: .leave, roomCode: code, senderId: String(localPlayerId), senderName: localPlayerName))
         }
@@ -220,9 +225,22 @@ final class OnlineRoomManager {
             var peer=peers[p.senderId] ?? OnlinePeer(id:p.senderId,name:p.senderName)
             if let pos=p.position{peer.position=pos};if let h=p.heading{peer.heading=h};if let v=p.vehicleModel{peer.vehicleModel=v}
             if let w=p.weapon{peer.weapon=w};if let hp=p.health{peer.health=hp};peer.lastSeen=Date();peers[p.senderId]=peer
+            if p.type == .stateSync { feedRemoteState(p) }
             if !isHost,!hasSpawnedAtHost,p.senderId==hostPeerId,let pos=p.position{pendingSpawnCoords=pos}
         }
         onPeersUpdated?(Array(peers.values))
+    }
+
+    private func feedRemoteState(_ packet: RoomPacket) {
+        guard let position = packet.position, position.count == 3 else { return }
+        let rideOwner = packet.rideOwner.map { $0 == String(localPlayerId) ? "@local" : $0 } ?? ""
+        packet.senderId.withCString { peerID in
+            rideOwner.withCString { ownerID in
+                PGUpdateRemotePeerState(peerID, position[0], position[1], position[2],
+                                        packet.heading ?? 0, packet.vehicleModel ?? 0,
+                                        packet.weapon ?? 0, ownerID, packet.rideSeat ?? -1)
+            }
+        }
     }
 
     // MARK: - Network Engine (Network.framework)
@@ -387,16 +405,12 @@ final class OnlineRoomManager {
                         self.spawnAtHost(coords: pos)
                     }
 
-                    // Feed into C engine
-                    if let pos = packet.position {
-                        peer.id.withCString { cId in
-                            PGUpdateRemotePeer(cId, pos[0], pos[1], pos[2], packet.heading ?? 0, packet.vehicleModel ?? 0)
-                        }
-                    }
+                    self.feedRemoteState(packet)
                 } else {
                     var peer = OnlinePeer(id: packet.senderId, name: packet.senderName)
                     if let pos = packet.position { peer.position = pos }
                     self.peers[packet.senderId] = peer
+                    self.feedRemoteState(packet)
                     self.onPeersUpdated?(Array(self.peers.values))
                 }
 
@@ -432,6 +446,7 @@ final class OnlineRoomManager {
     }
 
     private func startLocalBroadcast() {
+        PGSetOnlineSession(true)
         syncTimer?.invalidate()
         syncTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.heartbeatTick()
@@ -440,6 +455,7 @@ final class OnlineRoomManager {
 
     private func heartbeatTick() {
         guard inRoom, let code = roomCode else { return }
+        internet?.sampleRelayPing()
         let expired=peers.values.filter{Date().timeIntervalSince($0.lastSeen)>15}.map{$0.id}
         for id in expired{
             peers.removeValue(forKey:id);id.withCString{PGRemoveRemotePeer($0)}
@@ -500,7 +516,13 @@ final class OnlineRoomManager {
             if PGGetPlayerPosition(&localPos) && (localPos[0] != 0 || localPos[1] != 0) {
                 let heading = PGGetPlayerHeading()
                 let hints = PGReadControlHints(PGCurrentTouchContext())
-                pushLocalState(position: localPos, heading: heading, vehicleModel: hints.vehicleModel, weapon: 0, health: 200)
+                var owner = [CChar](repeating: 0, count: 32)
+                var seat: Int32 = -1
+                let weapon = PGReadOnlineLoadout(&owner, &seat)
+                let rideOwner = owner.withUnsafeBufferPointer { String(cString: $0.baseAddress!) }
+                pushLocalState(position: localPos, heading: heading, vehicleModel: rideOwner.isEmpty ? hints.vehicleModel : 0,
+                               weapon: weapon, health: 200, rideOwner: rideOwner.isEmpty ? nil : rideOwner,
+                               rideSeat: rideOwner.isEmpty ? nil : seat)
             }
         }
 
@@ -517,26 +539,18 @@ final class OnlineRoomManager {
                 break
             }
         }
-        guard now-lastPeerFeedTime>=0.1 else{return};lastPeerFeedTime=now
-        // Feed peers at network update rate, not every UI frame.
-        // Continually feed active peers to C engine for smooth radar blips and avatar ped tracking
-        for (_, peer) in peers {
-            if peer.position.count >= 3 && (peer.position[0] != 0 || peer.position[1] != 0) {
-                peer.id.withCString { cId in
-                    PGUpdateRemotePeer(cId, peer.position[0], peer.position[1], peer.position[2], peer.heading, peer.vehicleModel)
-                }
-            }
-        }
     }
 
     /// Pushes local player position, vehicle, weapon to all peers in the room.
-    func pushLocalState(position: [Float], heading: Float, vehicleModel: UInt32, weapon: UInt32, health: Int) {
+    func pushLocalState(position: [Float], heading: Float, vehicleModel: UInt32, weapon: UInt32, health: Int, rideOwner: String? = nil, rideSeat: Int32? = nil) {
         guard inRoom, let code = roomCode else { return }
         var packet = RoomPacket(type: .stateSync, roomCode: code, senderId: String(localPlayerId), senderName: localPlayerName)
         packet.position = position
         packet.heading = heading
         packet.vehicleModel = vehicleModel
         packet.weapon = weapon
+        packet.rideOwner = rideOwner
+        packet.rideSeat = rideSeat
         packet.health = health
         broadcast(packet: packet)
     }

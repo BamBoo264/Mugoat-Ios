@@ -11,3 +11,9 @@ uint32_t PGCurrentTouchContext(void){return 0;}
 void PGSetOnlinePvP(bool enabled){}
 unsigned PGTakeOnlineHit(const char *peerId){return 0;}
 void PGQueueOnlineHit(unsigned damage){}
+
+void PGUpdateRemotePeerState(const char *id,float x,float y,float z,float h,uint32_t m,uint32_t w,const char *o,int32_t seat){}
+void PGSetOnlineSession(bool enabled){}
+uint32_t PGReadOnlineLoadout(char owner[32],int32_t *seat){owner[0]=0;*seat=-1;return 0;}
+
+void PGRequestOnlinePassenger(void){}

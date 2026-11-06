@@ -7,6 +7,7 @@ import Foundation
   let code=host.createRoom(internet:true);wait(15){host.inRoom}
   one.joinRoom(code:code,internet:true);two.joinRoom(code:code,internet:true)
   wait(15){one.inRoom && two.inRoom}
+  wait(8){host.relayPingMilliseconds != nil && one.relayPingMilliseconds != nil}
   host.pushLocalState(position:[100,200,30],heading:1,vehicleModel:0,weapon:0,health:200)
   one.pushLocalState(position:[101,200,30],heading:2,vehicleModel:0,weapon:0,health:200)
   wait(8){two.peers[String(one.localPlayerId)]?.position == [101,200,30] && one.peers[String(host.localPlayerId)]?.position == [100,200,30]}
