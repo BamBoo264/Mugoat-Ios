@@ -2655,7 +2655,7 @@ static void pg_online_detect_hit(w2c_game *instance, PGOnlinePeerInternal *peer,
     if (peer->pendingDamage > 30) peer->pendingDamage = 30;
   }
   pg_test_call(instance, 0xa72cd9ca74a5ecbaull, 1, (uint64_t[]){peer->pedHandle});
-  PG_FN_SET_ENTITY_HEALTH(instance, peer->pedHandle, 1000, 0);
+  pg_test_call(instance, 0x6b76dc1f3ae6e6a3ull, 3, (uint64_t[]){peer->pedHandle, 1000, 0});
 }
 
 static void pg_online_delete_vehicle(w2c_game *instance, PGOnlinePeerInternal *peer) {
@@ -2751,7 +2751,10 @@ static void pg_online_peers_tick(w2c_game *instance) {
     previous = pg_asi_enter_script(instance);
     enteredScript = true;
     uint32_t health = (u32)pg_test_call(instance, 0xeef059fad016d209ull, 1, (uint64_t[]){localPvPPed});
-    if (health && health <= 10000) PG_FN_SET_ENTITY_HEALTH(instance, localPvPPed, health > incomingDamage ? health - incomingDamage : 0, 0);
+    if (health && health <= 10000) {
+      const uint32_t updatedHealth = health > incomingDamage ? health - incomingDamage : 0;
+      pg_test_call(instance, 0x6b76dc1f3ae6e6a3ull, 3, (uint64_t[]){localPvPPed, updatedHealth, 0});
+    }
   }
   static u64 pedVec;
   if (!pedVec) pedVec = PG_FN_OPERATOR_NEW(instance, 32);
@@ -2828,7 +2831,7 @@ static void pg_online_peers_tick(w2c_game *instance) {
             if (pvp) {
               pg_test_call(instance, 0x166e7cf68597d8b5ull, 2, (uint64_t[]){ped, 1000});
               pg_test_call(instance, 0xebd76f2359f190acull, 2, (uint64_t[]){ped, 0});
-              PG_FN_SET_ENTITY_HEALTH(instance, ped, 1000, 0);
+              pg_test_call(instance, 0x6b76dc1f3ae6e6a3ull, 3, (uint64_t[]){ped, 1000, 0});
             }
             pg_test_call(instance, 0x9f8aa94d6d97dbf4ull, 2, (uint64_t[]){ped, 1});
             pg_test_call(instance, 0xad738c3085fe7e11ull, 3, (uint64_t[]){ped, 1, 1});
