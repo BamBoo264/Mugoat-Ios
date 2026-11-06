@@ -201,11 +201,6 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         #if targetEnvironment(simulator)
         becomeFirstResponder()
         #endif
-        if !engineStarted && !LicenseManager.shared.isActivated {
-            LicenseManager.shared.showActivationModal(on: self) { [weak self] in
-                self?.updatePlayEnabled()
-            }
-        }
     }
 
     override func viewDidLoad() {
@@ -614,12 +609,6 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     }
 
     @objc private func startEngine() {
-        guard LicenseManager.shared.isActivated else {
-            LicenseManager.shared.showActivationModal(on: self) { [weak self] in
-                self?.startEngine()
-            }
-            return
-        }
         if GameSettings.shared.gameModeChoice == nil {
             // Automated launches without a choice keep the old sandbox start.
             guard ProcessInfo.processInfo.arguments.contains("--boot-engine") else { return }
