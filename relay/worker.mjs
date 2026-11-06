@@ -43,7 +43,7 @@ export class NovaRoom extends DurableObject {
   if(host && this.ctx.getWebSockets().some(s=>s.deserializeAttachment()?.host))return new Response("Room already exists",{status:409});
   if(!publicRoom && !host && !this.host())return new Response("Host not present",{status:404});
   const supportsPvP = protocol === "3" || protocol === "4";
-  const pvp = host && supportsPvP && url.searchParams.get("pvp")==="1";
+  const pvp = publicRoom || (host && supportsPvP && url.searchParams.get("pvp")==="1");
   if (!host && this.host()?.deserializeAttachment().pvp && !supportsPvP) {
    return new Response("Nova update required for PvP rooms",{status:426});
   }
@@ -63,7 +63,7 @@ export class NovaRoom extends DurableObject {
    if(p.type!=="JOIN_REQ"||p.senderId===PUBLIC_SERVER_ID||this.sockets().some(s=>s.deserializeAttachment().id===p.senderId)){ws.close(1008,"Invalid join");return;}
    a.id=p.senderId;a.name=p.senderName;a.seen=now;ws.serializeAttachment(a);
    if (a.publicRoom) {
-    this.send(ws,{type:"JOIN_ACC",roomCode:a.code,senderId:PUBLIC_SERVER_ID,senderName:"Nova City",publicRoom:true,pvp:false});
+    this.send(ws,{type:"JOIN_ACC",roomCode:a.code,senderId:PUBLIC_SERVER_ID,senderName:"Nova City",publicRoom:true,pvp:true});
     for (const other of this.sockets()) {
      if (other === ws) continue;
      const peer = other.deserializeAttachment();
@@ -94,7 +94,7 @@ export class NovaRoom extends DurableObject {
   if(p.type==="LEAVE"){await this.remove(ws);ws.close(1000,"Left room");return;}
   if (p.type==="HIT") {
    const host = this.host()?.deserializeAttachment();
-   if (!host?.pvp || !a.state?.position || (a.lastHit && now-a.lastHit<200)) return;
+   if (!(a.publicRoom || host?.pvp) || !a.state?.position || (a.lastHit && now-a.lastHit<200)) return;
    const victim = this.sockets().find(socket=>socket.deserializeAttachment().id===p.targetId);
    const victimPosition = victim?.deserializeAttachment()?.state?.position;
    if (!victimPosition) return;

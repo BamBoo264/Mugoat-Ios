@@ -84,17 +84,23 @@ try{
   await assert.rejects(open('host&v=4','HOSTCLAIM',publicCode));
   await assert.rejects(open('guest&v=3','OUTDATED',publicCode));
   const first = await open('guest&v=4','PUBLICONE',publicCode);
-  await wait(()=>first.packets.some(p=>p.type==='JOIN_ACC' && p.publicRoom && p.senderId==='NOVA_SERVER'));
+  await wait(()=>first.packets.some(p=>p.type==='JOIN_ACC' && p.publicRoom && p.pvp===true && p.senderId==='NOVA_SERVER'));
   const second = await open('guest&v=4','PUBLICTWO',publicCode);
   await wait(()=>second.packets.some(p=>p.type==='JOIN_ACC' && p.publicRoom) &&
     first.packets.some(p=>p.type==='PING' && p.senderId==='PUBLICTWO'));
+  first.send(JSON.stringify(packet('PUBLICONE','STATE',{roomCode:publicCode})));
+  second.send(JSON.stringify(packet('PUBLICTWO','STATE',{roomCode:publicCode,position:[11,20,30]})));
+  await wait(()=>first.packets.some(p=>p.type==='STATE' && p.senderId==='PUBLICTWO') &&
+    second.packets.some(p=>p.type==='STATE' && p.senderId==='PUBLICONE'));
+  first.send(JSON.stringify(packet('PUBLICONE','HIT',{roomCode:publicCode,targetId:'PUBLICTWO',damage:10})));
+  await wait(()=>second.packets.some(p=>p.type==='HIT' && p.senderId==='PUBLICONE' && p.damage===10));
   first.close();
   await wait(()=>second.packets.some(p=>p.type==='LEAVE' && p.senderId==='PUBLICONE'));
   assert.equal(second.readyState,WebSocket.OPEN);
   second.close();
   const later = await open('guest&v=4','PUBLICLATER',publicCode);
   await wait(()=>later.packets.some(p=>p.type==='JOIN_ACC' && p.publicRoom));
-  console.log('PASS: public room reserved to server, first join without host, first player can leave, room can reopen');
+  console.log('PASS: public room reserved to server, first join without host, always-on PvP, first player can leave, room can reopen');
  }
  console.log('PASS: no-host rejection, host collision, 2 guests ACK, state relay, spoof/malformed rejection, leave, reconnect, host shutdown');
 }finally{for(const ws of all)try{ws.close()}catch{}}
