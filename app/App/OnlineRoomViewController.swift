@@ -17,6 +17,7 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
     private let joinCard = UIView()
     private let joinInput = UITextField()
     private let addressInput = UITextField()
+    private let pvpSwitch = UISwitch()
     private let pasteButton = Theme.glassButton("Dán mã", symbol: "doc.on.clipboard.fill")
     private let joinButton = Theme.primaryButton("Vào phòng", symbol: "arrow.right.circle.fill")
 
@@ -115,12 +116,20 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
         hostButton.addAction(UIAction { [weak self] _ in
             guard let self = self else { return }
             self.dismissKeyboard()
-            let code = self.roomManager.createRoom(internet:true)
+            let code = self.roomManager.createRoom(internet:true,pvp:self.pvpSwitch.isOn)
             self.roomCodeDisplay.text = code
             self.updateUI()
         }, for: .touchUpInside)
 
-        let hostStack = UIStackView(arrangedSubviews: [statusLabel, roomCodeDisplay, copyButton, hostButton])
+        let pvpLabel = UILabel()
+        pvpLabel.text = "Bật PvP cho phòng mới"
+        pvpLabel.font = Theme.body(13, .medium)
+        pvpLabel.textColor = Theme.text
+        let pvpRow = UIStackView(arrangedSubviews: [pvpLabel, pvpSwitch])
+        pvpRow.alignment = .center
+        pvpRow.spacing = 10
+        pvpSwitch.accessibilityLabel = pvpLabel.text
+        let hostStack = UIStackView(arrangedSubviews: [statusLabel, roomCodeDisplay, copyButton, pvpRow, hostButton])
         hostStack.axis = .vertical
         hostStack.spacing = 8
         hostStack.translatesAutoresizingMaskIntoConstraints = false
@@ -295,6 +304,7 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
     }
 
     private func updateUI() {
+        pvpSwitch.isEnabled = !roomManager.inRoom
         switch roomManager.state {
         case .idle:
             statusLabel.text = "Bạn chưa tham gia phòng nào.\nHãy tạo phòng mới hoặc nhập mã phòng của bạn bè:"
@@ -332,7 +342,8 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
         case .connected(let code, let isHost):
             let count = roomManager.peers.count + 1
             let roleStr = isHost ? "👑 Chủ phòng (Host)" : "🎮 Khách tham gia (Guest - tự động spawn ở chủ phòng)"
-            statusLabel.text = "✅ ĐÃ KẾT NỐI PHÒNG (\(count) người chơi)\n\(roleStr)"
+            let pvpText = roomManager.pvpEnabled ? "PvP bật" : "PvP tắt"
+            statusLabel.text = "✅ ĐÃ KẾT NỐI PHÒNG (\(count) người chơi)\n\(roleStr) · \(pvpText)"
             roomCodeDisplay.text = code
             roomCodeDisplay.textColor = .systemGreen
             copyButton.isHidden = false

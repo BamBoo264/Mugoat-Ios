@@ -2,8 +2,10 @@
 import {DurableObject} from "cloudflare:workers";
 export function valid(p) {
  if (!p || !/^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(p.roomCode) || !/^[A-Za-z0-9_-]{1,31}$/.test(p.senderId) || typeof p.senderName!=="string" || new TextEncoder().encode(p.senderName).length>64 || /[\x00-\x1f]/.test(p.senderName)) return false;
- if (!["JOIN_REQ","STATE","PING","LEAVE"].includes(p.type)) return false;
+ if (!["JOIN_REQ","STATE","PING","LEAVE","HIT"].includes(p.type)) return false;
  if (p.type==="STATE" && !p.position) return false;
+ if (p.type==="HIT" && (typeof p.targetId!=="string" || !/^[A-Za-z0-9_-]{1,31}$/.test(p.targetId) ||
+     p.targetId===p.senderId || !Number.isInteger(p.damage) || p.damage<1 || p.damage>30)) return false;
  if(p.position && (!Array.isArray(p.position)||p.position.length!==3||!p.position.every(v=>Number.isFinite(v)&&Math.abs(v)<=100000))) return false;
  if(p.heading!==undefined && (!Number.isFinite(p.heading)||Math.abs(p.heading)>100000))return false;
  for(const k of ["vehicleModel","weapon"])if(p[k]!==undefined && (!Number.isInteger(p[k])||p[k]<0||p[k]>4294967295))return false;
@@ -28,8 +30,13 @@ export class NovaRoom extends DurableObject {
   const url=new URL(req.url),host=url.searchParams.get("role")==="host",code=url.pathname.split("/").pop();
   if(host && this.ctx.getWebSockets().some(s=>s.deserializeAttachment()?.host))return new Response("Room already exists",{status:409});
   if(!host && !this.host())return new Response("Host not present",{status:404});
+  const protocol = url.searchParams.get("v");
+  const pvp = host && protocol==="3" && url.searchParams.get("pvp")==="1";
+  if (!host && this.host()?.deserializeAttachment().pvp && protocol!=="3") {
+   return new Response("Nova update required for PvP rooms",{status:426});
+  }
   const pair=new WebSocketPair(),[client,server]=Object.values(pair);
-  this.ctx.acceptWebSocket(server);server.serializeAttachment({host,code,opened:Date.now(),bucket:Date.now(),count:0});
+  this.ctx.acceptWebSocket(server);server.serializeAttachment({host,code,pvp,opened:Date.now(),bucket:Date.now(),count:0});
   await this.ctx.storage.setAlarm(Date.now()+30000);
   return new Response(null,{status:101,webSocket:client});
  }
@@ -45,13 +52,26 @@ export class NovaRoom extends DurableObject {
    a.id=p.senderId;a.name=p.senderName;a.seen=now;ws.serializeAttachment(a);
    const host=this.host();if(!host){ws.close(1008,"Host not present");return;}
    const ha=host.deserializeAttachment();
-   this.send(ws,{type:"JOIN_ACC",roomCode:a.code,senderId:ha.id,senderName:ha.name,...(ha.state||{})});
+   this.send(ws,{type:"JOIN_ACC",roomCode:a.code,senderId:ha.id,senderName:ha.name,pvp:ha.pvp===true,...(ha.state||{})});
    return;
   }
   a.seen=now;
   if(p.type==="STATE")a.state={position:p.position,heading:p.heading,vehicleModel:p.vehicleModel,weapon:p.weapon,health:p.health};
   ws.serializeAttachment(a);
   if(p.type==="LEAVE"){await this.remove(ws);ws.close(1000,"Left room");return;}
+  if (p.type==="HIT") {
+   const host = this.host()?.deserializeAttachment();
+   if (!host?.pvp || !a.state?.position || (a.lastHit && now-a.lastHit<200)) return;
+   const victim = this.sockets().find(socket=>socket.deserializeAttachment().id===p.targetId);
+   const victimPosition = victim?.deserializeAttachment()?.state?.position;
+   if (!victimPosition) return;
+   const distance = Math.hypot(...a.state.position.map((value,index)=>value-victimPosition[index]));
+   if (distance>120) return;
+   a.lastHit=now;
+   ws.serializeAttachment(a);
+   this.send(victim,{type:"HIT",roomCode:a.code,senderId:a.id,senderName:a.name,targetId:p.targetId,damage:p.damage});
+   return;
+  }
   if(p.type!=="STATE" && p.type!=="PING")return;
   for(const other of this.sockets())if(other!==ws)this.send(other,p);
  }

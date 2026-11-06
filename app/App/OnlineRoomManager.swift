@@ -23,6 +23,7 @@ struct RoomPacket: Codable {
         case stateSync = "STATE"
         case ping = "PING"
         case leave = "LEAVE"
+        case hit = "HIT"
     }
     let type: PacketType
     let roomCode: String
@@ -33,6 +34,9 @@ struct RoomPacket: Codable {
     var vehicleModel: UInt32?
     var weapon: UInt32?
     var health: Int?
+    var pvp: Bool?
+    var targetId: String?
+    var damage: UInt32?
 }
 
 /// Central manager for creating, joining, and synchronizing GTA V online multiplayer rooms.
@@ -56,6 +60,8 @@ final class OnlineRoomManager {
 
     private(set) var roomCode: String?
     private(set) var isHost = false
+    private(set) var pvpEnabled = false
+    private var nextHitSend: TimeInterval = 0
     private(set) var peers: [String: OnlinePeer] = [:]
     let localPlayerId = UUID().uuidString.prefix(8).uppercased()
     var localPlayerName: String {
@@ -115,13 +121,13 @@ final class OnlineRoomManager {
     // MARK: - Host Room
 
     /// Creates a new room as host, assigns a room code, and listens for connections.
-    func createRoom(advertise:Bool=true, internet useInternet:Bool=false) -> String {
+    func createRoom(advertise:Bool=true, internet useInternet:Bool=false, pvp:Bool=false) -> String {
         leaveRoom()
         let code = Self.generateRoomCode()
         roomCode = code
         isHost = true
         hasSpawnedAtHost = true // Host doesn't need to teleport to itself
-        if useInternet {state = .connecting(code:code);startInternet(code:code,host:true);return code}
+        if useInternet {state = .connecting(code:code);startInternet(code:code,host:true,pvp:pvp);return code}
         state = .hosting(code: code)
         startListener(code:code,advertise:advertise)
         startLocalBroadcast()
@@ -156,6 +162,9 @@ final class OnlineRoomManager {
     func leaveRoom() {
         sessionGeneration &+= 1
         internet?.close();internet=nil
+        pvpEnabled = false
+        nextHitSend = 0
+        PGSetOnlinePvP(false)
         if inRoom, let code = roomCode {
             broadcast(packet: RoomPacket(type: .leave, roomCode: code, senderId: String(localPlayerId), senderName: localPlayerName))
         }
@@ -178,13 +187,13 @@ final class OnlineRoomManager {
         state = .idle
     }
 
-    private func startInternet(code:String,host:Bool){
+    private func startInternet(code:String,host:Bool,pvp:Bool=false){
         guard let url=relayBase else{state = .error("Bản này chưa cấu hình relay Internet.");return}
         let transport=NovaInternetTransport();internet=transport
         let generation=sessionGeneration
         transport.onError={[weak self] message in guard let self,self.sessionGeneration==generation else{return};self.leaveRoom();self.state = .error(message)}
         transport.onPacket={[weak self] packet in guard let self,self.sessionGeneration==generation else{return};self.handleInternet(packet)}
-        transport.connect(base:url,code:code,host:host,hello:RoomPacket(type:.joinRequest,roomCode:code,senderId:String(localPlayerId),senderName:localPlayerName))
+        transport.connect(base:url,code:code,host:host,pvp:pvp,hello:RoomPacket(type:.joinRequest,roomCode:code,senderId:String(localPlayerId),senderName:localPlayerName))
     }
     private func handleInternet(_ p:RoomPacket){
         guard p.roomCode==roomCode else{return}
@@ -192,9 +201,17 @@ final class OnlineRoomManager {
             guard case .connecting=state else{return}
             if isHost{guard p.senderId==String(localPlayerId) else{return};state = .hosting(code:p.roomCode)}
             else{hostPeerId=p.senderId;state = .connected(code:p.roomCode,isHost:false);var peer=OnlinePeer(id:p.senderId,name:p.senderName);if let pos=p.position{peer.position=pos;pendingSpawnCoords=pos};peers[p.senderId]=peer}
+            pvpEnabled = p.pvp == true
+            PGSetOnlinePvP(pvpEnabled)
             startLocalBroadcast();onPeersUpdated?(Array(peers.values));return
         }
         guard inRoom,p.senderId != String(localPlayerId) else{return}
+        if p.type == .hit {
+            if pvpEnabled, p.targetId == String(localPlayerId), let damage = p.damage {
+                PGQueueOnlineHit(damage)
+            }
+            return
+        }
         if p.type == .leave{
             if !isHost,p.senderId==hostPeerId{leaveRoom();state = .error("Máy chủ đã rời phòng.");return}
             peers.removeValue(forKey:p.senderId);p.senderId.withCString{PGRemoveRemotePeer($0)}
@@ -487,6 +504,19 @@ final class OnlineRoomManager {
             }
         }
 
+        if pvpEnabled, let code = roomCode, now >= nextHitSend {
+            nextHitSend = now + 0.1
+            for peer in peers.values {
+                let damage = peer.id.withCString { PGTakeOnlineHit($0) }
+                guard damage > 0 else { continue }
+                var hit = RoomPacket(type: .hit, roomCode: code, senderId: String(localPlayerId), senderName: localPlayerName)
+                hit.targetId = peer.id
+                hit.damage = damage
+                broadcast(packet: hit)
+                nextHitSend = now + 0.26
+                break
+            }
+        }
         guard now-lastPeerFeedTime>=0.1 else{return};lastPeerFeedTime=now
         // Feed peers at network update rate, not every UI frame.
         // Continually feed active peers to C engine for smooth radar blips and avatar ped tracking

@@ -9,6 +9,10 @@ enum NovaRoomProtocol {
   if packet.type == .stateSync && packet.position==nil{return false}
   if let p=packet.position{guard p.count==3,p.allSatisfy({$0.isFinite && abs($0)<=100000}) else{return false}}
   if let h=packet.heading,(!h.isFinite || abs(h)>100000){return false}
+  if packet.type == .hit {
+   guard let target=packet.targetId, target != packet.senderId,
+         !target.isEmpty, target.utf8.count<=31, let damage=packet.damage, (1...30).contains(damage) else {return false}
+  }
   return true
  }
 }

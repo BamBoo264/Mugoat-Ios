@@ -2542,7 +2542,7 @@ static void pg_apply_online_teleport(w2c_game *instance) {
   pg_log(line);
 }
 
-#define PG_MAX_ONLINE_PEERS 8
+#define PG_MAX_ONLINE_PEERS 15
 
 typedef struct {
   char id[32];
@@ -2554,10 +2554,19 @@ typedef struct {
   uint32_t blipHandle;
   uint32_t pedHandle;
   uint32_t pedModel;
+  uint32_t vehicleHandle;
+  uint32_t renderedVehicleModel;
+  double nextMoveTask;
+  double nextVehicleAttempt;
+  float taskX, taskY, taskZ;
+  bool hasMoveTarget;
+  unsigned pendingDamage;
 } PGOnlinePeerInternal;
 
 static PGOnlinePeerInternal pg_online_peers[PG_MAX_ONLINE_PEERS];
 static _Atomic bool pg_online_has_work;
+static _Atomic bool pg_online_pvp;
+static _Atomic unsigned pg_online_incoming_damage;
 static pthread_mutex_t pg_online_peers_lock = PTHREAD_MUTEX_INITIALIZER;
 
 void PGUpdateRemotePeer(const char *peerId, float x, float y, float z, float heading, uint32_t vehicleModel) {
@@ -2572,7 +2581,7 @@ void PGUpdateRemotePeer(const char *peerId, float x, float y, float z, float hea
   }
   if (slot < 0) {
     for (int i = 0; i < PG_MAX_ONLINE_PEERS; i++) {
-      if (!pg_online_peers[i].active && !pg_online_peers[i].pedHandle && !pg_online_peers[i].blipHandle) {
+      if (!pg_online_peers[i].active && !pg_online_peers[i].pedHandle && !pg_online_peers[i].blipHandle && !pg_online_peers[i].vehicleHandle) {
         slot = i;
         memset(&pg_online_peers[slot], 0, sizeof(PGOnlinePeerInternal));
         snprintf(pg_online_peers[slot].id, sizeof(pg_online_peers[slot].id), "%s", peerId);
@@ -2605,12 +2614,145 @@ void PGRemoveRemotePeer(const char *peerId) {
   pthread_mutex_unlock(&pg_online_peers_lock);
 }
 
+void PGSetOnlinePvP(bool enabled) {
+  atomic_store(&pg_online_pvp, enabled);
+  atomic_store(&pg_online_incoming_damage, 0);
+}
+
+unsigned PGTakeOnlineHit(const char *peerId) {
+  unsigned damage = 0;
+  pthread_mutex_lock(&pg_online_peers_lock);
+  for (int i = 0; i < PG_MAX_ONLINE_PEERS; i++) {
+    PGOnlinePeerInternal *peer = &pg_online_peers[i];
+    if (peer->active && !strcmp(peer->id, peerId)) {
+      damage = peer->pendingDamage;
+      peer->pendingDamage = 0;
+      break;
+    }
+  }
+  pthread_mutex_unlock(&pg_online_peers_lock);
+  return damage;
+}
+
+void PGQueueOnlineHit(unsigned damage) {
+  if (damage && damage <= 30 && atomic_load(&pg_online_pvp)) {
+    unsigned pending = atomic_load(&pg_online_incoming_damage);
+    while (pending < 60) {
+      unsigned total = pending + damage;
+      if (atomic_compare_exchange_weak(&pg_online_incoming_damage, &pending, total > 60 ? 60 : total)) break;
+    }
+  }
+}
+
+static void pg_online_detect_hit(w2c_game *instance, PGOnlinePeerInternal *peer, u32 localPed) {
+  uint32_t health = (u32)pg_test_call(instance, 0xeef059fad016d209ull, 1, (uint64_t[]){peer->pedHandle});
+  if (health >= 1000) return;
+  bool localHit = pg_test_call(instance, 0xc86d67d52a707cf8ull, 3,
+                              (uint64_t[]){peer->pedHandle, localPed, 1}) == 1;
+  if (localHit) {
+    unsigned damage = 1000 - health;
+    peer->pendingDamage += damage > 30 ? 30 : damage;
+    if (peer->pendingDamage > 30) peer->pendingDamage = 30;
+  }
+  pg_test_call(instance, 0xa72cd9ca74a5ecbaull, 1, (uint64_t[]){peer->pedHandle});
+  PG_FN_SET_ENTITY_HEALTH(instance, peer->pedHandle, 1000, 0);
+}
+
+static void pg_online_delete_vehicle(w2c_game *instance, PGOnlinePeerInternal *peer) {
+  if (!peer->vehicleHandle) return;
+  static u64 vehicleRef;
+  if (PG_FN_ENTITY_EXISTS(instance, peer->vehicleHandle)) {
+    if (!vehicleRef) vehicleRef = PG_FN_OPERATOR_NEW(instance, 16);
+    if (!vehicleRef) return;
+    *(u32 *)pg_pointer(&env, vehicleRef, 4) = peer->vehicleHandle;
+    pg_test_call(instance, 0xae3cbe5bf394c9c9ull, 1, (uint64_t[]){vehicleRef}); // DELETE_ENTITY
+  }
+  peer->vehicleHandle = 0;
+  peer->renderedVehicleModel = 0;
+}
+
+static uint32_t pg_online_float_bits(float value) {
+  uint32_t bits;
+  memcpy(&bits, &value, sizeof bits);
+  return bits;
+}
+
+static void pg_online_move_peer(w2c_game *instance, PGOnlinePeerInternal *peer, u64 vector, double now) {
+  if (!vector) return;
+  float *coords = pg_pointer(&env, vector, 24);
+  coords[0] = peer->x; coords[2] = peer->y; coords[4] = peer->z;
+  const uint32_t heading = pg_online_float_bits(peer->heading);
+  if (peer->vehicleHandle && (peer->renderedVehicleModel != peer->vehicleModel ||
+      !PG_FN_ENTITY_EXISTS(instance, peer->vehicleHandle))) {
+    pg_online_delete_vehicle(instance, peer);
+    peer->hasMoveTarget = false;
+  }
+  const uint32_t model = peer->vehicleModel;
+  if (model && !peer->vehicleHandle && now >= peer->nextVehicleAttempt) {
+    peer->nextVehicleAttempt = now + 500;
+    bool registered = pg_test_call(instance, 0x35b9e0803292b641ull, 1, (uint64_t[]){model}) == 1;
+    bool isVehicle = registered && (pg_test_call(instance, 0x19aac8f07bfec53eull, 1, (uint64_t[]){model}) == 1);
+    if (!isVehicle) {
+      peer->nextVehicleAttempt = now + 5000;
+    } else if (!PG_FN_HAS_MODEL_LOADED(instance, model)) {
+      PG_FN_REQUEST_MODEL(instance, model);
+    } else {
+      peer->vehicleHandle = PG_FN_CREATE_VEHICLE(instance, model, vector, peer->heading, 0, 0, 1);
+      pg_test_call(instance, 0xe532f5d78798daabull, 1, (uint64_t[]){model}); // SET_MODEL_AS_NO_LONGER_NEEDED
+      if (peer->vehicleHandle) {
+        peer->renderedVehicleModel = model;
+        pg_test_call(instance, 0x3882114bde571ad4ull, 2, (uint64_t[]){peer->vehicleHandle, 1});
+        pg_test_call(instance, 0x1a9205c1b9ee827full, 3, (uint64_t[]){peer->vehicleHandle, 0, 0});
+        PG_FN_SET_PED_INTO_VEHICLE(instance, peer->pedHandle, peer->vehicleHandle, (u32)-1);
+      }
+    }
+  }
+  if (peer->vehicleHandle) {
+    uint32_t driver = (u32)pg_test_call(instance, 0xbb40dd2270b65366ull, 3, (uint64_t[]){peer->vehicleHandle, (u32)-1, 0});
+    if (driver != peer->pedHandle) PG_FN_SET_PED_INTO_VEHICLE(instance, peer->pedHandle, peer->vehicleHandle, (u32)-1);
+    PG_FN_SET_ENTITY_COORDS_NO_OFFSET(instance, peer->vehicleHandle, vector, 0, 0, 0);
+    pg_test_call(instance, 0x8e2530aa8ada980eull, 2, (uint64_t[]){peer->vehicleHandle, heading});
+    return;
+  }
+  if (now < peer->nextMoveTask) return;
+  peer->nextMoveTask = now + 250;
+  float dx = peer->x - peer->taskX, dy = peer->y - peer->taskY, dz = peer->z - peer->taskZ;
+  float distance = sqrtf(dx * dx + dy * dy + dz * dz);
+  if (!peer->hasMoveTarget || distance > 8.0f || fabsf(dz) > 2.0f) {
+    PG_FN_SET_ENTITY_COORDS_NO_OFFSET(instance, peer->pedHandle, vector, 0, 0, 0);
+    pg_test_call(instance, 0x8e2530aa8ada980eull, 2, (uint64_t[]){peer->pedHandle, heading});
+  } else if (distance > 0.20f) {
+    float speed = distance > 1.1f ? 3.0f : distance > 0.5f ? 2.0f : 1.0f;
+    pg_test_call(instance, 0xd76b57b44f1e6f8bull, 8, (uint64_t[]){
+      peer->pedHandle, pg_online_float_bits(peer->x), pg_online_float_bits(peer->y), pg_online_float_bits(peer->z),
+      pg_online_float_bits(speed), 650, heading, pg_online_float_bits(0.12f)
+    }); // TASK_GO_STRAIGHT_TO_COORD
+  } else {
+    pg_test_call(instance, 0x8e2530aa8ada980eull, 2, (uint64_t[]){peer->pedHandle, heading});
+    return;
+  }
+  peer->taskX = peer->x; peer->taskY = peer->y; peer->taskZ = peer->z;
+  peer->hasMoveTarget = true;
+}
+
 static void pg_online_peers_tick(w2c_game *instance) {
   if(!atomic_load(&pg_online_has_work))return;
-  if (PGGameStatus() & 16) return;
+  if (PGGameStatus() & 16) {
+    atomic_store(&pg_online_incoming_damage, 0);
+    return;
+  }
+  const bool pvp = atomic_load(&pg_online_pvp);
+  const u32 localPvPPed = pvp ? PG_FN_PLAYER_PED_ID(instance) : 0;
+  const unsigned incomingDamage = atomic_exchange(&pg_online_incoming_damage, 0);
   const double now = timeMS(CLOCK_MONOTONIC);
   uint64_t previous = 0;
   bool enteredScript = false;
+  if (localPvPPed && incomingDamage) {
+    previous = pg_asi_enter_script(instance);
+    enteredScript = true;
+    uint32_t health = (u32)pg_test_call(instance, 0xeef059fad016d209ull, 1, (uint64_t[]){localPvPPed});
+    if (health && health <= 10000) PG_FN_SET_ENTITY_HEALTH(instance, localPvPPed, health > incomingDamage ? health - incomingDamage : 0, 0);
+  }
   static u64 pedVec;
   if (!pedVec) pedVec = PG_FN_OPERATOR_NEW(instance, 32);
 
@@ -2621,6 +2763,10 @@ static void pg_online_peers_tick(w2c_game *instance) {
       p->active = false;
     }
     if (!p->active) {
+      if (p->vehicleHandle) {
+        if (!enteredScript) { previous = pg_asi_enter_script(instance); enteredScript = true; }
+        pg_online_delete_vehicle(instance, p);
+      }
       if (p->blipHandle) {
         if (!enteredScript) { previous = pg_asi_enter_script(instance); enteredScript = true; }
         pg_test_call(instance, 0x9029b2f3da924928ull, 2, (uint64_t[]){p->blipHandle, 0});
@@ -2665,6 +2811,7 @@ static void pg_online_peers_tick(w2c_game *instance) {
     bool pedAlive = p->pedHandle && PG_FN_ENTITY_EXISTS(instance, p->pedHandle);
     if (!pedAlive) {
       p->pedHandle = 0;
+      p->hasMoveTarget = false;
       u32 localPed = PG_FN_PLAYER_PED_ID(instance);
       u32 model = localPed ? PG_FN_GET_ENTITY_MODEL(instance, localPed) : 0;
       if (model) {
@@ -2677,7 +2824,12 @@ static void pg_online_peers_tick(w2c_game *instance) {
           if (ped && PG_FN_ENTITY_EXISTS(instance, ped)) {
             p->pedHandle = ped;
             p->pedModel = model;
-            pg_test_call(instance, 0x3882114bde571ad4ull, 2, (uint64_t[]){ped, 1});
+            pg_test_call(instance, 0x3882114bde571ad4ull, 2, (uint64_t[]){ped, !pvp});
+            if (pvp) {
+              pg_test_call(instance, 0x166e7cf68597d8b5ull, 2, (uint64_t[]){ped, 1000});
+              pg_test_call(instance, 0xebd76f2359f190acull, 2, (uint64_t[]){ped, 0});
+              PG_FN_SET_ENTITY_HEALTH(instance, ped, 1000, 0);
+            }
             pg_test_call(instance, 0x9f8aa94d6d97dbf4ull, 2, (uint64_t[]){ped, 1});
             pg_test_call(instance, 0xad738c3085fe7e11ull, 3, (uint64_t[]){ped, 1, 1});
             char line[128];
@@ -2686,15 +2838,13 @@ static void pg_online_peers_tick(w2c_game *instance) {
           }
         }
       }
-    } else if (pedVec) {
-      float *v = pg_pointer(&env, pedVec, 24);
-      v[0] = p->x; v[2] = p->y; v[4] = p->z;
-      PG_FN_SET_ENTITY_COORDS_NO_OFFSET(instance, p->pedHandle, pedVec, 0, 0, 0);
-      uint32_t fh; memcpy(&fh, &p->heading, 4);
-      pg_test_call(instance, 0x8e2530aa8ada980eull, 2, (uint64_t[]){p->pedHandle, fh});
+    }
+    if (p->pedHandle) {
+      if (localPvPPed && pedAlive) pg_online_detect_hit(instance, p, localPvPPed);
+      pg_online_move_peer(instance, p, pedVec, now);
     }
   }
-  bool more=false;for(int i=0;i<PG_MAX_ONLINE_PEERS;i++)if(pg_online_peers[i].active||pg_online_peers[i].pedHandle||pg_online_peers[i].blipHandle){more=true;break;}atomic_store(&pg_online_has_work,more);
+  bool more=false;for(int i=0;i<PG_MAX_ONLINE_PEERS;i++)if(pg_online_peers[i].active||pg_online_peers[i].pedHandle||pg_online_peers[i].blipHandle||pg_online_peers[i].vehicleHandle){more=true;break;}atomic_store(&pg_online_has_work,more);
   pthread_mutex_unlock(&pg_online_peers_lock);
 
   if (enteredScript) {

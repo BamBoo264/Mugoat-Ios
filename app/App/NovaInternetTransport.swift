@@ -6,10 +6,12 @@ final class NovaInternetTransport {
  private var session:URLSession?,task:URLSessionWebSocketTask?
  private var generation=0,sending=false,joined=false
  private var pending:RoomPacket?
- func connect(base:URL,code:String,host:Bool,hello:RoomPacket){
+ private var pendingHit:RoomPacket?
+ func connect(base:URL,code:String,host:Bool,pvp:Bool,hello:RoomPacket){
   close();let g=generation
   var c=URLComponents(url:base.appendingPathComponent("room").appendingPathComponent(code),resolvingAgainstBaseURL:false)!
-  c.queryItems=[URLQueryItem(name:"role",value:host ? "host":"guest")]
+  c.queryItems=[URLQueryItem(name:"role",value:host ? "host":"guest"), URLQueryItem(name:"v",value:"3")]
+  if host && pvp { c.queryItems?.append(URLQueryItem(name:"pvp",value:"1")) }
   guard let url=c.url,url.scheme=="wss" else{onError?("Relay URL invalid");return}
   let config=URLSessionConfiguration.ephemeral;config.timeoutIntervalForRequest=15;config.urlCache=nil
   let s=URLSession(configuration:config);session=s
@@ -18,17 +20,22 @@ final class NovaInternetTransport {
    guard let self,self.generation==g,!self.joined else{return};self.fail("Relay chưa xác nhận phòng. Kiểm tra Internet hoặc thử lại.")
   }
  }
- func close(){generation &+= 1;task?.cancel(with:.goingAway,reason:nil);task=nil;session?.invalidateAndCancel();session=nil;sending=false;pending=nil;joined=false}
+ func close(){generation &+= 1;task?.cancel(with:.goingAway,reason:nil);task=nil;session?.invalidateAndCancel();session=nil;sending=false;pending=nil;pendingHit=nil;joined=false}
  private func fail(_ message:String){let callback=onError;close();callback?(message)}
  func send(_ packet:RoomPacket){
   guard let t=task,NovaRoomProtocol.valid(packet) else{return}
-  if sending{if packet.type == .stateSync{pending=packet};return}
+  if sending {
+   if packet.type == .stateSync { pending=packet }
+   if packet.type == .hit, pendingHit == nil { pendingHit=packet }
+   return
+  }
   guard let data=try? JSONEncoder().encode(packet),data.count<=NovaRoomProtocol.maxPacketBytes,let text=String(data:data,encoding:.utf8) else{return}
   sending=true;let g=generation
   t.send(.string(text)){[weak self] error in DispatchQueue.main.async{
    guard let self,self.generation==g else{return};self.sending=false
    if error != nil{self.fail("Mất kết nối relay Internet.");return}
-   if let next=self.pending{self.pending=nil;self.send(next)}
+   if let hit=self.pendingHit { self.pendingHit=nil;self.send(hit) }
+   else if let next=self.pending { self.pending=nil;self.send(next) }
   }}
  }
  private func receive(_ t:URLSessionWebSocketTask,_ g:Int){

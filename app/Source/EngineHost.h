@@ -90,6 +90,9 @@ bool PGGetPlayerPosition(float position[3]);
 float PGGetPlayerHeading(void);
 void PGUpdateRemotePeer(const char *peerId, float x, float y, float z, float heading, uint32_t vehicleModel);
 void PGRemoveRemotePeer(const char *peerId);
+void PGSetOnlinePvP(bool enabled);
+unsigned PGTakeOnlineHit(const char *peerId);
+void PGQueueOnlineHit(unsigned damage);
 // Simulator only (Source/NativeDebugChannel.inc): runs one test-harness command and writes its JSON reply.
 void PGDebugCommand(const char *command, char *reply, size_t size);
 // The next weapon of the aircraft the player flies (applied on the game thread).

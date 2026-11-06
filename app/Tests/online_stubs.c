@@ -7,3 +7,7 @@ uint32_t PGGameStatus(void){return 0;}
 void PGTeleportPlayer(float x,float y,float z){}
 PGControlHints PGReadControlHints(uint32_t c){PGControlHints h={0};return h;}
 uint32_t PGCurrentTouchContext(void){return 0;}
+
+void PGSetOnlinePvP(bool enabled){}
+unsigned PGTakeOnlineHit(const char *peerId){return 0;}
+void PGQueueOnlineHit(unsigned damage){}
