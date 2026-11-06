@@ -133,6 +133,7 @@ targets:
           - _gtavmp._udp
           - _novamp._udp
         NovaRelayURL: wss://mugoat-nova-relay.hutaolee264.workers.dev
+        NSMicrophoneUsageDescription: "Cho phép nói chuyện với người chơi ở gần khi bạn bật micro trong phòng Nova."
         NSLocalNetworkUsageDescription: "Tìm phòng Nova trên cùng mạng và kết nối trực tiếp máy chủ do bạn chọn."
         GCSupportedGameControllers:
           - ProfileName: ExtendedGamepad

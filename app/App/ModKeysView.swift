@@ -17,6 +17,7 @@ final class ModKeysView: UIView, UIKeyInput {
     /// Where the 🧩 Mods control is (the tray opens below it).
     var anchor: (() -> CGRect?)?
     /// Whether a script mod runs (the touch controls show the 🧩 control then).
+    var navigationChanged: ((Bool) -> Void)?
     var activeChanged: ((Bool) -> Void)?
     private(set) var active = false
 
@@ -25,6 +26,7 @@ final class ModKeysView: UIView, UIKeyInput {
     private let scroll = UIScrollView()
     private let grid = UIStackView()
     private let dpad = UIView()
+    private let confirmationPad = UIView()
     private var trayTop: NSLayoutConstraint?, trayCenter: NSLayoutConstraint?
     private var keys: [Int] = []
     private var firstRowKeys: [Int] = []
@@ -58,7 +60,9 @@ final class ModKeysView: UIView, UIKeyInput {
         grid.translatesAutoresizingMaskIntoConstraints = false
         scroll.addSubview(grid)
         dpad.isHidden = true
+        confirmationPad.isHidden = true
         addSubview(dpad)
+        addSubview(confirmationPad)
         trayTop = tray.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 60)
         trayCenter = tray.centerXAnchor.constraint(equalTo: centerXAnchor)
         NSLayoutConstraint.activate([
@@ -104,7 +108,7 @@ final class ModKeysView: UIView, UIKeyInput {
         }
         rebuild()
         tray.isHidden = false
-        dpad.isHidden = true
+        showNavigation(false)
     }
     private func closeTray() {
         tray.isHidden = true
@@ -125,7 +129,7 @@ final class ModKeysView: UIView, UIKeyInput {
         var found = (1..<256).filter { (closed[$0] != 0 || open[$0] != 0 || hinted[$0] != 0) && Self.name($0) != nil }
         if info.keyboardHandler { found = Array(Set(found).union(Self.standard)) }
         let nowActive = !found.isEmpty
-        if nowActive != active { active = nowActive; activeChanged?(active); if !active { closeTray(); dpad.isHidden = true } }
+        if nowActive != active { active = nowActive; activeChanged?(active); if !active { closeTray(); showNavigation(false) } }
         guard active else { return }
         // Menu keys: learned from what opened a menu (kept across launches), named by the mod's .ini,
         // otherwise the F-keys the mods check.
@@ -158,7 +162,7 @@ final class ModKeysView: UIView, UIKeyInput {
             navKeys = defaultNavGroups.map { $0.first ?? 0 }
             buildDpad()
         }
-        dpad.isHidden = !(info.menuVisible && tray.isHidden && !typing)
+        showNavigation(info.menuVisible && tray.isHidden && !typing)
         // The tray's keys are laid out again only while it's closed, so nothing moves under a finger.
         let sorted = found.sorted { Self.rank($0) == Self.rank($1) ? $0 < $1 : Self.rank($0) < Self.rank($1) }
         if sorted != keys && tray.isHidden { keys = sorted }
@@ -190,28 +194,33 @@ final class ModKeysView: UIView, UIKeyInput {
         }
     }
 
-    /// ▲ ▼ ◀ ▶ around OK, Back beside it: a D-pad cross at the bottom centre, between the minimap and the
-    /// action buttons.
+    private func showNavigation(_ visible: Bool) {
+        let changed = dpad.isHidden == visible
+        dpad.isHidden = !visible
+        confirmationPad.isHidden = !visible
+        if changed {
+            if !visible { releaseAll() }
+            navigationChanged?(visible)
+        }
+    }
+
     private func buildDpad() {
         dpad.subviews.forEach { $0.removeFromSuperview() }
-        let size: CGFloat = 46, gap: CGFloat = 4
-        // Back in the cross's lower right corner keeps the whole pad inside the free strip (GTA-69: a Back key
-        // to the right of the cross sat on the sprint button).
-        let spots: [(CGFloat, CGFloat)] = [(1, 0), (1, 2), (0, 1), (2, 1), (1, 1), (2, 2)]
-        for (i, keys) in navKeyGroups.enumerated() where !keys.isEmpty {
-            let title = ["▲", "▼", "◀", "▶", "OK", "↩\u{FE0E}"][i]   // text style, not the blue emoji
-            let button = makeNavButton(keys: keys, title: title)
-            button.frame = CGRect(x: spots[i].0 * (size + gap), y: spots[i].1 * (size + gap), width: size, height: size)
-            button.translatesAutoresizingMaskIntoConstraints = true
-            dpad.addSubview(button)
+        confirmationPad.subviews.forEach { $0.removeFromSuperview() }
+        let spots: [(CGFloat, CGFloat)] = [(1, 0), (1, 2), (0, 1), (2, 1), (0, 0), (0, 1)]
+        for (index, keys) in navKeyGroups.enumerated() where !keys.isEmpty {
+            let button = makeNavButton(keys: keys, title: ["▲", "▼", "◀", "▶", "OK", "Back"][index])
+            let width: CGFloat = index < 4 ? 52 : 68
+            button.frame = CGRect(x: spots[index].0 * 56, y: spots[index].1 * 56, width: width, height: 52)
+            (index < 4 ? dpad : confirmationPad).addSubview(button)
         }
         setNeedsLayout()
     }
     override func layoutSubviews() {
         super.layoutSubviews()
-        let width = 3 * 46 + 2 * 4, height = 3 * 46 + 2 * 4
         let safe = bounds.inset(by: safeAreaInsets)
-        dpad.frame = CGRect(x: safe.minX + safe.width * 0.40 - CGFloat(width) / 2, y: safe.maxY - CGFloat(height) - 14, width: CGFloat(width), height: CGFloat(height))
+        dpad.frame = CGRect(x: safe.minX + 14, y: safe.maxY - 178, width: 164, height: 164)
+        confirmationPad.frame = CGRect(x: safe.maxX - 82, y: safe.maxY - 142, width: 68, height: 108)
     }
 
     private func makeNavButton(keys: [Int], title: String) -> UIView {

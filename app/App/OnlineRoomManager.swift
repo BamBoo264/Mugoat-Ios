@@ -11,10 +11,17 @@ struct OnlinePeer: Identifiable {
     var vehicleModel: UInt32 = 0
     var weapon: UInt32 = 0
     var health: Int = 200
+    var impactSequence: UInt32?
+    var impactEpoch: UInt32?
     var lastSeen: Date = Date()
 }
 
-/// Packet sent across the P2P room network.
+struct OnlineGlassReport: Codable {
+    let epoch: UInt32
+    let mask: UInt32
+}
+
+/// Packet sent across the room network.
 struct RoomPacket: Codable {
     enum PacketType: String, Codable {
         case joinRequest = "JOIN_REQ"
@@ -24,6 +31,7 @@ struct RoomPacket: Codable {
         case ping = "PING"
         case leave = "LEAVE"
         case hit = "HIT"
+        case voice = "VOICE"
     }
     let type: PacketType
     let roomCode: String
@@ -40,6 +48,12 @@ struct RoomPacket: Codable {
     var pvp: Bool?
     var targetId: String?
     var damage: UInt32?
+    var voiceFrame: Data?
+    var impactSequence: UInt32?
+    var shotSequence: UInt32?
+    var vehicleEpoch: UInt32?
+    var windows: UInt32?
+    var glassReports: [String: OnlineGlassReport]?
 }
 
 /// Central manager for creating, joining, and synchronizing GTA V online multiplayer rooms.
@@ -61,6 +75,8 @@ final class OnlineRoomManager {
     }
 
     var onStateChanged: ((RoomState) -> Void)?
+    var onVehicleImpact: ((Float) -> Void)?
+    var onVoiceFrame: ((String, Data) -> Void)?
     var onPeersUpdated: (([OnlinePeer]) -> Void)?
 
     private(set) var roomCode: String?
@@ -256,6 +272,10 @@ final class OnlineRoomManager {
             startLocalBroadcast();onPeersUpdated?(Array(peers.values));return
         }
         guard inRoom,p.senderId != String(localPlayerId),p.senderId != Self.publicServerID else{return}
+        if p.type == .voice {
+            if let frame = p.voiceFrame { onVoiceFrame?(p.senderId, frame) }
+            return
+        }
         if p.type == .hit {
             if pvpEnabled, p.targetId == String(localPlayerId), let damage = p.damage {
                 PGQueueOnlineHit(damage)
@@ -271,7 +291,26 @@ final class OnlineRoomManager {
             peer.name = p.senderName
             if let pos=p.position{peer.position=pos};if let h=p.heading{peer.heading=h};if let v=p.vehicleModel{peer.vehicleModel=v}
             if let w=p.weapon{peer.weapon=w};if let hp=p.health{peer.health=hp};peer.lastSeen=Date();peers[p.senderId]=peer
-            if p.type == .stateSync { feedRemoteState(p) }
+            if p.type == .stateSync {
+                if let epoch = p.vehicleEpoch, epoch != 0, let impact = p.impactSequence {
+                    if impact != 0, peer.impactEpoch == epoch, let previous = peer.impactSequence,
+                       previous != impact, let position = p.position {
+                        var local = [Float](repeating: 0, count: 3)
+                        if PGGetPlayerPosition(&local) {
+                            let dx = position[0] - local[0], dy = position[1] - local[1], dz = position[2] - local[2]
+                            let distance = sqrt(dx*dx + dy*dy + dz*dz)
+                            if distance < 35 { onVehicleImpact?(distance) }
+                        }
+                    }
+                    peer.impactEpoch = epoch
+                    peer.impactSequence = impact
+                    peers[p.senderId] = peer
+                }
+                feedRemoteState(p)
+                if let report = p.glassReports?[String(localPlayerId)] {
+                    PGQueueOnlineGlass(report.epoch, report.mask)
+                }
+            }
             if !isHost,!hasSpawnedAtHost,p.senderId==hostPeerId,let pos=p.position{pendingSpawnCoords=pos}
         }
         onPeersUpdated?(Array(peers.values))
@@ -284,7 +323,8 @@ final class OnlineRoomManager {
             rideOwner.withCString { ownerID in
                 PGUpdateRemotePeerState(peerID, position[0], position[1], position[2],
                                         packet.heading ?? 0, packet.vehicleModel ?? 0,
-                                        packet.weapon ?? 0, ownerID, packet.rideSeat ?? -1)
+                                        packet.weapon ?? 0, ownerID, packet.rideSeat ?? -1,
+                                        packet.shotSequence ?? 0, packet.vehicleEpoch ?? 0, packet.windows ?? 0)
             }
         }
     }
@@ -564,11 +604,25 @@ final class OnlineRoomManager {
                 let hints = PGReadControlHints(PGCurrentTouchContext())
                 var owner = [CChar](repeating: 0, count: 32)
                 var seat: Int32 = -1
-                let weapon = PGReadOnlineLoadout(&owner, &seat)
+                var shot: UInt32 = 0
+                var vehicle: UInt32 = 0
+                var windows: UInt32 = 0
+                var impact: UInt32 = 0
+                let weapon = PGReadOnlineLoadout(&owner, &seat, &shot, &vehicle, &windows, &impact)
+                var glassReports: [String: OnlineGlassReport] = [:]
+                if inInternetRoom {
+                    for peer in peers.values where peer.vehicleModel != 0 {
+                        var epoch: UInt32 = 0
+                        let mask = peer.id.withCString { PGReadOnlinePeerGlass($0, &epoch) }
+                        if mask != 0 && epoch != 0 { glassReports[peer.id] = OnlineGlassReport(epoch: epoch, mask: mask) }
+                    }
+                }
                 let rideOwner = owner.withUnsafeBufferPointer { String(cString: $0.baseAddress!) }
                 pushLocalState(position: localPos, heading: heading, vehicleModel: rideOwner.isEmpty ? hints.vehicleModel : 0,
                                weapon: weapon, health: 200, rideOwner: rideOwner.isEmpty ? nil : rideOwner,
-                               rideSeat: rideOwner.isEmpty ? nil : seat)
+                               rideSeat: rideOwner.isEmpty ? nil : seat,
+                               shotSequence: shot, vehicleEpoch: rideOwner.isEmpty && hints.vehicleModel != 0 ? vehicle : 0,
+                               windows: windows, impactSequence: impact, glassReports: glassReports)
             }
         }
 
@@ -587,8 +641,17 @@ final class OnlineRoomManager {
         }
     }
 
+    func sendVoiceFrame(_ data: Data) {
+        guard inInternetRoom, let code = roomCode, data.count == 1600 else { return }
+        var packet = RoomPacket(type: .voice, roomCode: code, senderId: String(localPlayerId), senderName: localPlayerName)
+        packet.voiceFrame = data
+        broadcast(packet: packet)
+    }
+
     /// Pushes local player position, vehicle, weapon to all peers in the room.
-    func pushLocalState(position: [Float], heading: Float, vehicleModel: UInt32, weapon: UInt32, health: Int, rideOwner: String? = nil, rideSeat: Int32? = nil) {
+    func pushLocalState(position: [Float], heading: Float, vehicleModel: UInt32, weapon: UInt32, health: Int, rideOwner: String? = nil, rideSeat: Int32? = nil,
+                        shotSequence: UInt32 = 0, vehicleEpoch: UInt32 = 0, windows: UInt32 = 0, impactSequence: UInt32 = 0,
+                        glassReports: [String: OnlineGlassReport] = [:]) {
         guard inRoom, let code = roomCode else { return }
         var packet = RoomPacket(type: .stateSync, roomCode: code, senderId: String(localPlayerId), senderName: localPlayerName)
         packet.position = position
@@ -597,6 +660,11 @@ final class OnlineRoomManager {
         packet.weapon = weapon
         packet.rideOwner = rideOwner
         packet.rideSeat = rideSeat
+        packet.impactSequence = vehicleEpoch != 0 ? impactSequence : 0
+        packet.shotSequence = shotSequence
+        packet.vehicleEpoch = vehicleEpoch
+        packet.windows = vehicleEpoch != 0 ? windows : 0
+        if !glassReports.isEmpty { packet.glassReports = glassReports }
         packet.health = health
         broadcast(packet: packet)
     }

@@ -112,6 +112,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     private var metrics: [String: String] = [:]
     private var logFile: URL?
     private let touchControls = TouchControlsView(frame: .zero)
+    private let onlineVoice = NovaVoice()
     private let modKeys = ModKeysView(frame: .zero)
     private let gyro = GyroInput()
     private var engineStarted = false
@@ -329,6 +330,13 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             guard let self, let frame = self.touchControls.modsButtonFrame else { return nil }
             return self.touchControls.convert(frame, to: self.modKeys)
         }
+        modKeys.navigationChanged = { [weak self] visible in self?.touchControls.pluginNavigationActive = visible }
+        touchControls.requestOnlinePassenger = { PGRequestNearbyOnlinePassenger() }
+        touchControls.toggleVoice = { [weak self] in self?.onlineVoice.toggleMicrophone() }
+        onlineVoice.sendFrame = { OnlineRoomManager.shared.sendVoiceFrame($0) }
+        onlineVoice.stateChanged = { [weak self] enabled in self?.touchControls.voiceMicEnabled = enabled }
+        OnlineRoomManager.shared.onVehicleImpact = { [weak self] distance in self?.onlineVoice.playVehicleImpact(distance: distance) }
+        OnlineRoomManager.shared.onVoiceFrame = { [weak self] peer, data in self?.onlineVoice.play(data, from: peer) }
         touchControls.openMods = { [weak self] in self?.modKeys.toggleTray() }
         #if targetEnvironment(simulator)
         // Test: PG_TEST_MODS_TRAY=<seconds> opens the mod tray that long after launch (screenshots).
@@ -1277,6 +1285,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     }
 
     @objc private func leftApp() {
+        onlineVoice.setRoom(false)
         if stableTimer?.isValid != false { GameSettings.shared.markBootInterrupted() }
         playStats.sessionEnded()
     }
@@ -1548,6 +1557,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             PGSetMouseFocus(false, false)
             wasMouseSwipeActive = false
             inputTestLabel.isHidden = true
+            onlineVoice.setRoom(false)
             return
         }
         let now = CACurrentMediaTime()
@@ -1556,6 +1566,8 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             let fps = PGRenderedFramesPerSecond()
             let frameRate = fps > 0 ? String(format: "%.0f FPS", fps) : "— FPS"
             let room = OnlineRoomManager.shared
+            onlineVoice.setRoom(room.inInternetRoom)
+            touchControls.voiceAvailable = room.inInternetRoom
             if room.inInternetRoom {
                 let ping = room.relayPingMilliseconds.map { "\($0) ms" } ?? "— ms"
                 if fpsLabelWidth.constant != 152 { fpsLabelWidth.constant = 152 }

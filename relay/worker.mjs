@@ -2,8 +2,9 @@
 import {DurableObject} from "cloudflare:workers";
 export function valid(p) {
  if (!p || !/^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(p.roomCode) || !/^[A-Za-z0-9_-]{1,31}$/.test(p.senderId) || typeof p.senderName!=="string" || new TextEncoder().encode(p.senderName).length>64 || /[\x00-\x1f]/.test(p.senderName)) return false;
- if (!["JOIN_REQ","STATE","PING","LEAVE","HIT"].includes(p.type)) return false;
+ if (!["JOIN_REQ","STATE","PING","LEAVE","HIT","VOICE"].includes(p.type)) return false;
  if (p.type==="STATE" && !p.position) return false;
+ if (p.type==="VOICE" && (typeof p.voiceFrame!=="string" || !/^[A-Za-z0-9+/]{2134}==$/.test(p.voiceFrame))) return false;
  if (p.rideOwner !== undefined) {
   if (p.type !== "STATE" || typeof p.rideOwner !== "string" || p.rideOwner === p.senderId ||
       !/^[A-Za-z0-9_-]{1,31}$/.test(p.rideOwner) || p.vehicleModel !== 0 ||
@@ -13,7 +14,15 @@ export function valid(p) {
      p.targetId===p.senderId || !Number.isInteger(p.damage) || p.damage<1 || p.damage>30)) return false;
  if(p.position && (!Array.isArray(p.position)||p.position.length!==3||!p.position.every(v=>Number.isFinite(v)&&Math.abs(v)<=100000))) return false;
  if(p.heading!==undefined && (!Number.isFinite(p.heading)||Math.abs(p.heading)>100000))return false;
- for(const k of ["vehicleModel","weapon"])if(p[k]!==undefined && (!Number.isInteger(p[k])||p[k]<0||p[k]>4294967295))return false;
+ for(const k of ["vehicleModel","weapon","vehicleEpoch","shotSequence","impactSequence"])if(p[k]!==undefined && (!Number.isInteger(p[k])||p[k]<0||p[k]>4294967295))return false;
+ if (p.windows!==undefined && (!Number.isInteger(p.windows) || p.windows<0 || p.windows>15)) return false;
+ if (p.glassReports!==undefined) {
+  if (p.type!=="STATE" || !p.glassReports || typeof p.glassReports!=="object" || Array.isArray(p.glassReports)) return false;
+  const reports=Object.entries(p.glassReports);
+  if (reports.length>15 || reports.some(([id,report])=>id===p.senderId || !/^[A-Za-z0-9_-]{1,31}$/.test(id) ||
+      !report || !Number.isInteger(report.epoch) || report.epoch<1 || report.epoch>4294967295 ||
+      !Number.isInteger(report.mask) || report.mask<1 || report.mask>15)) return false;
+ }
  if(p.health!==undefined && (!Number.isInteger(p.health)||Math.abs(p.health)>100000))return false;
  return true;
 }
@@ -39,16 +48,16 @@ export class NovaRoom extends DurableObject {
   const publicRoom = code === PUBLIC_ROOM;
   const protocol = url.searchParams.get("v");
   if (publicRoom && host) return new Response("Public room is server-managed",{status:403});
-  if (publicRoom && protocol !== "4") return new Response("Update Nova to join the public room",{status:426});
+  if (publicRoom && protocol !== "4" && protocol !== "5") return new Response("Update Nova to join the public room",{status:426});
   if(host && this.ctx.getWebSockets().some(s=>s.deserializeAttachment()?.host))return new Response("Room already exists",{status:409});
   if(!publicRoom && !host && !this.host())return new Response("Host not present",{status:404});
-  const supportsPvP = protocol === "3" || protocol === "4";
+  const supportsPvP = protocol === "3" || protocol === "4" || protocol === "5";
   const pvp = publicRoom || (host && supportsPvP && url.searchParams.get("pvp")==="1");
   if (!host && this.host()?.deserializeAttachment().pvp && !supportsPvP) {
    return new Response("Nova update required for PvP rooms",{status:426});
   }
   const pair=new WebSocketPair(),[client,server]=Object.values(pair);
-  this.ctx.acceptWebSocket(server);server.serializeAttachment({host,code,pvp,publicRoom,opened:Date.now(),bucket:Date.now(),count:0});
+  this.ctx.acceptWebSocket(server);server.serializeAttachment({host,code,pvp,publicRoom,voice:protocol==="5",opened:Date.now(),bucket:Date.now(),count:0});
   await this.ctx.storage.setAlarm(Date.now()+30000);
   return new Response(null,{status:101,webSocket:client});
  }
@@ -89,9 +98,33 @@ export class NovaRoom extends DurableObject {
     delete p.rideSeat;
    }
   }
-  if(p.type==="STATE")a.state={position:p.position,heading:p.heading,vehicleModel:p.vehicleModel,weapon:p.weapon,health:p.health};
+  if (p.type==="STATE" && p.glassReports) {
+   const accepted=Object.create(null);
+   for (const socket of this.sockets()) {
+    const peer=socket.deserializeAttachment();
+    const report=Object.hasOwn(p.glassReports,peer.id) ? p.glassReports[peer.id] : null;
+    if (!report || !peer.state?.vehicleModel || peer.state.vehicleEpoch!==report.epoch || !peer.state.position) continue;
+    if (Math.hypot(...p.position.map((value,index)=>value-peer.state.position[index]))<=100) accepted[peer.id]=report;
+   }
+   p.glassReports=accepted;
+  }
+  if(p.type==="STATE")a.state={position:p.position,heading:p.heading,vehicleModel:p.vehicleModel,
+                              weapon:p.weapon,health:p.health,vehicleEpoch:p.vehicleEpoch,windows:p.windows};
   ws.serializeAttachment(a);
   if(p.type==="LEAVE"){await this.remove(ws);ws.close(1000,"Left room");return;}
+  if (p.type==="VOICE") {
+   if (!a.voice || !a.state?.position || (a.lastVoice && now-a.lastVoice<65)) return;
+   a.lastVoice=now;
+   ws.serializeAttachment(a);
+   for (const socket of this.sockets()) {
+    if (socket===ws) continue;
+    const peer=socket.deserializeAttachment();
+    if (!peer.voice || !peer.state?.position) continue;
+    if (Math.hypot(...a.state.position.map((value,index)=>value-peer.state.position[index]))>60) continue;
+    this.send(socket,{type:"VOICE",roomCode:a.code,senderId:a.id,senderName:a.name,voiceFrame:p.voiceFrame});
+   }
+   return;
+  }
   if (p.type==="HIT") {
    const host = this.host()?.deserializeAttachment();
    if (!(a.publicRoom || host?.pvp) || !a.state?.position || (a.lastHit && now-a.lastHit<200)) return;

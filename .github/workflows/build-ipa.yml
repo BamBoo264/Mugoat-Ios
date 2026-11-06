@@ -1,4 +1,4 @@
-name: Build Mugoat Nova Runtime V4 Online
+name: Build Mugoat Nova Runtime V5 Online
 on:
   push:
     branches:
@@ -60,7 +60,7 @@ jobs:
         run: |
           clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -I app/Source app/Tests/nova_vehicle_blend.c -o "$RUNNER_TEMP/nova-vehicle-blend"
           "$RUNNER_TEMP/nova-vehicle-blend"
-      - name: Online seat, weapon, PvP and legacy-room regression on live relay
+      - name: Online seat, shots, glass, voice and PvP regression on live relay
         run: node relay/test-relay.mjs wss://mugoat-nova-relay.hutaolee264.workers.dev
       - name: Production PAD layout and spatial scaling tests
         run: |
@@ -127,8 +127,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success() && (github.event_name == 'push' || inputs.build_ipa)
         with:
-          name: Mugoat-Nova-NativeRuntime-V4-Online
-          path: Mugoat-Nova-NativeRuntime-V4-Online.ipa
+          name: Mugoat-Nova-NativeRuntime-V5-Online
+          path: Mugoat-Nova-NativeRuntime-V5-Online.ipa
           retention-days: 14
       - uses: actions/upload-artifact@v4
         if: failure()

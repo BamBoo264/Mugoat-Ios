@@ -27,7 +27,7 @@ enum ControlStyle {
     static let accent = UIColor(red: 0.365, green: 0.714, blue: 0.898, alpha: 1)
     /// SF Symbols for controls that have no generated icon.
     static let fallbackSymbol: [String: String] = [
-        "radio": "radio", "mods": "puzzlepiece.extension.fill", "look_back": "arrow.uturn.backward", "up": "chevron.up", "down": "chevron.down",
+        "radio": "radio", "voice": "mic.fill", "mods": "puzzlepiece.extension.fill", "look_back": "arrow.uturn.backward", "up": "chevron.up", "down": "chevron.down",
         "left": "chevron.left", "right": "chevron.right", "accept": "checkmark", "back": "arrow.uturn.left",
         "tab_left": "chevron.left.2", "tab_right": "chevron.right.2", "dive": "arrow.down.to.line",
         "surface": "arrow.up.to.line", "crouch": "figure.walk", "pedal": "bicycle",
@@ -463,6 +463,19 @@ final class TouchControlsView: UIView {
     private let mods = ControlButton("mods", icon: "mods", label: "Plugin")
     var modsActive = false { didSet { if modsActive != oldValue { updateVisibility(); setNeedsLayout() } } }
     var openMods: (() -> Void)?
+    var requestOnlinePassenger: (() -> Bool)?
+    var toggleVoice: (() -> Void)?
+    var voiceAvailable = false { didSet { if voiceAvailable != oldValue { updateVisibility(); setNeedsLayout() } } }
+    var voiceMicEnabled = false { didSet { voice.active = voiceMicEnabled } }
+    var pluginNavigationActive = false {
+        didSet {
+            guard pluginNavigationActive != oldValue else { return }
+            reset(publish: true)
+            updateVisibility()
+            setNeedsLayout()
+        }
+    }
+    private let voice = ControlButton("voice", icon: "voice", label: "Bật hoặc tắt micro online")
     /// Where the Mods control is, for the tray that opens from it.
     var modsButtonFrame: CGRect? { mods.isHidden || mods.superview == nil ? nil : mods.frame }
     private let lights = ControlButton("lights", icon: "lights", label: AppLanguage.choose("Headlights"))
@@ -559,7 +572,7 @@ final class TouchControlsView: UIView {
     private var allButtons: [ControlButton] {
         [manualPad, manualL3, manualR3, manualMoveHandle, manualLookHandle] + missionButtons.map(\.button) + [fire, aim, leftFire, jump, sprint, enter, weapons, reload, cover, crouch, switcher, special, interact, detonate, zoomIn, zoomOut,
          weaponPrev, weaponNext, gas, brake, handbrake, steerLeft, steerRight, driveBy, driveAim, duck, horn, lookBack,
-         vehicleWeapon, towHook, towArmUp, towArmDown, roof, detachTrailer, dive, surface, airFire, gear, throttleUp, throttleDown, yawLeft, yawRight, camera, phone, pause, settings, mods, lights, radio,
+         vehicleWeapon, towHook, towArmUp, towArmDown, roof, detachTrailer, dive, surface, airFire, gear, throttleUp, throttleDown, yawLeft, yawRight, camera, phone, pause, settings, mods, voice, lights, radio,
          up, down, left, right, accept, back, phoneOption, taxiHurry, taxiStop, tabLeft, tabRight, promptOption, bothTriggers]
     }
     /// Refresh accessibility names for the active language without recreating controls.
@@ -661,12 +674,14 @@ final class TouchControlsView: UIView {
     }
 
     private func computeVisible() -> [ControlButton] {
-        if utilityOnly { return [settings, mods] }
+        let voiceControls = voiceAvailable ? [voice] : []
+        if pluginNavigationActive { return [pause, settings, mods] + voiceControls }
+        if utilityOnly { return [settings, mods] + voiceControls }
         if manualPadEnabled {
-            return [camera, phone, pause, settings, mods, manualPad] + missionButtons.filter { $0.input != 230 && $0.input != 231 }.map(\.button) + [manualL3, manualR3, up, down, left, right] + (editing ? [manualMoveHandle,manualLookHandle] : [])
+            return [camera, phone, pause, settings, mods, manualPad] + voiceControls + missionButtons.filter { $0.input != 230 && $0.input != 231 }.map(\.button) + [manualL3, manualR3, up, down, left, right] + (editing ? [manualMoveHandle,manualLookHandle] : [])
         }
         var list = baseVisible()
-        if list.contains(settings) { list += [mods, manualPad] }
+        if list.contains(settings) { list += [mods, manualPad] + voiceControls }
         if !editing { list += shownMissionButtons(besides: list) }
         let playing = !phoneDock && !promptActive && context != .menu
         // A prompt that waits for a character switch gets the switch button (a tap is the game's quick switch). In
@@ -897,7 +912,7 @@ final class TouchControlsView: UIView {
         rightStick.idleOrigin = planeStickEnabled ? point(0.80, 0.60) : nil
 
         // Utility bar, top centre: rare actions in the hard-to-reach zone.
-        let order = [radio, lights, camera, phone, pause, settings, mods, manualPad]
+        let order = [radio, lights, camera, phone, pause, settings, mods, voice, manualPad]
         let bar = order.filter { visible.contains($0) }
         let barStep=min(max(52,54*scale),(safe.width-48)/CGFloat(max(1,bar.count-1)))
         for (i, button) in bar.enumerated() {
@@ -1051,6 +1066,10 @@ final class TouchControlsView: UIView {
 
     // A finger by its identity, so the debug channel's synthetic fingers (debugTouch) take the same path.
     private func beginTouch(_ id: ObjectIdentifier, at point: CGPoint) {
+        if pluginNavigationActive {
+            if let button = button(at: point) { press(button, id: id, at: point) }
+            return
+        }
         // A quick tap on the game's minimap (wherever Settings put it) opens the full-screen map; a drag
         // that starts there still moves the stick.
         if !manualPadEnabled, !utilityOnly, context != .menu, !phoneDock, button(at: point) == nil,
@@ -1127,6 +1146,10 @@ final class TouchControlsView: UIView {
             aim.active = aimToggled
             roles[id] = .fireLook(button)
             updateVisibility()
+        case enter where context == .onFoot:
+            if requestOnlinePassenger?() == true { button.setPressed(false) }
+        case voice:
+            DispatchQueue.main.async { self.toggleVoice?() }
         case enter where context.flying:
             exitHoldStart = now
         case phone:

@@ -91,10 +91,14 @@ float PGGetPlayerHeading(void);
 void PGUpdateRemotePeer(const char *peerId, float x, float y, float z, float heading, uint32_t vehicleModel);
 void PGRemoveRemotePeer(const char *peerId);
 void PGUpdateRemotePeerState(const char *peerId, float x, float y, float z, float heading,
-                             uint32_t vehicleModel, uint32_t weapon, const char *rideOwner, int32_t rideSeat);
+                             uint32_t vehicleModel, uint32_t weapon, const char *rideOwner, int32_t rideSeat,
+                             uint32_t shotSequence, uint32_t vehicleEpoch, uint32_t windows);
 void PGSetOnlineSession(bool enabled);
 void PGRequestOnlinePassenger(void);
-uint32_t PGReadOnlineLoadout(char owner[32], int32_t *seat);
+bool PGRequestNearbyOnlinePassenger(void);
+uint32_t PGReadOnlineLoadout(char owner[32], int32_t *seat, uint32_t *shot, uint32_t *vehicle, uint32_t *windows, uint32_t *impact);
+uint32_t PGReadOnlinePeerGlass(const char *id, uint32_t *epoch);
+void PGQueueOnlineGlass(uint32_t epoch, uint32_t mask);
 void PGSetOnlinePvP(bool enabled);
 unsigned PGTakeOnlineHit(const char *peerId);
 void PGQueueOnlineHit(unsigned damage);

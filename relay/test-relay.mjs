@@ -79,6 +79,30 @@ try{
  await wait(()=>victim.packets.some(p=>p.type==='PING' && p.senderName==='AFTER_FAR_HIT'));
  assert.equal(victim.packets.filter(p=>p.type==='HIT').length,1);
  console.log('PASS: opt-in PvP, legacy rejection, target-only hits, throttling and distance rejection');
+ const effectsCode = randomBytes(4).toString('hex').toUpperCase().replace(/(.{4})/,'$1-');
+ const shooter = await open('host&v=5','SHOOTER',effectsCode);
+ await wait(()=>shooter.packets.some(p=>p.type==='JOIN_ACC'));
+ const carOwner = await open('guest&v=5','CAROWNER',effectsCode);
+ const distant = await open('guest&v=5','DISTANT',effectsCode);
+ const legacy = await open('guest&v=4','OLDCLIENT',effectsCode);
+ await wait(()=>[carOwner,distant,legacy].every(ws=>ws.packets.some(p=>p.type==='JOIN_ACC')));
+ const state = (id,extra={})=>JSON.stringify(packet(id,'STATE',{roomCode:effectsCode,...extra}));
+ carOwner.send(state('CAROWNER',{vehicleModel:1234,vehicleEpoch:345,windows:0}));
+ distant.send(state('DISTANT',{position:[950,20,30]}));
+ legacy.send(state('OLDCLIENT'));
+ await wait(()=>['CAROWNER','DISTANT','OLDCLIENT'].every(id=>shooter.packets.some(p=>p.type==='STATE' && p.senderId===id)));
+ shooter.send(state('SHOOTER',{shotSequence:37,glassReports:{CAROWNER:{epoch:344,mask:1}}}));
+ await wait(()=>carOwner.packets.some(p=>p.type==='STATE' && p.shotSequence===37 && !p.glassReports?.CAROWNER));
+ shooter.send(state('SHOOTER',{shotSequence:38,glassReports:{CAROWNER:{epoch:345,mask:4}}}));
+ await wait(()=>carOwner.packets.some(p=>p.type==='STATE' && p.shotSequence===38 && p.glassReports?.CAROWNER?.mask===4));
+ const voiceFrame = Buffer.alloc(1600).toString('base64');
+ shooter.send(JSON.stringify(packet('SHOOTER','VOICE',{roomCode:effectsCode,voiceFrame})));
+ shooter.send(JSON.stringify(packet('SHOOTER','PING',{roomCode:effectsCode,senderName:'AFTER_VOICE'})));
+ await wait(()=>carOwner.packets.some(p=>p.type==='VOICE' && p.voiceFrame===voiceFrame) &&
+   [distant,legacy].every(ws=>ws.packets.some(p=>p.type==='PING' && p.senderName==='AFTER_VOICE')));
+ assert(!distant.packets.some(p=>p.type==='VOICE'));
+ assert(!legacy.packets.some(p=>p.type==='VOICE'));
+ console.log('PASS: shot sequence, matching vehicle glass epoch, proximity voice, legacy voice isolation');
  if (process.argv.includes('--public')) {
   const publicCode = 'NOVA-CITY';
   await assert.rejects(open('host&v=4','HOSTCLAIM',publicCode));
