@@ -2565,6 +2565,7 @@ typedef struct {
   uint32_t weapon, renderedWeapon;
   uint32_t shotSequence, vehicleEpoch, windows, observedWindows, appliedWindows;
   bool shotPending, vehicleHasGlass;
+  double shotAnimationUntil;
   char rideOwner[32];
   int32_t rideSeat;
   uint32_t attachedVehicle;
@@ -2946,7 +2947,46 @@ static void pg_online_try_passenger(w2c_game *instance) {
   }
 }
 
-static void pg_online_update_weapon(w2c_game *instance, PGOnlinePeerInternal *peer) {
+// Third-person firing clips from the base game's pistol and rifle dictionaries.
+static bool pg_online_shot_animation(w2c_game *instance, uint32_t ped, uint32_t weapon, double now) {
+  if (!weapon || pg_test_call(instance, 0x3be0bb12d25fb305ull, 1, (uint64_t[]){weapon}) != 3) return false;
+  const uint32_t pistolGroup = 0x18d5fa97u;
+  const uint32_t group = (u32)pg_test_call(instance, 0xc3287ee3050fb74cull, 1, (uint64_t[]){weapon});
+  unsigned index = group == pistolGroup ? 0 : 1;
+  static const char *const names[] = {"weapons@pistol@", "weapons@rifle@lo@"};
+  static uint64_t dictionaries[2], clip;
+  static double nextRequest[2];
+  if (!dictionaries[index]) {
+    size_t length = strlen(names[index]) + 1;
+    dictionaries[index] = pg_asi_alloc(length);
+    if (!dictionaries[index]) return false;
+    memcpy(pg_pointer(&env, dictionaries[index], length), names[index], length);
+  }
+  uint64_t dictionary = dictionaries[index];
+  if (pg_test_call(instance, 0xd031a9162d01088cull, 1, (uint64_t[]){dictionary}) != 1) {
+    if (now >= nextRequest[index]) {
+      nextRequest[index] = now + 350;
+      if (pg_test_call(instance, 0x2da49c3b79856961ull, 1, (uint64_t[]){dictionary}) == 1) {
+        pg_test_call(instance, 0xd3bd40951412fef6ull, 1, (uint64_t[]){dictionary});
+      }
+    }
+    return false;
+  }
+  if (!ped) return true;
+  if (!clip) {
+    static const char name[] = "fire_med";
+    clip = pg_asi_alloc(sizeof name);
+    if (!clip) return false;
+    memcpy(pg_pointer(&env, clip, sizeof name), name, sizeof name);
+  }
+  // Secondary upper-body task preserves the ped's existing walking task.
+  pg_test_call(instance, 0xea47fe3719165b94ull, 11, (uint64_t[]){
+    ped, dictionary, clip, pg_online_float_bits(8.0f), pg_online_float_bits(-8.0f), 250, 48, 0, 0, 0, 0
+  });
+  return true;
+}
+
+static void pg_online_update_weapon(w2c_game *instance, PGOnlinePeerInternal *peer, double now) {
   if (peer->weapon == peer->renderedWeapon) return;
   const uint32_t unarmed = 0xa2719263u;
   uint32_t weapon = peer->weapon;
@@ -2961,11 +3001,18 @@ static void pg_online_update_weapon(w2c_game *instance, PGOnlinePeerInternal *pe
     pg_test_call(instance, 0xbf0fd6e56c964fcbull, 5, (uint64_t[]){peer->pedHandle, weapon, 0, 0, 1});
     pg_test_call(instance, 0xadf692b254977c0cull, 3, (uint64_t[]){peer->pedHandle, weapon, 1});
   }
+  peer->shotAnimationUntil = 0;
+  if (weapon && weapon != unarmed) pg_online_shot_animation(instance, 0, weapon, now);
   peer->renderedWeapon = peer->weapon;
 }
 
-static void pg_online_show_shot(w2c_game *instance, PGOnlinePeerInternal *peer) {
-  if (!peer->shotPending) return;
+static void pg_online_show_shot(w2c_game *instance, PGOnlinePeerInternal *peer, double now) {
+  const bool onFoot = !peer->vehicleHandle && !peer->attachedVehicle;
+  if (!peer->shotPending) {
+    if (onFoot && now < peer->shotAnimationUntil &&
+        pg_online_shot_animation(instance, peer->pedHandle, peer->renderedWeapon, now)) peer->shotAnimationUntil = 0;
+    return;
+  }
   peer->shotPending = false;
   const uint32_t weapon = peer->renderedWeapon;
   if (!weapon || pg_test_call(instance, 0x3be0bb12d25fb305ull, 1, (uint64_t[]){weapon}) != 3) return;
@@ -2975,7 +3022,8 @@ static void pg_online_show_shot(w2c_game *instance, PGOnlinePeerInternal *peer) 
   uint32_t tx = pg_online_float_bits(peer->x + 18 * dx);
   uint32_t ty = pg_online_float_bits(peer->y + 18 * dy);
   uint32_t tz = pg_online_float_bits(z);
-  if (!peer->vehicleHandle && !peer->attachedVehicle) {
+  if (onFoot && !pg_online_shot_animation(instance, peer->pedHandle, weapon, now)) {
+    peer->shotAnimationUntil = now + 400;
     pg_test_call(instance, 0x6671f3eec681bda1ull, 7, (uint64_t[]){peer->pedHandle,tx,ty,tz,220,1,0});
   }
   // Visual/audio bullet only. Damage is owned by the existing PvP path.
@@ -3231,9 +3279,9 @@ static void pg_online_peers_tick(w2c_game *instance) {
     }
     if (p->pedHandle) {
       if (localPvPPed && pedAlive) pg_online_detect_hit(instance, p, localPvPPed);
-      pg_online_update_weapon(instance, p);
+      pg_online_update_weapon(instance, p, now);
       pg_online_move_peer(instance, p, pedVec, now);
-      pg_online_show_shot(instance, p);
+      pg_online_show_shot(instance, p, now);
     }
   }
   bool more=false;for(int i=0;i<PG_MAX_ONLINE_PEERS;i++)if(pg_online_peers[i].active||pg_online_peers[i].pedHandle||pg_online_peers[i].blipHandle||pg_online_peers[i].vehicleHandle){more=true;break;}atomic_store(&pg_online_has_work,more);
