@@ -15,6 +15,10 @@ on:
           - macos-26
           - macos-latest
         default: macos-15
+      repackage_run:
+        description: Successful V4 run ID to re-sign after a packaging-only change
+        type: string
+        default: ''
       build_ipa:
         description: Build Release IPA after all checks
         type: boolean
@@ -26,6 +30,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   release:
+    if: ${{ !inputs.repackage_run }}
     runs-on: ${{ inputs.runner || 'macos-15' }}
     timeout-minutes: 150
     steps:
@@ -138,3 +143,41 @@ jobs:
             app/Build/xcodebuild.log
             app/Generated/nova-native-codegen.json
           retention-days: 7
+  repackage:
+    if: ${{ inputs.repackage_run }}
+    runs-on: macos-15
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify successful source run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ inputs.repackage_run }}
+        run: |
+          [[ "$SOURCE_RUN" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN"             --jq '[.conclusion,.head_branch,.head_sha] | @tsv' > "$RUNNER_TEMP/source-run"
+          IFS=$'\t' read -r conclusion branch source_sha < "$RUNNER_TEMP/source-run"
+          test "$conclusion" = success
+          test "$branch" = "$GITHUB_REF_NAME"
+          git fetch --depth=1 origin "$source_sha"
+          git diff --exit-code "$source_sha" HEAD -- app build_ipa.sh build-tools inputs
+      - uses: actions/download-artifact@v4
+        with:
+          name: Mugoat-Nova-NativeRuntime-V4-Online
+          path: ${{ runner.temp }}/source-ipa
+          run-id: ${{ inputs.repackage_run }}
+          github-token: ${{ github.token }}
+      - name: Apply Bundle ID and verify iOS signing
+        run: |
+          ditto -x -k "$RUNNER_TEMP/source-ipa/Mugoat-Nova-NativeRuntime-V4-Online.ipa" "$RUNNER_TEMP/source-app"
+          destination=app/Build/Release/Build/Products/Release-iphoneos
+          mkdir -p "$destination"
+          ditto "$RUNNER_TEMP/source-app/Payload/PlayGTA5Native.app" "$destination/PlayGTA5Native.app"
+          python3 tools/package_variants.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mugoat-Nova-NativeRuntime-V4-Online
+          path: Mugoat-Nova-NativeRuntime-V4-Online.ipa
+          retention-days: 14
