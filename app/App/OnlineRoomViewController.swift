@@ -3,6 +3,7 @@ import UIKit
 final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
     private let roomManager = OnlineRoomManager.shared
     var onPlayTapped: (() -> Void)?
+    var dedicatedSettingsAvailable = false
 
     private let scrollView = UIScrollView()
     private let contentView = UIView()
@@ -17,6 +18,7 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
     private let joinCard = UIView()
     private let joinInput = UITextField()
     private let playerNameInput = UITextField()
+    private let dedicatedButton = Theme.glassButton("Server UDP R007", symbol: "network")
     private let publicRoomButton = Theme.primaryButton("Vào máy chủ chung", symbol: "globe.asia.australia.fill")
     private let playerRosterLabel = UILabel()
     private let pvpSwitch = UISwitch()
@@ -119,6 +121,8 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
         hostButton.addAction(UIAction { [weak self] _ in
             guard let self = self else { return }
             self.savePlayerName()
+            guard !MugoatOnlineEnabled() else { return }
+            if self.dedicatedSettingsAvailable { UserDefaults.standard.set(false, forKey: "NovaDedicatedEnabled") }
             self.dismissKeyboard()
             let code = self.roomManager.createRoom(internet:true,pvp:self.pvpSwitch.isOn)
             self.roomCodeDisplay.text = code
@@ -265,7 +269,13 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
         playerRosterLabel.font = Theme.body(12)
         playerRosterLabel.textColor = Theme.secondaryText
         playerRosterLabel.numberOfLines = 2
-        let mainStack = UIStackView(arrangedSubviews: [nameSection, statusCard, joinCard, playerRosterLabel, actionStack])
+        dedicatedButton.isHidden = !dedicatedSettingsAvailable
+        dedicatedButton.addAction(UIAction { [weak self] _ in
+            guard let self else { return }
+            self.savePlayerName()
+            NovaDedicatedOnline.show(on: self) { [weak self] in self?.updateUI() }
+        }, for: .touchUpInside)
+        let mainStack = UIStackView(arrangedSubviews: [nameSection, dedicatedButton, statusCard, joinCard, playerRosterLabel, actionStack])
         mainStack.axis = .vertical
         mainStack.spacing = 10
         mainStack.translatesAutoresizingMaskIntoConstraints = false
@@ -300,9 +310,11 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
     }
 
     @objc private func performJoin() {
+        guard !MugoatOnlineEnabled() else { return }
         dismissKeyboard()
         guard let text = joinInput.text, !text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         savePlayerName()
+        if dedicatedSettingsAvailable { UserDefaults.standard.set(false, forKey: "NovaDedicatedEnabled") }
         roomManager.joinRoom(code:text,internet:true)
         updateUI()
     }
@@ -359,7 +371,11 @@ final class OnlineRoomViewController: UIViewController, UITextFieldDelegate {
         passengerButton.isHidden = !roomManager.inRoom || roomManager.peers.isEmpty
         switch roomManager.state {
         case .idle:
-            statusLabel.text = "Bạn chưa tham gia phòng nào.\nHãy tạo phòng mới hoặc nhập mã phòng của bạn bè:"
+            if NovaDedicatedOnline.enabled && dedicatedSettingsAvailable {
+                statusLabel.text = "UDP: \(NovaDedicatedOnline.endpoint) · \(NovaDedicatedOnline.room)\nQuay lại launcher và bấm Chơi trong chế độ Tự do."
+            } else {
+                statusLabel.text = "Bạn chưa tham gia phòng nào.\nHãy tạo phòng mới hoặc nhập mã phòng của bạn bè:"
+            }
             roomCodeDisplay.text = "---- - ----"
             roomCodeDisplay.textColor = .systemGray
             copyButton.isHidden = true

@@ -111,6 +111,7 @@ run('python3', 'Scripts/prepare_streaming_health.py')
 run('python3', 'Scripts/prepare_heap_return.py')
 run('python3', 'Scripts/prepare_memory_file_create.py')
 run('python3', 'Scripts/prepare_longjmp.py')
+run('python3', 'Scripts/prepare_r007_bridge.py', str(engine))
 # Last code-generation transform: no guest memory semantics or scheduling changes.
 run('python3', 'Scripts/prepare_nova_native_base.py')
 # The BC texture decoder header (MIT): phones without BC texture support get decoded textures.
@@ -133,5 +134,13 @@ for sdk in options.sdk or ['iphoneos']:
 run('python3', 'Scripts/build_metal_shaders.py', str(shaders), *sdk_args)
 run('python3', 'Scripts/build_opus.py', *sdk_args)
 run('python3', 'Scripts/build_blink.py', *sdk_args)
-run('xcodegen', 'generate', '--spec', 'project.yml')
+bridge = root.parent / 'vendor/mugoat-r007/native-port/online-bridge/Cargo.toml'
+for sdk in options.sdk or ['iphoneos']:
+    target = 'aarch64-apple-ios' if sdk == 'iphoneos' else 'aarch64-apple-ios-sim'
+    run('rustup', 'target', 'add', target)
+    run('cargo', 'build', '--locked', '--manifest-path', str(bridge), '--target', target, '--release', '--lib')
+    library = root / 'Tools/r007-lib' / sdk
+    library.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(bridge.parent / 'target' / target / 'release/libmugoat_online.a', library / 'libmugoat_online.a')
+run('xcodegen', 'generate' , '--spec', 'project.yml')
 print('Prepared the native boot project. Open PlayGTA5Native.xcodeproj in Xcode.')

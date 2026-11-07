@@ -1,3 +1,4 @@
+#include "MugoatOnline.h"
 #include "EngineHost.h"
 #include "NativeAssetPreload.h"
 

@@ -26,6 +26,26 @@ final class NovaVoice {
         }
     }
 
+    private final class DedicatedCapture {
+        var phase = 0.0
+        var samples: [Float] = []
+        func consume(_ buffer: AVAudioPCMBuffer) {
+            guard let data = buffer.floatChannelData?[0], buffer.format.sampleRate >= 8000 else { return }
+            let step = 48000 / buffer.format.sampleRate
+            for index in 0..<Int(buffer.frameLength) {
+                phase += step
+                while phase >= 1 {
+                    phase -= 1
+                    samples.append(data[index].isFinite ? data[index] : 0)
+                    if samples.count == 960 {
+                        samples.withUnsafeBufferPointer { MugoatVoiceSubmitMicAudio($0.baseAddress, 960) }
+                        samples.removeAll(keepingCapacity: true)
+                    }
+                }
+            }
+        }
+    }
+
     private final class Channel {
         let node = AVAudioPlayerNode()
         var queued = 0
@@ -36,6 +56,7 @@ final class NovaVoice {
     private var channels: [String: Channel] = [:]
     private var generation = 0
     private var inRoom = false
+    private var dedicated = false
     private var impactPlayer: AVAudioPlayer?
     private var tapInstalled = false
     private var configuring = false
@@ -44,8 +65,10 @@ final class NovaVoice {
     var sendFrame: ((Data) -> Void)?
     var stateChanged: ((Bool) -> Void)?
 
-    func setRoom(_ active: Bool) {
-        guard inRoom != active else { return }
+    func setRoom(_ active: Bool, dedicated useDedicated: Bool = false) {
+        guard inRoom != active || dedicated != useDedicated else { return }
+        if dedicated != useDedicated { stopMicrophone() }
+        dedicated = useDedicated
         inRoom = active
         if !active {
             stopMicrophone()
@@ -87,8 +110,13 @@ final class NovaVoice {
             let inputFormat = input.outputFormat(forBus: 0)
             guard inputFormat.sampleRate >= 8000, inputFormat.channelCount > 0 else { stopMicrophone(); return }
             let capture = Capture()
+            let udpCapture = dedicated ? DedicatedCapture() : nil
             let token = generation
             input.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, _ in
+                if let udpCapture {
+                    udpCapture.consume(buffer)
+                    return
+                }
                 capture.consume(buffer) { data in
                     DispatchQueue.main.async {
                         guard let self, self.generation == token, self.microphoneEnabled else { return }
@@ -100,6 +128,7 @@ final class NovaVoice {
             audio.prepare()
             try audio.start()
             microphoneEnabled = true
+            if dedicated { MugoatVoiceSetMicEnabled(true) }
             stateChanged?(true)
         } catch {
             stopMicrophone()
@@ -110,6 +139,7 @@ final class NovaVoice {
     func stopMicrophone() {
         generation &+= 1
         configuring = false
+        if dedicated { MugoatVoiceSetMicEnabled(false) }
         if tapInstalled { audio.inputNode.removeTap(onBus: 0); tapInstalled = false }
         microphoneEnabled = false
         stateChanged?(false)

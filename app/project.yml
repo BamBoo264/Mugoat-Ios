@@ -37,15 +37,18 @@ settings:
       - $(inherited)
       - $(SRCROOT)/Tools/opus-lib/$(PLATFORM_NAME)
       - $(SRCROOT)/Tools/blink-lib/$(PLATFORM_NAME)
+      - $(SRCROOT)/Tools/r007-lib/$(PLATFORM_NAME)
     OTHER_LDFLAGS:
       - $(inherited)
       - -lopus
       - -lblink
+      - -lmugoat_online
     # MetalFX (Settings Ã¢â‚¬Âº Sharper upscaling) exists in the iPhone SDK only.
     "OTHER_LDFLAGS[sdk=iphoneos*]":
       - $(inherited)
       - -lopus
       - -lblink
+      - -lmugoat_online
       - -weak_framework
       - MetalFX
     OTHER_CFLAGS:

@@ -239,6 +239,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         home.layoutButton.addAction(UIAction { [weak self] _ in self?.showLayoutEditor() }, for: .touchUpInside)
         home.onlineButton.addAction(UIAction { [weak self] _ in
             let roomVC = OnlineRoomViewController()
+            roomVC.dedicatedSettingsAvailable = !self.engineStarted
             roomVC.onPlayTapped = { [weak self] in
                 self?.startEngine()
             }
@@ -617,6 +618,20 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             appendLog("Asset manifest is missing from the app bundle.")
             return
         }
+        if NovaDedicatedOnline.enabled {
+            guard GameSettings.shared.gameModeChoice == .sandbox else {
+                let alert = UIAlertController(title: "Server UDP", message: "Chọn chế độ Tự do để chơi online UDP.", preferredStyle: .alert)
+                alert.addAction(UIAlertAction(title: "OK", style: .default))
+                present(alert, animated: true)
+                return
+            }
+            guard NovaDedicatedOnline.configure() else {
+                appendLog("Online UDP: invalid server settings.")
+                return
+            }
+            OnlineRoomManager.shared.leaveRoom()
+            appendLog("Online: selected R007 UDP backend.")
+        }
         metalView.isPaused = true
         metalView.delegate = nil
         // Dawn owns the drawable size from here; MTKView must not reset it on layout.
@@ -881,7 +896,10 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             let source = AVAudioSourceNode(format: format) { _, _, count, audioBufferList in
                 let buffers = UnsafeMutableAudioBufferListPointer(audioBufferList)
                 guard buffers.count >= 2, let left = buffers[0].mData, let right = buffers[1].mData else { return noErr }
-                PGFillAudio(left.assumingMemoryBound(to: Float.self), right.assumingMemoryBound(to: Float.self), count)
+                let l = left.assumingMemoryBound(to: Float.self)
+                let r = right.assumingMemoryBound(to: Float.self)
+                PGFillAudio(l, r, count)
+                if MugoatOnlineEnabled() { MugoatVoiceMixAudio(l, r, count) }
                 // The game's sound waits for the intro video (its ring is still read, so nothing piles up).
                 if introPlaying { memset(left, 0, Int(count) * 4); memset(right, 0, Int(count) * 4) }
                 return noErr
@@ -1555,8 +1573,9 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             let fps = PGRenderedFramesPerSecond()
             let frameRate = fps > 0 ? String(format: "%.0f FPS", fps) : "— FPS"
             let room = OnlineRoomManager.shared
-            onlineVoice.setRoom(room.inInternetRoom)
-            touchControls.voiceAvailable = room.inInternetRoom
+            let udp = MugoatOnlineEnabled()
+            onlineVoice.setRoom(room.inInternetRoom || udp, dedicated: udp)
+            touchControls.voiceAvailable = room.inInternetRoom || udp
             if room.inInternetRoom {
                 let ping = room.relayPingMilliseconds.map { "\($0) ms" } ?? "— ms"
                 if fpsLabelWidth.constant != 152 { fpsLabelWidth.constant = 152 }
