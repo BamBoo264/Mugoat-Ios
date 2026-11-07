@@ -41,7 +41,7 @@ def main(engine):
     header = (generated / "game.h").read_text()
     if not re.search(r"\bu64\s+" + tls + r"\b", header):
         raise RuntimeError(f"Nova generated header does not expose TLS field {tls}")
-    prototype = re.compile(r"^(u32|u64|f32|f64|void) (w2c_game_f(\d+))\(w2c_game\* instance((?:, (?:u32|u64|f32|f64) var_p\d+)*)\) \{", re.M)
+    prototype = re.compile(r"^(u32|u64|f32|f64|void) (w2c_game_f(\d+))\(w2c_game\* instance((?:,\s+(?:u32|u64|f32|f64) var_p\d+)*)\) \{", re.M)
     symbols = {}
     units = list(generated.glob("game_*.c"))
     for path in units:
@@ -60,7 +60,9 @@ def main(engine):
         declarations.add(declaration)
         header += f"\n/* export: '{name}' */\n{declaration}\n"
     for name in ("PlayerPedId", "GetEntityCoords", "CreatePed", "CreateVehicle",
-                 "RequestModel", "HasModelLoaded", "SetEntityCoordsNoOffset"):
+                 "RequestModel", "HasModelLoaded", "SetEntityCoordsNoOffset",
+                 "TaskEnterVehicle", "SetEntityVelocity", "SetCanAttackFriendly",
+                 "SetPedShootsAtCoord", "TaskPlayAnim", "AddExplosion"):
         if "mp:" + name not in exports:
             raise RuntimeError("R007 required Nova command missing: " + name)
     header += "\n/* export: 'mugoat:tls-base' */\nu64* nova_unused_tls(w2c_game*);\n"
