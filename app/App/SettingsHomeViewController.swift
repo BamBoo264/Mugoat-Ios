@@ -13,6 +13,7 @@ final class SettingsHomeViewController: UITableViewController {
     var gameModeChanged: (() -> Void)?
     var cheatSelected: ((StoryCheat) -> Void)?
     var moneyEntered: ((Int32) -> Void)?
+    var skinSelected: ((String) -> Void)?
     var vehicleSelected: ((SpawnVehicle, Bool) -> Void)?
     var nativeCheatSelected: ((NativeCheatAction) -> Void)?
 
@@ -34,6 +35,22 @@ final class SettingsHomeViewController: UITableViewController {
             }, sections: [.controls, .gyro]),
         ]
         if engineRunning {
+            list.append(Category(icon: "car.fill", title: "Gọi xe", summary: {
+                "Chọn xe mod đã cài"
+            }, sections: [], page: { [weak self] in
+                let page = VehicleSpawnViewController()
+                page.vehicleSelected = self?.vehicleSelected
+                return page
+            }))
+            if runningMode == .sandbox {
+                list.append(Category(icon: "person.crop.circle", title: "Đổi skin", summary: {
+                    "Chọn skin addon đã cài"
+                }, sections: [], page: { [weak self] in
+                    let page = NovaSkinPicker()
+                    page.selected = self?.skinSelected
+                    return page
+                }))
+            }
             list.append(Category(icon: "wand.and.stars", title: AppLanguage.choose("Cheats"), summary: {
                 AppLanguage.choose("Vehicles, repairs, weather, time, money and more")
             }, sections: [.cheats]))

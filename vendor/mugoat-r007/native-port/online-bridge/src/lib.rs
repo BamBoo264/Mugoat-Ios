@@ -69,7 +69,7 @@ pub unsafe extern "C" fn MugoatOnlineConfigure(server: *const c_char, name: *con
         if name.is_empty() { name = "Player".into(); }
         if room.is_empty() { room = "default".into(); }
         // Byte limits counted whole characters: Vietnamese names with a role prefix
-        // ("[Băng đảng] ...") went over 48 bytes and the game refused to start.
+        // ("[BÄƒng Ä‘áº£ng] ...") went over 48 bytes and the game refused to start.
         let clip = |s: String, max: usize| { let mut end = s.len().min(max); while !s.is_char_boundary(end) { end -= 1; } s[..end].trim_end().to_string() };
         name = clip(name, 48); room = clip(room, 64);
         std::env::set_var("MUGUET_SERVER",server);
@@ -193,5 +193,19 @@ mod tests {
         assert_eq!(read_u64(&m,25),None); assert_eq!(read_u64(&m,u64::MAX),None);
         write_u64(&m,25,u64::MAX); assert_eq!(read_u64(&m,24),Some(0x1234));
         write_bytes(&m,0,b"hello\0"); assert_eq!(read_cstr(&m,0),"hello");
+    }
+}
+
+#[cfg(target_os = "ios")]
+pub fn nova_throw_weapon(hash: u32) -> bool {
+    ["weapon_grenade", "weapon_smokegrenade", "weapon_bzgas", "weapon_molotov", "weapon_stickybomb", "weapon_pipebomb"]
+        .iter().any(|name| proto::joaat(name) == hash)
+}
+
+#[cfg(target_os = "ios")]
+pub fn nova_remote_throw(peer: u8, weapon: u32, position: [f32; 3], heading: f32) {
+    extern "C" { fn pg_nova_udp_throw(game: *mut c_void, peer: u32, weapon: u32, x: f32, y: f32, z: f32, heading: f32); }
+    if let Some(runtime) = RT.get() {
+        unsafe { pg_nova_udp_throw(runtime.mem.instance as *mut c_void, peer.into(), weapon, position[0], position[1], position[2], heading) };
     }
 }

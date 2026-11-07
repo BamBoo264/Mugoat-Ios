@@ -92,11 +92,15 @@ void PGUpdateRemotePeer(const char *peerId, float x, float y, float z, float hea
 void PGRemoveRemotePeer(const char *peerId);
 void PGUpdateRemotePeerState(const char *peerId, float x, float y, float z, float heading,
                              uint32_t vehicleModel, uint32_t weapon, const char *rideOwner, int32_t rideSeat,
-                             uint32_t shotSequence, uint32_t vehicleEpoch, uint32_t windows);
+                             uint32_t shotSequence, uint32_t vehicleEpoch, uint32_t windows, uint32_t pedModel, uint32_t shotWeapon);
+uint32_t PGReadOnlinePlayerModel(void);
+typedef struct { uint32_t sequence, kind; float x, y, z; } PGOnlineEffect;
+bool PGReadOnlineEffect(PGOnlineEffect *effect);
+void PGUpdateRemoteEffect(const char *peerId, PGOnlineEffect effect);
 void PGSetOnlineSession(bool enabled);
 void PGRequestOnlinePassenger(void);
 bool PGRequestNearbyOnlinePassenger(void);
-uint32_t PGReadOnlineLoadout(char owner[32], int32_t *seat, uint32_t *shot, uint32_t *vehicle, uint32_t *windows, uint32_t *impact);
+uint32_t PGReadOnlineLoadout(char owner[32], int32_t *seat, uint32_t *shot, uint32_t *vehicle, uint32_t *windows, uint32_t *impact, uint32_t *shotWeapon);
 uint32_t PGReadOnlinePeerGlass(const char *id, uint32_t *epoch);
 void PGQueueOnlineGlass(uint32_t epoch, uint32_t mask);
 void PGSetOnlinePvP(bool enabled);
@@ -142,6 +146,8 @@ typedef enum {
 } PGCheatStatus;
 // Queues one action (one at a time); false while another is pending or for a bad value.
 bool PGQueueCheat(PGCheatCommand command, int32_t value);
+bool PGQueuePlayerSkin(const char *name);
+int PGPlayerSkinStatus(void);
 PGCheatStatus PGGetCheatStatus(void);
 // Switches that stay on until turned off (or the app closes), through respawns and character
 // switches. Flipping one works while Settings has the game paused; it takes effect once play resumes.

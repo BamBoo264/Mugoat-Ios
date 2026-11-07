@@ -14,7 +14,12 @@ export function valid(p) {
      p.targetId===p.senderId || !Number.isInteger(p.damage) || p.damage<1 || p.damage>30)) return false;
  if(p.position && (!Array.isArray(p.position)||p.position.length!==3||!p.position.every(v=>Number.isFinite(v)&&Math.abs(v)<=100000))) return false;
  if(p.heading!==undefined && (!Number.isFinite(p.heading)||Math.abs(p.heading)>100000))return false;
- for(const k of ["vehicleModel","weapon","vehicleEpoch","shotSequence","impactSequence"])if(p[k]!==undefined && (!Number.isInteger(p[k])||p[k]<0||p[k]>4294967295))return false;
+ for(const k of ["vehicleModel","pedModel","shotWeapon","weapon","vehicleEpoch","shotSequence","impactSequence"])if(p[k]!==undefined && (!Number.isInteger(p[k])||p[k]<0||p[k]>4294967295))return false;
+ if (p.effect!==undefined) {
+  const e=p.effect;
+  if(p.type!=="STATE" || !e || typeof e!=="object" || !Number.isInteger(e.sequence) || e.sequence<1 || e.sequence>4294967295 ||
+     !Number.isInteger(e.kind) || e.kind<0 || e.kind>85 || ![e.x,e.y,e.z].every(v=>Number.isFinite(v)&&Math.abs(v)<=100000)) return false;
+ }
  if (p.windows!==undefined && (!Number.isInteger(p.windows) || p.windows<0 || p.windows>15)) return false;
  if (p.glassReports!==undefined) {
   if (p.type!=="STATE" || !p.glassReports || typeof p.glassReports!=="object" || Array.isArray(p.glassReports)) return false;

@@ -12,9 +12,12 @@ void PGSetOnlinePvP(bool enabled){}
 unsigned PGTakeOnlineHit(const char *peerId){return 0;}
 void PGQueueOnlineHit(unsigned damage){}
 
-void PGUpdateRemotePeerState(const char *id,float x,float y,float z,float h,uint32_t m,uint32_t w,const char *o,int32_t seat,uint32_t shot,uint32_t epoch,uint32_t windows){}
+void PGUpdateRemotePeerState(const char *id,float x,float y,float z,float h,uint32_t m,uint32_t w,const char *o,int32_t seat,uint32_t shot,uint32_t epoch,uint32_t windows,uint32_t pedModel,uint32_t shotWeapon){}
+uint32_t PGReadOnlinePlayerModel(void){return 0;}
+bool PGReadOnlineEffect(PGOnlineEffect *effect){return false;}
+void PGUpdateRemoteEffect(const char *id, PGOnlineEffect effect){}
 void PGSetOnlineSession(bool enabled){}
-uint32_t PGReadOnlineLoadout(char owner[32],int32_t *seat,uint32_t *shot,uint32_t *vehicle,uint32_t *windows,uint32_t *impact){owner[0]=0;*seat=-1;*shot=0;*vehicle=0;*windows=0;*impact=0;return 0;}
+uint32_t PGReadOnlineLoadout(char owner[32],int32_t *seat,uint32_t *shot,uint32_t *vehicle,uint32_t *windows,uint32_t *impact,uint32_t *shotWeapon){owner[0]=0;*seat=-1;*shot=0;*vehicle=0;*windows=0;*impact=0;return 0;}
 
 void PGRequestOnlinePassenger(void){}
 

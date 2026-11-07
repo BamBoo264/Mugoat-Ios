@@ -1,4 +1,5 @@
 #include "HostInternal.h"
+#include "MugoatOnline.h"
 #include <dirent.h>
 #include <sys/stat.h>
 static uint64_t pg_mod_test_entry,pg_mod_test_value;
@@ -2554,7 +2555,8 @@ typedef struct {
   double lastUpdated;
   uint32_t blipHandle;
   uint32_t pedHandle;
-  uint32_t pedModel;
+  uint32_t pedModel, requestedPedModel, missingPedModel;
+  bool avatarPvp;
   uint32_t vehicleHandle;
   uint32_t renderedVehicleModel, renderedVehicleEpoch;
   double nextMoveTask;
@@ -2562,7 +2564,12 @@ typedef struct {
   float taskX, taskY, taskZ;
   bool hasMoveTarget;
   unsigned pendingDamage;
-  uint32_t weapon, renderedWeapon;
+  uint32_t weapon, renderedWeapon, shotWeapon;
+  uint32_t effectSequence, effectKind;
+  float effectPosition[3];
+  bool effectPending;
+  uint32_t projectile, projectileModel;
+  double projectileDeadline;
   uint32_t shotSequence, vehicleEpoch, windows, observedWindows, appliedWindows;
   bool shotPending, vehicleHasGlass;
   double shotAnimationUntil;
@@ -2581,6 +2588,45 @@ static _Atomic bool pg_online_pvp;
 static _Atomic bool pg_online_session;
 static _Atomic bool pg_online_passenger_request;
 static uint32_t pg_online_local_vehicle, pg_online_local_weapon;
+static _Atomic uint32_t pg_online_local_model;
+static uint32_t pg_online_shot_weapon;
+static uint32_t pg_online_throw_weapon, pg_online_throw_ammo;
+static _Atomic uint64_t pg_online_ped_address, pg_online_car_address;
+static pthread_mutex_t pg_online_effect_lock = PTHREAD_MUTEX_INITIALIZER;
+static PGOnlineEffect pg_online_effect;
+static double pg_online_effect_time;
+
+void pg_nova_explosion(uint64_t args) {
+  if (!atomic_load(&pg_online_session) || !args || args > env.memory.size || env.memory.size - args < 48) return;
+  const uint8_t *record = pg_pointer(&env, args, 48);
+  uint64_t owner;
+  memcpy(&owner, record + 40, sizeof owner);
+  if (!owner || (owner != atomic_load(&pg_online_ped_address) && owner != atomic_load(&pg_online_car_address))) return;
+  PGOnlineEffect effect = {0};
+  memcpy(&effect.kind, record, 4);
+  memcpy(&effect.x, record + 16, 12);
+  if (effect.kind > 85 || !isfinite(effect.x) || !isfinite(effect.y) || !isfinite(effect.z)) return;
+  pthread_mutex_lock(&pg_online_effect_lock);
+  effect.sequence = pg_online_effect.sequence + 1;
+  if (!effect.sequence) effect.sequence = 1;
+  pg_online_effect = effect;
+  pg_online_effect_time = timeMS(CLOCK_MONOTONIC);
+  pthread_mutex_unlock(&pg_online_effect_lock);
+}
+
+bool PGReadOnlineEffect(PGOnlineEffect *effect) {
+  pthread_mutex_lock(&pg_online_effect_lock);
+  bool fresh = pg_online_effect.sequence && timeMS(CLOCK_MONOTONIC) - pg_online_effect_time < 1000;
+  if (fresh) *effect = pg_online_effect;
+  pthread_mutex_unlock(&pg_online_effect_lock);
+  return fresh;
+}
+
+static uint64_t pg_online_entity_address(w2c_game *instance, uint32_t entity) {
+  MugoatValue args = {1, 0, entity}, result;
+  return entity && mugoat_command_call(instance, "mp:GetBaseFromGuid", &args, 1, &result) ? result.bits : 0;
+}
+uint32_t PGReadOnlinePlayerModel(void) { return atomic_load(&pg_online_local_model); }
 static uint32_t pg_online_shot_sequence, pg_online_local_windows;
 static _Atomic uint64_t pg_online_incoming_glass;
 static bool pg_online_was_shooting;
@@ -2597,7 +2643,7 @@ static pthread_mutex_t pg_online_peers_lock = PTHREAD_MUTEX_INITIALIZER;
 
 void PGUpdateRemotePeerState(const char *peerId, float x, float y, float z, float heading,
                              uint32_t vehicleModel, uint32_t weapon, const char *rideOwner, int32_t rideSeat,
-                             uint32_t shotSequence, uint32_t vehicleEpoch, uint32_t windows) {
+                             uint32_t shotSequence, uint32_t vehicleEpoch, uint32_t windows, uint32_t pedModel, uint32_t shotWeapon) {
   if (!peerId || !peerId[0]) return;
   pthread_mutex_lock(&pg_online_peers_lock);
   int slot = -1;
@@ -2623,6 +2669,7 @@ void PGUpdateRemotePeerState(const char *peerId, float x, float y, float z, floa
     double now = timeMS(CLOCK_MONOTONIC);
     if (peer->lastUpdated > 0 && shotSequence != peer->shotSequence && shotSequence) peer->shotPending = true;
     peer->shotSequence = shotSequence;
+    peer->shotWeapon = shotWeapon ? shotWeapon : weapon;
     peer->windows = windows & 15;
     if (vehicleModel != peer->vehicleModel || vehicleEpoch != peer->vehicleEpoch) {
       peer->vehicleEpoch = vehicleEpoch;
@@ -2636,6 +2683,7 @@ void PGUpdateRemotePeerState(const char *peerId, float x, float y, float z, floa
       peer->vehicleBlendDuration = pg_nova_vehicle_blend_duration(interval);
     }
     peer->weapon = weapon;
+    peer->requestedPedModel = pedModel;
     peer->rideSeat = rideSeat;
     snprintf(peer->rideOwner, sizeof peer->rideOwner, "%s", rideOwner ? rideOwner : "");
     pg_online_peers[slot].x = x;
@@ -2649,8 +2697,28 @@ void PGUpdateRemotePeerState(const char *peerId, float x, float y, float z, floa
   pthread_mutex_unlock(&pg_online_peers_lock);
 }
 
+void PGUpdateRemoteEffect(const char *peerId, PGOnlineEffect effect) {
+  if (!effect.sequence || effect.kind > 85 || !isfinite(effect.x) || !isfinite(effect.y) || !isfinite(effect.z)) return;
+  pthread_mutex_lock(&pg_online_peers_lock);
+  for (int i = 0; i < PG_MAX_ONLINE_PEERS; ++i) {
+    PGOnlinePeerInternal *peer = &pg_online_peers[i];
+    if (!peer->active || strcmp(peer->id, peerId)) continue;
+    float dx = effect.x - peer->x, dy = effect.y - peer->y, dz = effect.z - peer->z;
+    if (peer->effectSequence != effect.sequence && dx*dx + dy*dy + dz*dz <= 250.0f*250.0f) {
+      peer->effectSequence = effect.sequence;
+      peer->effectKind = effect.kind;
+      peer->effectPosition[0] = effect.x;
+      peer->effectPosition[1] = effect.y;
+      peer->effectPosition[2] = effect.z;
+      peer->effectPending = true;
+    }
+    break;
+  }
+  pthread_mutex_unlock(&pg_online_peers_lock);
+}
+
 void PGUpdateRemotePeer(const char *peerId, float x, float y, float z, float heading, uint32_t vehicleModel) {
-  PGUpdateRemotePeerState(peerId, x, y, z, heading, vehicleModel, 0, NULL, -1, 0, 0, 0);
+  PGUpdateRemotePeerState(peerId, x, y, z, heading, vehicleModel, 0, NULL, -1, 0, 0, 0, 0, 0);
 }
 
 void PGSetOnlineSession(bool enabled) {
@@ -2684,12 +2752,13 @@ bool PGRequestNearbyOnlinePassenger(void) {
   return nearby;
 }
 
-uint32_t PGReadOnlineLoadout(char owner[32], int32_t *seat, uint32_t *shot, uint32_t *vehicle, uint32_t *windows, uint32_t *impact) {
+uint32_t PGReadOnlineLoadout(char owner[32], int32_t *seat, uint32_t *shot, uint32_t *vehicle, uint32_t *windows, uint32_t *impact, uint32_t *shotWeapon) {
   pthread_mutex_lock(&pg_online_peers_lock);
   uint32_t weapon = pg_online_local_weapon;
   memcpy(owner, pg_online_local_ride_owner, 32);
   *seat = pg_online_local_ride_seat;
   *shot = pg_online_shot_sequence;
+  *shotWeapon = pg_online_shot_weapon;
   *vehicle = pg_online_local_vehicle;
   *windows = pg_online_local_windows;
   *impact = pg_online_impact_sequence;
@@ -2840,12 +2909,28 @@ static void pg_online_smash_windows(w2c_game *instance, uint32_t vehicle, uint32
 
 static void pg_online_sample_shot(w2c_game *instance, double now) {
   uint32_t ped = PG_FN_PLAYER_PED_ID(instance);
+  uint32_t weapon = ped ? (u32)pg_test_call(instance, 0x0a6db4965674d243ull, 1, (uint64_t[]){ped}) : 0;
   bool shooting = ped && pg_test_call(instance, 0x34616828cd07f1a1ull, 1, (uint64_t[]){ped}) == 1;
-  if (shooting && (!pg_online_was_shooting || now - pg_online_last_shot_sample >= 100)) {
+  bool threw = false;
+  if (ped && pg_online_throw_weapon) {
+    uint32_t left = (u32)pg_test_call(instance, 0x015a522136d7f951ull, 2, (uint64_t[]){ped, pg_online_throw_weapon});
+    threw = left < pg_online_throw_ammo;
+    if (threw) weapon = pg_online_throw_weapon;
+    pg_online_throw_ammo = left;
+  }
+  if (!threw && weapon != pg_online_throw_weapon) {
+    pg_online_throw_weapon = 0;
+    if (weapon && weapon != UINT32_MAX &&
+        pg_test_call(instance, 0xc3287ee3050fb74cull, 1, (uint64_t[]){weapon}) == pg_joaat("group_thrown")) {
+      pg_online_throw_weapon = weapon;
+      pg_online_throw_ammo = (u32)pg_test_call(instance, 0x015a522136d7f951ull, 2, (uint64_t[]){ped, weapon});
+      if (pg_online_throw_ammo == UINT32_MAX) pg_online_throw_weapon = 0;
+    }
+  }
+  if (threw || (shooting && (!pg_online_was_shooting || now - pg_online_last_shot_sample >= 100))) {
     if (++pg_online_shot_sequence == 0) pg_online_shot_sequence = 1;
     pg_online_last_shot_sample = now;
-    uint32_t weapon = (u32)pg_test_call(instance, 0x0a6db4965674d243ull, 1, (uint64_t[]){ped});
-    if (weapon != UINT32_MAX) pg_online_local_weapon = weapon;
+    pg_online_shot_weapon = weapon != UINT32_MAX ? weapon : 0;
   }
   pg_online_was_shooting = shooting;
 }
@@ -2877,7 +2962,12 @@ static void pg_online_sample_loadout(w2c_game *instance, double now) {
   if (now < pg_online_next_loadout_sample) return;
   pg_online_next_loadout_sample = now + 75;
   uint32_t ped = PG_FN_PLAYER_PED_ID(instance);
+  atomic_store(&pg_online_local_model, ped ? PG_FN_GET_ENTITY_MODEL(instance, ped) : 0);
   pg_online_local_vehicle = ped ? pg_online_get_vehicle(instance, ped) : 0;
+  if (atomic_load(&pg_online_session)) {
+    atomic_store(&pg_online_ped_address, pg_online_entity_address(instance, ped));
+    atomic_store(&pg_online_car_address, pg_online_entity_address(instance, pg_online_local_vehicle));
+  }
   pg_online_sample_impact(instance, ped, pg_online_local_vehicle, now);
   uint32_t weapon = ped ? (u32)pg_test_call(instance, 0x0a6db4965674d243ull, 1, (uint64_t[]){ped}) : 0;
   pg_online_local_weapon = weapon == UINT32_MAX ? 0 : weapon;
@@ -3006,6 +3096,69 @@ static void pg_online_update_weapon(w2c_game *instance, PGOnlinePeerInternal *pe
   peer->renderedWeapon = peer->weapon;
 }
 
+static void pg_online_clear_projectile(w2c_game *instance, PGOnlinePeerInternal *peer) {
+  if (peer->projectileModel) pg_test_call(instance, 0xe532f5d78798daabull, 1, (uint64_t[]){peer->projectileModel});
+  peer->projectileModel = 0;
+  if (!peer->projectile) return;
+  static uint64_t scratch;
+  if (!scratch) scratch = pg_asi_alloc(sizeof(uint32_t));
+  if (!scratch) return;
+  *(uint32_t *)pg_pointer(&env, scratch, 4) = peer->projectile;
+  pg_test_call(instance, 0x539e0ae3e6634b9full, 1, (uint64_t[]){scratch});
+  peer->projectile = 0;
+}
+
+static uint32_t pg_online_throw_model(uint32_t weapon) {
+  static const char *const names[][2] = {
+    {"weapon_grenade", "w_ex_grenadefrag"}, {"weapon_smokegrenade", "w_ex_grenadesmoke"},
+    {"weapon_bzgas", "w_ex_grenadesmoke"}, {"weapon_molotov", "w_ex_molotov"},
+    {"weapon_stickybomb", "w_ex_pe"}, {"weapon_pipebomb", "w_ex_pipebomb"}
+  };
+  for (size_t i = 0; i < sizeof names / sizeof names[0]; ++i)
+    if (weapon == pg_joaat(names[i][0])) return pg_joaat(names[i][1]);
+  return 0;
+}
+
+static void pg_online_projectile_tick(w2c_game *instance, PGOnlinePeerInternal *peer, double now) {
+  if (now >= peer->projectileDeadline) {
+    pg_online_clear_projectile(instance, peer);
+    return;
+  }
+  if (!peer->projectileModel || peer->projectile) return;
+  uint32_t model = peer->projectileModel;
+  if (!PG_FN_HAS_MODEL_LOADED(instance, model)) return;
+  float radians = peer->heading * 0.0174532925f;
+  float dx = -sinf(radians), dy = cosf(radians);
+  uint32_t object = (u32)pg_test_call(instance, 0x9a294b2138abb884ull, 7, (uint64_t[]){
+    model, pg_online_float_bits(peer->x + 0.9f*dx), pg_online_float_bits(peer->y + 0.9f*dy),
+    pg_online_float_bits(peer->z + 0.8f), 0, 1, 0
+  });
+  pg_test_call(instance, 0xe532f5d78798daabull, 1, (uint64_t[]){model});
+  peer->projectileModel = 0;
+  if (!object || object == UINT32_MAX) return;
+  peer->projectile = object;
+  pg_test_call(instance, 0x1a9205c1b9ee827full, 3, (uint64_t[]){object, 0, 0});
+  pg_test_call(instance, 0x1c99bb7b6e96d16full, 4, (uint64_t[]){
+    object, pg_online_float_bits(dx*13), pg_online_float_bits(dy*13), pg_online_float_bits(5)
+  });
+  peer->projectileDeadline = now + 1500;
+}
+
+static PGOnlinePeerInternal pg_udp_projectiles[64];
+
+void pg_nova_udp_throw(void *game, uint32_t peerID, uint32_t weapon, float x, float y, float z, float heading) {
+  if (!peerID || peerID > 64 || !isfinite(x) || !isfinite(y) || !isfinite(z) || !isfinite(heading)) return;
+  w2c_game *instance = game;
+  uint32_t model = pg_online_throw_model(weapon);
+  if (!model || pg_test_call(instance, 0xc0296a2edf545e92ull, 1, (uint64_t[]){model}) != 1) return;
+  PGOnlinePeerInternal *slot = &pg_udp_projectiles[peerID - 1];
+  pg_online_clear_projectile(instance, slot);
+  slot->x = x; slot->y = y; slot->z = z; slot->heading = heading;
+  slot->projectileModel = model;
+  slot->projectileDeadline = timeMS(CLOCK_MONOTONIC) + 500;
+  PG_FN_REQUEST_MODEL(instance, model);
+}
+
 static void pg_online_show_shot(w2c_game *instance, PGOnlinePeerInternal *peer, double now) {
   const bool onFoot = !peer->vehicleHandle && !peer->attachedVehicle;
   if (!peer->shotPending) {
@@ -3014,7 +3167,17 @@ static void pg_online_show_shot(w2c_game *instance, PGOnlinePeerInternal *peer, 
     return;
   }
   peer->shotPending = false;
-  const uint32_t weapon = peer->renderedWeapon;
+  const uint32_t weapon = peer->shotWeapon;
+  const uint32_t projectileModel = pg_online_throw_model(weapon);
+  if (projectileModel) {
+    pg_online_clear_projectile(instance, peer);
+    if (pg_test_call(instance, 0xc0296a2edf545e92ull, 1, (uint64_t[]){projectileModel}) == 1) {
+      peer->projectileModel = projectileModel;
+      peer->projectileDeadline = now + 500;
+      PG_FN_REQUEST_MODEL(instance, projectileModel);
+    }
+    return;
+  }
   if (!weapon || pg_test_call(instance, 0x3be0bb12d25fb305ull, 1, (uint64_t[]){weapon}) != 3) return;
   float radians = peer->heading * 0.0174532925f;
   float dx = -sinf(radians), dy = cosf(radians);
@@ -3161,6 +3324,40 @@ static void pg_online_move_peer(w2c_game *instance, PGOnlinePeerInternal *peer, 
   peer->hasMoveTarget = true;
 }
 
+static uint32_t pg_online_group(w2c_game *instance, u32 localPed, bool pvp) {
+  static uint64_t label, output;
+  static uint32_t group;
+  if (!localPed) return 0;
+  if (!group) {
+    if (!label) {
+      label = pg_asi_alloc(sizeof "NOVA_PEERS");
+      if (!label) return 0;
+      memcpy(pg_pointer(&env, label, sizeof "NOVA_PEERS"), "NOVA_PEERS", sizeof "NOVA_PEERS");
+    }
+    if (!output) output = pg_asi_alloc(sizeof(uint32_t));
+    if (!output) return 0;
+    uint32_t *result = pg_pointer(&env, output, sizeof *result);
+    *result = 0;
+    MugoatValue arguments[] = {{2, 0, label}, {2, 0, output}}, ignored;
+    if (mugoat_command_call(instance, "mp:AddRelationshipGroup", arguments, 2, &ignored)) group = *result;
+  }
+  if (!group) return 0;
+  uint32_t localGroup = (u32)pg_test_call(instance, 0x7dbdd04862d95f04ull, 1, (uint64_t[]){localPed});
+  static uint32_t previousPed, previousLocalGroup;
+  static bool previousPvP;
+  if (localPed == previousPed && localGroup == previousLocalGroup && pvp == previousPvP) return group;
+  previousPed = localPed;
+  previousLocalGroup = localGroup;
+  previousPvP = pvp;
+  uint32_t relationship = pvp ? 4 : 0;
+  if (localGroup && localGroup != UINT32_MAX && localGroup != group) {
+    pg_test_call(instance, 0xbf25eb89375a37adull, 3, (uint64_t[]){relationship, group, localGroup});
+    pg_test_call(instance, 0xbf25eb89375a37adull, 3, (uint64_t[]){relationship, localGroup, group});
+  }
+  pg_test_call(instance, 0xb3b1cb349ff9c75dull, 3, (uint64_t[]){localPed, pvp, 0});
+  return group;
+}
+
 static void pg_online_peers_tick(w2c_game *instance) {
   if (!atomic_load(&pg_online_has_work) && !atomic_load(&pg_online_session)) return;
   if (PGGameStatus() & 16) {
@@ -3168,6 +3365,8 @@ static void pg_online_peers_tick(w2c_game *instance) {
     return;
   }
   const bool pvp = atomic_load(&pg_online_pvp);
+  uint32_t peerGroup = 0;
+  bool preparedGroup = false;
   const u32 localPvPPed = pvp ? PG_FN_PLAYER_PED_ID(instance) : 0;
   const unsigned incomingDamage = atomic_exchange(&pg_online_incoming_damage, 0);
   const double now = timeMS(CLOCK_MONOTONIC);
@@ -3198,6 +3397,10 @@ static void pg_online_peers_tick(w2c_game *instance) {
       p->active = false;
     }
     if (!p->active) {
+      if (p->projectile || p->projectileModel) {
+        if (!enteredScript) { previous = pg_asi_enter_script(instance); enteredScript = true; }
+        pg_online_clear_projectile(instance, p);
+      }
       if (p->vehicleHandle) {
         if (!enteredScript) { previous = pg_asi_enter_script(instance); enteredScript = true; }
         pg_online_delete_vehicle(instance, p);
@@ -3243,25 +3446,50 @@ static void pg_online_peers_tick(w2c_game *instance) {
     }
 
     // 2. Avatar Ped
+    if (!preparedGroup) {
+      peerGroup = pg_online_group(instance, PG_FN_PLAYER_PED_ID(instance), pvp);
+      preparedGroup = true;
+    }
+    uint32_t model = p->requestedPedModel;
+    if (model && model != p->missingPedModel &&
+        pg_test_call(instance, 0x75816577fea6dad5ull, 1, (uint64_t[]){model}) != 1) {
+      p->missingPedModel = model;
+      pg_log("Online: peer skin is unavailable locally; using a default model.");
+    }
+    if (!model || model == p->missingPedModel) model = pg_joaat("player_zero");
     bool pedAlive = p->pedHandle && PG_FN_ENTITY_EXISTS(instance, p->pedHandle);
+    if (pedAlive && p->pedModel != model) {
+      if (!PG_FN_HAS_MODEL_LOADED(instance, model)) PG_FN_REQUEST_MODEL(instance, model);
+      else {
+        static u64 oldPed;
+        if (!oldPed) oldPed = PG_FN_OPERATOR_NEW(instance, 16);
+        *(u32 *)pg_pointer(&env, oldPed, 4) = p->pedHandle;
+        pg_test_call(instance, 0x9614299dcb53e54bull, 1, (uint64_t[]){oldPed});
+        pedAlive = false;
+      }
+    }
     if (!pedAlive) {
       p->pedHandle = 0;
       p->hasMoveTarget = false;
       p->attachedVehicle = 0;
       p->renderedWeapon = 0;
-      u32 localPed = PG_FN_PLAYER_PED_ID(instance);
-      u32 model = localPed ? PG_FN_GET_ENTITY_MODEL(instance, localPed) : 0;
       if (model) {
         if (!PG_FN_HAS_MODEL_LOADED(instance, model)) {
           PG_FN_REQUEST_MODEL(instance, model);
         } else {
           uint32_t fh; memcpy(&fh, &p->heading, 4);
-          uint64_t pedArgs[8] = {26, model, fx, fy, fz, fh, 0, 0};
+          uint64_t pedArgs[8] = {4, model, fx, fy, fz, fh, 0, 0};
           uint32_t ped = (uint32_t)(pg_test_call(instance, 0xd49f9b0955c367deull, 8, pedArgs) & 0xffffffff);
           if (ped && PG_FN_ENTITY_EXISTS(instance, ped)) {
             p->pedHandle = ped;
             p->pedModel = model;
+            p->avatarPvp = pvp;
+            pg_test_call(instance, 0x45eee61580806d63ull, 1, (uint64_t[]){ped});
+            if (peerGroup) pg_test_call(instance, 0xc80a74ac829ddd92ull, 2, (uint64_t[]){ped, peerGroup});
+            pg_test_call(instance, 0x63f58f7c80513aadull, 2, (uint64_t[]){ped, 1});
+            pg_test_call(instance, 0x02a0c9720b854bfaull, 2, (uint64_t[]){ped, pvp});
             pg_test_call(instance, 0x3882114bde571ad4ull, 2, (uint64_t[]){ped, !pvp});
+            pg_test_call(instance, 0xe532f5d78798daabull, 1, (uint64_t[]){model});
             if (pvp) {
               pg_test_call(instance, 0x166e7cf68597d8b5ull, 2, (uint64_t[]){ped, 1000});
               pg_test_call(instance, 0xebd76f2359f190acull, 2, (uint64_t[]){ped, 0});
@@ -3278,10 +3506,29 @@ static void pg_online_peers_tick(w2c_game *instance) {
       }
     }
     if (p->pedHandle) {
+      if (p->avatarPvp != pvp) {
+        p->avatarPvp = pvp;
+        pg_test_call(instance, 0x02a0c9720b854bfaull, 2, (uint64_t[]){p->pedHandle, pvp});
+        pg_test_call(instance, 0x3882114bde571ad4ull, 2, (uint64_t[]){p->pedHandle, !pvp});
+      }
       if (localPvPPed && pedAlive) pg_online_detect_hit(instance, p, localPvPPed);
       pg_online_update_weapon(instance, p, now);
       pg_online_move_peer(instance, p, pedVec, now);
+      if (p->effectPending) {
+        p->effectPending = false;
+        float local[3];
+        if (PGGetPlayerPosition(local)) {
+          float dx = local[0] - p->effectPosition[0], dy = local[1] - p->effectPosition[1], dz = local[2] - p->effectPosition[2];
+          if (dx*dx + dy*dy + dz*dz <= 140.0f*140.0f) {
+            float *vector = pg_pointer(&env, pedVec, 24);
+            vector[0] = p->effectPosition[0]; vector[2] = p->effectPosition[1]; vector[4] = p->effectPosition[2];
+            MugoatValue args[] = {{2,0,pedVec}, {1,0,p->effectKind}, {3,0,0}, {1,0,1}, {1,0,0}, {3,0,0}, {1,0,1}}, result;
+            mugoat_command_call(instance, "mp:AddExplosion", args, 7, &result);
+          }
+        }
+      }
       pg_online_show_shot(instance, p, now);
+      if (p->projectile || p->projectileModel) pg_online_projectile_tick(instance, p, now);
     }
   }
   bool more=false;for(int i=0;i<PG_MAX_ONLINE_PEERS;i++)if(pg_online_peers[i].active||pg_online_peers[i].pedHandle||pg_online_peers[i].blipHandle||pg_online_peers[i].vehicleHandle){more=true;break;}atomic_store(&pg_online_has_work,more);
@@ -3291,6 +3538,62 @@ static void pg_online_peers_tick(w2c_game *instance) {
     pg_asi_leave_script(instance, previous);
   }
 }
+static _Atomic uint32_t pg_skin_request;
+static _Atomic int pg_skin_status;
+
+bool PGQueuePlayerSkin(const char *name) {
+  if (!name || !*name || strlen(name) > 63) return false;
+  for (const char *c = name; *c; ++c)
+    if (!((*c >= 'a' && *c <= 'z') || (*c >= '0' && *c <= '9') || *c == '_')) return false;
+  int previous = atomic_load(&pg_skin_status);
+  do {
+    if (previous == 1) return false;
+  } while (!atomic_compare_exchange_weak(&pg_skin_status, &previous, 1));
+  atomic_store(&pg_skin_request, pg_joaat(name));
+  return true;
+}
+int PGPlayerSkinStatus(void) { return atomic_load(&pg_skin_status); }
+
+static void pg_skin_tick(w2c_game *instance) {
+  uint32_t model = atomic_load(&pg_skin_request);
+  if (!model) return;
+  static double deadline;
+  static bool requested;
+  uint32_t ped = PG_FN_PLAYER_PED_ID(instance);
+  if (!ped || (PGGameStatus() & 16)) return;
+  uint64_t previous = pg_asi_enter_script(instance);
+  int status = 1;
+  if (!requested) {
+    if (pg_online_get_vehicle(instance, ped) ||
+        pg_test_call(instance, 0x75816577fea6dad5ull, 1, (uint64_t[]){model}) != 1) status = -1;
+    else {
+      PG_FN_REQUEST_MODEL(instance, model);
+      deadline = timeMS(CLOCK_MONOTONIC) + 8000;
+      requested = true;
+    }
+  }
+  if (requested && PG_FN_HAS_MODEL_LOADED(instance, model)) {
+    if (pg_online_get_vehicle(instance, ped)) status = -1;
+    else {
+      uint32_t player = (u32)pg_test_call(instance, 0x4f8644af03d0e0d6ull, 0, NULL);
+      pg_test_call(instance, 0x00a1cadd00108836ull, 2, (uint64_t[]){player, model});
+      ped = PG_FN_PLAYER_PED_ID(instance);
+      if (ped && PG_FN_GET_ENTITY_MODEL(instance, ped) == model) {
+        pg_test_call(instance, 0x45eee61580806d63ull, 1, (uint64_t[]){ped});
+        status = 2;
+      } else status = -1;
+    }
+  } else if (requested && timeMS(CLOCK_MONOTONIC) >= deadline) status = -1;
+  if (status != 1) {
+    if (requested) pg_test_call(instance, 0xe532f5d78798daabull, 1, (uint64_t[]){model});
+    requested = false;
+    atomic_store(&pg_skin_request, 0);
+    atomic_store(&pg_skin_status, status);
+    pg_log(status == 2 ? "Mods: applied player skin." : "Mods: player skin unavailable or player in a vehicle.");
+  }
+  pg_asi_leave_script(instance, previous);
+}
+
 void pg_asi_script_tick(w2c_game *instance, u64 thread) {
 #if TARGET_OS_SIMULATOR
   if (thread && strcmp(pg_string(&env, thread + 428), "main")) pg_debug_tick(instance, false);
@@ -3305,7 +3608,15 @@ void pg_asi_script_tick(w2c_game *instance, u64 thread) {
   pg_sandbox_map_tick(instance);
   pg_turbo_tick(instance);
   pg_trackify_tick(instance);
+  pg_skin_tick(instance);
   pg_online_peers_tick(instance);
+  if (MugoatOnlineEnabled()) {
+    double now = timeMS(CLOCK_MONOTONIC);
+    for (size_t i = 0; i < 64; ++i) {
+      PGOnlinePeerInternal *slot = &pg_udp_projectiles[i];
+      if (slot->projectile || slot->projectileModel) pg_online_projectile_tick(instance, slot, now);
+    }
+  }
 #if TARGET_OS_SIMULATOR
   pg_debug_tick(instance, true);
   pg_test_spawn();

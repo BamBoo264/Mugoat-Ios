@@ -21,6 +21,14 @@ struct OnlineGlassReport: Codable {
     let mask: UInt32
 }
 
+struct OnlineEffect: Codable {
+    let sequence: UInt32
+    let kind: UInt32
+    let x: Float
+    let y: Float
+    let z: Float
+}
+
 /// Packet sent across the room network.
 struct RoomPacket: Codable {
     enum PacketType: String, Codable {
@@ -39,6 +47,7 @@ struct RoomPacket: Codable {
     let senderName: String
     var position: [Float]?
     var heading: Float?
+    var pedModel: UInt32?
     var vehicleModel: UInt32?
     var weapon: UInt32?
     var health: Int?
@@ -51,6 +60,8 @@ struct RoomPacket: Codable {
     var voiceFrame: Data?
     var impactSequence: UInt32?
     var shotSequence: UInt32?
+    var shotWeapon: UInt32?
+    var effect: OnlineEffect?
     var vehicleEpoch: UInt32?
     var windows: UInt32?
     var glassReports: [String: OnlineGlassReport]?
@@ -324,7 +335,10 @@ final class OnlineRoomManager {
                 PGUpdateRemotePeerState(peerID, position[0], position[1], position[2],
                                         packet.heading ?? 0, packet.vehicleModel ?? 0,
                                         packet.weapon ?? 0, ownerID, packet.rideSeat ?? -1,
-                                        packet.shotSequence ?? 0, packet.vehicleEpoch ?? 0, packet.windows ?? 0)
+                                        packet.shotSequence ?? 0, packet.vehicleEpoch ?? 0, packet.windows ?? 0, packet.pedModel ?? 0, packet.shotWeapon ?? 0)
+                if let effect = packet.effect {
+                    PGUpdateRemoteEffect(peerID, PGOnlineEffect(sequence: effect.sequence, kind: effect.kind, x: effect.x, y: effect.y, z: effect.z))
+                }
             }
         }
     }
@@ -608,7 +622,10 @@ final class OnlineRoomManager {
                 var vehicle: UInt32 = 0
                 var windows: UInt32 = 0
                 var impact: UInt32 = 0
-                let weapon = PGReadOnlineLoadout(&owner, &seat, &shot, &vehicle, &windows, &impact)
+                var shotWeapon: UInt32 = 0
+                let weapon = PGReadOnlineLoadout(&owner, &seat, &shot, &vehicle, &windows, &impact, &shotWeapon)
+                var event = PGOnlineEffect()
+                let effect = PGReadOnlineEffect(&event) ? OnlineEffect(sequence: event.sequence, kind: event.kind, x: event.x, y: event.y, z: event.z) : nil
                 var glassReports: [String: OnlineGlassReport] = [:]
                 if inInternetRoom {
                     for peer in peers.values where peer.vehicleModel != 0 {
@@ -621,7 +638,7 @@ final class OnlineRoomManager {
                 pushLocalState(position: localPos, heading: heading, vehicleModel: rideOwner.isEmpty ? hints.vehicleModel : 0,
                                weapon: weapon, health: 200, rideOwner: rideOwner.isEmpty ? nil : rideOwner,
                                rideSeat: rideOwner.isEmpty ? nil : seat,
-                               shotSequence: shot, vehicleEpoch: rideOwner.isEmpty && hints.vehicleModel != 0 ? vehicle : 0,
+                               shotSequence: shot, shotWeapon: shotWeapon, effect: effect, pedModel: PGReadOnlinePlayerModel(), vehicleEpoch: rideOwner.isEmpty && hints.vehicleModel != 0 ? vehicle : 0,
                                windows: windows, impactSequence: impact, glassReports: glassReports)
             }
         }
@@ -650,18 +667,21 @@ final class OnlineRoomManager {
 
     /// Pushes local player position, vehicle, weapon to all peers in the room.
     func pushLocalState(position: [Float], heading: Float, vehicleModel: UInt32, weapon: UInt32, health: Int, rideOwner: String? = nil, rideSeat: Int32? = nil,
-                        shotSequence: UInt32 = 0, vehicleEpoch: UInt32 = 0, windows: UInt32 = 0, impactSequence: UInt32 = 0,
+                        shotSequence: UInt32 = 0, shotWeapon: UInt32 = 0, effect: OnlineEffect? = nil, pedModel: UInt32 = 0, vehicleEpoch: UInt32 = 0, windows: UInt32 = 0, impactSequence: UInt32 = 0,
                         glassReports: [String: OnlineGlassReport] = [:]) {
         guard inRoom, let code = roomCode else { return }
         var packet = RoomPacket(type: .stateSync, roomCode: code, senderId: String(localPlayerId), senderName: localPlayerName)
         packet.position = position
         packet.heading = heading
+        packet.pedModel = pedModel
         packet.vehicleModel = vehicleModel
         packet.weapon = weapon
         packet.rideOwner = rideOwner
         packet.rideSeat = rideSeat
         packet.impactSequence = vehicleEpoch != 0 ? impactSequence : 0
         packet.shotSequence = shotSequence
+        packet.shotWeapon = shotWeapon
+        packet.effect = effect
         packet.vehicleEpoch = vehicleEpoch
         packet.windows = vehicleEpoch != 0 ? windows : 0
         if !glassReports.isEmpty { packet.glassReports = glassReports }

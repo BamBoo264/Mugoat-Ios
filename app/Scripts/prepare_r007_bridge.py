@@ -70,7 +70,7 @@ def main(engine):
     source = source.replace('#include <string.h>\n', '#include <string.h>\n' + '\n'.join(sorted(declarations)) + '\n')
     (generated / "MugoatCommands.c").write_text(source)
     hooks = {"script": f"mugoat_script_tick(instance,var_p0,instance->{tls});",
-             "explosion": "mugoat_explosion(var_p0);",
+             "explosion": "pg_nova_explosion(var_p0); mugoat_explosion(var_p0);",
              "timewarp": "var_p1=mugoat_time_warp(var_p1);"}
     for hook, index in metadata["hooks"].items():
         count = 0

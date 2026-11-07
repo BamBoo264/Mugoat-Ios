@@ -1398,6 +1398,16 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         controller.targetingChanged = { PGSetTargetingMode(Int32(GameSettings.shared.targetingMode)) }
         controller.cheatSelected = { [weak self] cheat in self?.playStoryCheat(cheat) }
         controller.nativeCheatSelected = { [weak self] action in self?.performNativeCheat(action) }
+        controller.skinSelected = { [weak self] name in
+            guard let self, name.withCString({ PGQueuePlayerSkin($0) }) else { return }
+            self.monitorMenuAction(title: "Đổi skin") {
+                switch PGPlayerSkinStatus() {
+                case 1: return nil
+                case 2: return "Đã mặc skin \(name)."
+                default: return "Không mặc được skin. Hãy xuống xe và kiểm tra mod đã được tải."
+                }
+            }
+        }
         controller.vehicleSelected = { [weak self] vehicle, enter in self?.spawnVehicle(vehicle, enter: enter) }
         controller.moneyEntered = { [weak self] amount in
             self?.appendLog("Story cheat: set money to \(amount)")

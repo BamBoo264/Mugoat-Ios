@@ -10,6 +10,7 @@ bool mugoat_command_call(void *instance, const char *name, const MugoatValue *ar
 uint8_t *mugoat_memory_data(void *instance, uint64_t *size);
 void mugoat_script_tick(void *instance, uint64_t thread, uint64_t tls);
 void mugoat_explosion(uint64_t args);
+void pg_nova_explosion(uint64_t args);
 uint32_t mugoat_time_warp(uint32_t direction);
 // Configuration is immutable after starting the engine. Change servers by restarting the app.
 bool MugoatOnlineConfigure(const char *server, const char *name, const char *room, int32_t mode, bool pvp);

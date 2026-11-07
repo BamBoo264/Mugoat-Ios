@@ -114,6 +114,8 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("SetRelationshipGroupAffectsWantedLevel", "ped_commands::CommandSetRelationshipGroupAffectsWantedLevel(int, bool)"),
     ("GetPedRelationshipGroupHash", "ped_commands::CommandGetPedRelationshipGroupHash(int)"),
     ("SetPedRelationshipGroupHash", "ped_commands::CommandSetPedRelationshipGroupHash(int, int)"),
+    ("SetPedAsEnemy", "ped_commands::CommandSetPedAsEnemy(int, bool)"),
+    ("SetPedCanBeTargettedByPlayer", "ped_commands::CommandSetPedCanBeTargettedByPlayer(int, int, bool)"),
     ("SetPedCanBeTargetted", "ped_commands::CommandSetPedCanBeTargetted(int, bool)"),
     ("SetCanAttackFriendly", "ped_commands::CommandSetCanAttackFriendly(int, bool, bool)"),
     ("PlayerId", "player_commands::CommandPlayerId()"),
@@ -1089,6 +1091,7 @@ struct Game {
     last_impact: [f32; 3],
 
     last_swing: Instant,
+    thrown_ammo: Option<(i32, i32)>,
 
     my_car: i32,
 
@@ -1285,6 +1288,7 @@ pub fn script_tick(caller: &mut Caller<'_, HostState>, thread: u64, tls: u64) ->
         last_shot: Instant::now(),
         last_impact: [0.0; 3],
         last_swing: Instant::now(),
+        thrown_ammo: None,
         my_car: 0,
         was_dead: false,
         was_enter_pressed: false,
@@ -2441,7 +2445,22 @@ fn frame(c: &mut Cmd, game: &mut Game, net: &Net) {
         const INPUT_ATTACK: i32 = 24;
         const INPUT_MELEE_LIGHT: i32 = 140;
         const INPUT_MELEE_HEAVY: i32 = 141;
-        let melee = !gun && c.i("IsPedArmed", &[i(ped), i(ARMED_THROWN)]) == 0
+        let thrown = c.i("IsPedArmed", &[i(ped), i(ARMED_THROWN)]) != 0;
+        if let Some((weapon, before)) = game.thrown_ammo {
+            let after = c.i("GetAmmoInPedWeapon", &[i(ped), i(weapon)]);
+            if after >= 0 && after < before {
+                let mut shot = local_shot(c, ped, my_pos);
+                shot.weapon = weapon as u32;
+                let mut payload = Vec::new();
+                shot.encode(&mut payload);
+                send_reliable(net, proto::SHOT, &payload, None);
+            }
+        }
+        game.thrown_ammo = thrown.then(|| {
+            let weapon = c.i("GetSelectedPedWeapon", &[i(ped)]);
+            (weapon, c.i("GetAmmoInPedWeapon", &[i(ped), i(weapon)]))
+        });
+        let melee = !gun && !thrown
             && c.i("IsPedInAnyVehicle", &[i(ped), b(false)]) == 0
             && c.i("IsPedRagdoll", &[i(ped)]) == 0;
         if melee && game.last_swing.elapsed() >= Duration::from_millis(450)
@@ -2865,7 +2884,7 @@ fn frame(c: &mut Cmd, game: &mut Game, net: &Net) {
     let shots = std::mem::take(&mut *net.shots.lock().unwrap());
     for (id, shot) in shots {
         if let Some(a) = game.avatars.get_mut(&id) {
-            fire(c, a, &shot, me_ok.then_some(my_pos));
+            fire(c, id, a, &shot, me_ok.then_some(my_pos));
         }
     }
 
@@ -3259,11 +3278,17 @@ fn seg_dist(p: [f32; 3], a: [f32; 3], b: [f32; 3]) -> f32 {
     dist(p, [a[0] + ab[0] * t, a[1] + ab[1] * t, a[2] + ab[2] * t])
 }
 
-fn fire(c: &mut Cmd, a: &mut Avatar, shot: &Shot, me: Option<[f32; 3]>) {
+fn fire(c: &mut Cmd, _peer: u8, a: &mut Avatar, shot: &Shot, me: Option<[f32; 3]>) {
     if !c.exists(a.ped) || a.dead {
         return;
     }
 
+    #[cfg(target_os = "ios")]
+    if super::nova_throw_weapon(shot.weapon) {
+        let heading = (shot.from[0] - shot.to[0]).atan2(shot.to[1] - shot.from[1]).to_degrees();
+        super::nova_remote_throw(_peer, shot.weapon, shot.from, heading);
+        return;
+    }
     const DAMAGE_MELEE: i32 = 2;
     if c.i("GetWeaponDamageType", &[i(shot.weapon as i32)]) == DAMAGE_MELEE {
         swing(c, a, shot.to);
@@ -3594,6 +3619,10 @@ fn update_avatar(c: &mut Cmd, owner: u8, a: &mut Avatar, s: &State, look: Option
             c.i("SetPedRelationshipGroupHash", &[i(ped), i(group)]);
         }
         c.i("SetPedCanBeTargetted", &[i(ped), b(true)]);
+        let pvp = pvp_enabled();
+        c.i("SetPedAsEnemy", &[i(ped), b(pvp)]);
+        let player = c.i("PlayerId", &[]);
+        c.i("SetPedCanBeTargettedByPlayer", &[i(ped), i(player), b(pvp)]);
 
         if a.blip != 0 && !a.blip_is_entity {
             let r = c.ref_arg(a.blip);
