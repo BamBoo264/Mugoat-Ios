@@ -320,8 +320,8 @@ final class GameSettings {
     }
     static func frameRateTitle(_ cap: Int) -> String { cap == 0 ? AppLanguage.choose("Unlocked") : "\(cap) FPS" }
 
-    // Crash fallback: a launch that never reached a stable world is treated
-    // as a memory kill, and the last preset that worked is restored.
+    // An interrupted boot can trigger a graphics fallback. Reaching the world
+    // clears the boot flag independently of the longer stability sample.
     private var bootPending: Bool {
         get { defaults.bool(forKey: "graphicsBootPending") }
         set { defaults.set(newValue, forKey: "graphicsBootPending") }
@@ -334,7 +334,7 @@ final class GameSettings {
     struct BootRecovery {
         let failed: GraphicsPreset
         let fallback: GraphicsPreset
-        /// The custom resolution that was set back to Auto, if any.
+        /// The previous custom resolution, if recovery lowered it.
         let resetHeight: Int?
         let memoryLimitMB: Int
     }
@@ -358,7 +358,7 @@ final class GameSettings {
         let resetHeight = renderHeight > max(fallback.height, provenHeight) ? renderHeight : nil
         guard fallback != failed || resetHeight != nil else { return nil }
         graphicsPreset = fallback
-        if resetHeight != nil { renderHeight = 0 }
+        if resetHeight != nil { renderHeight = fallback.height }
         return BootRecovery(failed: failed, fallback: fallback, resetHeight: resetHeight, memoryLimitMB: tier.memoryLimitMB)
     }
     /// "Try again anyway" in the popup: put the settings back as they were.
@@ -367,6 +367,7 @@ final class GameSettings {
         if let height = recovery.resetHeight { renderHeight = height }
     }
     func markBootStarted() { bootPending = true }
+    func markBootReachedWorld() { bootPending = false }
     /// Leaving the app is not a crash.
     func markBootInterrupted() { bootPending = false }
     func markBootStable() {

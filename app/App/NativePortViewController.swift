@@ -424,7 +424,8 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             self.appendLog("Mugoat Nova: local diagnostics enabled; upstream update/analytics disabled.")
         }
         if let recovery = GameSettings.shared.recoverFromFailedBoot() {
-            appendLog("Previous launch on \(recovery.failed.title) did not finish; lowered to \(recovery.fallback.title)\(recovery.resetHeight.map { ", resolution \($0)p back to Auto" } ?? "").")
+            let resolution = recovery.resetHeight.map { ", resolution \($0)p → \(recovery.fallback.height)p" } ?? ""
+            appendLog("Previous launch did not reach the world. Graphics: \(recovery.failed.title) → \(recovery.fallback.title)\(resolution).")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { self.explainRecovery(recovery) }
         }
         if ProcessInfo.processInfo.arguments.contains("--touch-controls-preview") {
@@ -503,7 +504,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             movementProofStarted = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 30) { self.verifyMovement() }
         }
-        if line == "WORLD_READY" { PGSetTargetingMode(Int32(GameSettings.shared.targetingMode)); if worldReadyAt == nil { worldReadyAt = CACurrentMediaTime() } }
+        if line == "WORLD_READY" { PGSetTargetingMode(Int32(GameSettings.shared.targetingMode)); if worldReadyAt == nil { worldReadyAt = CACurrentMediaTime(); GameSettings.shared.markBootReachedWorld() } }
         // Debug: --open-settings-in-game opens Settings 10 s into the world.
         if line == "WORLD_READY", ProcessInfo.processInfo.arguments.contains("--open-settings-in-game") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 10) { self.showSettings() }
@@ -1202,16 +1203,11 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             }
         }.resume()
     }
-    /// The popup after a launch that ran out of memory: what happened, what changed, and the way back.
+    /// Offer a reversible graphics fallback after an interrupted startup.
     private func explainRecovery(_ recovery: GameSettings.BootRecovery) {
-        let lowered = recovery.fallback != recovery.failed
-        let title = lowered ? AppLanguage.interpolate(AppLanguage.choose("Graphics lowered to {arg0}"), [recovery.fallback.title]) : AppLanguage.choose("Resolution set back to Auto")
-        var message = AppLanguage.interpolate(AppLanguage.choose("The game closed while starting on {arg0}"), [recovery.failed.title])
-        if let height = recovery.resetHeight { message += AppLanguage.interpolate(AppLanguage.choose(" at {arg0}p"), [String(height)]) }
-        message += AppLanguage.interpolate(AppLanguage.choose(". That usually means this setting needs more memory than iOS gives the app on this iPhone (about {arg0} MB)."), [String(recovery.memoryLimitMB)])
-        message += lowered ? AppLanguage.interpolate(AppLanguage.choose("\n\nThe game now starts on {arg0}"), [recovery.fallback.title]) : AppLanguage.choose("\n\nThe game now starts at its usual resolution")
-        message += recovery.resetHeight != nil && lowered ? AppLanguage.choose(" with Auto resolution.") : "."
-        message += AppLanguage.choose(" You can change this any time in Settings.")
+        let title = "Khởi động lại với đồ họa thấp hơn"
+        let resolution = recovery.resetHeight.map { " Độ phân giải: \($0)p → \(recovery.fallback.height)p." } ?? ""
+        let message = "Lần trước app đóng trước khi vào thế giới. Nova sẽ thử cấu hình \(recovery.fallback.title).\(resolution) Bạn có thể đổi lại trong Cài đặt."
         let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: AppLanguage.choose("OK"), style: .cancel))
         alert.addAction(UIAlertAction(title: AppLanguage.choose("Share log"), style: .default) { _ in

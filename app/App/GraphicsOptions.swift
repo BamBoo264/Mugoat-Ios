@@ -171,7 +171,7 @@ enum GraphicsConfiguration {
         return Int(min(screen.nativeBounds.width, screen.nativeBounds.height))
     }
     /// Resolutions offered in Settings, besides "Auto" (the detail preset's own).
-    static var resolutionChoices: [Int] { [540, 720, 900, 1080].filter { $0 < nativeHeight } + [nativeHeight] }
+    static var resolutionChoices: [Int] { [432, 540, 720, 900, 1080].filter { $0 < nativeHeight } + [nativeHeight] }
     /// Width/height to render at: the chosen height (or the preset's), shaped like the screen so the
     /// picture is not stretched.
     static func size(for preset: GraphicsPreset, renderHeight: Int, screen: CGSize, matchScreenShape: Bool) -> (Int, Int) {
