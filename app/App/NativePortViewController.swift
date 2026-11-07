@@ -239,7 +239,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         home.layoutButton.addAction(UIAction { [weak self] _ in self?.showLayoutEditor() }, for: .touchUpInside)
         home.onlineButton.addAction(UIAction { [weak self] _ in
             let roomVC = OnlineRoomViewController()
-            roomVC.dedicatedSettingsAvailable = !self.engineStarted
+            roomVC.dedicatedSettingsAvailable = self?.engineStarted == false
             roomVC.onPlayTapped = { [weak self] in
                 self?.startEngine()
             }
