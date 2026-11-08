@@ -45,7 +45,7 @@ static void logf_(const char *format, ...) {
 static uint64_t now_us(void) { struct timeval t; gettimeofday(&t, 0); return (uint64_t)t.tv_sec * 1000000 + (uint64_t)t.tv_usec; }
 
 // ---- Modules -------------------------------------------------------------------------------
-typedef struct { char name[64]; char root[1024]; uint64_t base, size, entry; uint64_t tlsIndexAddress, tlsStart, tlsEnd; uint32_t tlsZero; bool dead; uint64_t pdata, pdataCount; } Module;
+typedef struct { char name[64]; char root[1024]; uint64_t base, size, entry; uint64_t tlsIndexAddress, tlsStart, tlsEnd; uint32_t tlsZero; bool dead, lspatrol; uint64_t pdata, pdataCount; } Module;
 static Module modules[16]; static int moduleCount;
 static uint64_t fakeExe;  // stands in for GTA5.exe: header only, so pattern scans find nothing (and say so)
 static int moduleIndex(uint64_t a);
@@ -60,7 +60,7 @@ struct Throw;
 enum { CO_NEW, CO_READY, CO_WAIT, CO_DEAD };
 typedef struct Co {
   struct Machine *m; uint64_t stack, stackSize, teb, entry, param; int state, module; uint64_t wakeAt;
-  bool script, yield, finished; uint64_t result;  // native result buffer
+  bool script, yield, finished; uint64_t noWaitInstructions, result;  // native result buffer
   uint64_t args[32]; uint32_t argc; uint64_t hash;
   uint64_t tls[64], fls[64];
   struct Nest *nest; int nestDepth;
@@ -112,7 +112,7 @@ static void startCall(Co *co, uint64_t function, const uint64_t *a, int n) {
   for (uint64_t i = 0; i < extra; i++) wr64(site + 32 + 8 * i, a[4 + i]);
   wr64(site - 8, exitStub); Put64(m->sp, site - 8);
   Put64(m->cx, n > 0 ? a[0] : 0); Put64(m->dx, n > 1 ? a[1] : 0); Put64(m->r8, n > 2 ? a[2] : 0); Put64(m->r9, n > 3 ? a[3] : 0);
-  m->ip = function; co->finished = false; co->yield = false;
+  m->ip = function; co->finished = false; co->yield = false; co->noWaitInstructions = 0;
 }
 static const char *faultName(int rc) {
   switch (rc) {
@@ -136,10 +136,24 @@ static bool run(Co *co) {
     co->state = CO_DEAD; ok = false; ehAbandon(co);
   } else {
     m->canhalt = true; uint64_t count = 0; runner = pthread_self(); running = 1;
-    // A script that doesn't wait within ~20 million instructions (about 0.1 s) is stuck; it would
-    // freeze the game, so it stops.
-    while (!co->yield && !co->finished && count < 20000000) { ExecuteInstruction(m); count++; }
-    if (count >= 20000000) { Module *mod = moduleAt(m->ip); logf_("ASI %s: a script ran too long without waiting (at +0x%llx); it is stopped.", mod ? mod->name : "?", (unsigned long long)(mod ? m->ip - mod->base : m->ip)); co->state = CO_DEAD; ehAbandon(co); }
+    // LSPatrol parses all its INIs before waiting. Resume the same CPU state next frame
+    // when this slice ends. A cumulative watchdog still catches a genuine infinite loop.
+    bool sliced = co->script && co->module >= 0 && co->module < moduleCount && modules[co->module].lspatrol;
+    uint64_t deadline = sliced ? now_us() + 4000 : 0;
+    uint64_t limit = sliced ? 160000000 : 20000000;
+    while (!co->yield && !co->finished && co->noWaitInstructions + count < limit) {
+      ExecuteInstruction(m);
+      count++;
+      if (sliced && !(count % 4096) && now_us() >= deadline) break;
+    }
+    co->noWaitInstructions += count;
+    if (co->yield || co->finished) co->noWaitInstructions = 0;
+    else if (co->noWaitInstructions >= limit) {
+      Module *mod = moduleAt(m->ip);
+      logf_("ASI %s: a script ran too long without waiting (at +0x%llx); it is stopped.", mod ? mod->name : "?", (unsigned long long)(mod ? m->ip - mod->base : m->ip));
+      co->state = CO_DEAD;
+      ehAbandon(co);
+    }
     running = outer != 0; ticks_instructions += count;
   }
   m->canhalt = false; memcpy(m->onhalt, saved, sizeof saved);
@@ -654,7 +668,7 @@ static uint64_t v_nativeCall(void) {
   if (cur->hash == 0x3a618a217e5154f0ull || cur->hash == 0xe7ffae5ebf23d890ull || cur->hash == 0xcd015e5bb0d96a57ull) {
     frameDraws++;
     if (cur->module >= 0 && cur->module < moduleCount &&
-        !strcasecmp(modules[cur->module].name, "LSPatrol.asi")) lspatrolDraws++;
+        modules[cur->module].lspatrol) lspatrolDraws++;
   }
   memcpy(G(nativeArgs), cur->args, 8 * cur->argc); memset(G(cur->result), 0, 64);
   if (!H.native(cur->hash, nativeArgs, cur->argc, cur->result)) {
@@ -884,6 +898,7 @@ int pg_asi_load(const char *name, const char *root, const uint8_t *bytes, uint64
   }
   if (missing) logf_("ASI %s: %d Windows function%s not available on iOS (they return 0): %s", name, missing, missing == 1 ? "" : "s", missingList);
   Module *mod = &modules[moduleCount++]; snprintf(mod->name, sizeof mod->name, "%s", name); snprintf(mod->root, sizeof mod->root, "%s", root ? root : H.files);
+  mod->lspatrol = !strcasecmp(name, "LSPatrol.asi");
   hintKeys(mod->root, 0); mod->base = base; mod->size = sizeOfImage; mod->entry = entry ? base + entry : 0;
   mod->pdata = pdataAt ? base + pdataAt : 0; mod->pdataCount = pdataSize / 12;
   if (tlsAt) {
