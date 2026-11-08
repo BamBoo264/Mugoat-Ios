@@ -1997,6 +1997,22 @@ static uint64_t p_sb_Init6(void) {  // _Init(&gfirst, &gnext, &gcount, &pfirst, 
   uint64_t sb = ARG(0); wr64(sb + 24, ARG(1)); wr64(sb + 56, ARG(2)); wr64(sb + 80, ARG(3)); wr64(sb + 32, ARG(4)); wr64(sb + 64, ARG(5)); wr64(sb + 88, ARG(6));
   return 0;
 }
+static uint64_t p_sb_eback(void) { return rd64(rd64(ARG(0) + 24)); }
+static uint64_t p_sb_pptr(void) { return pptr(ARG(0)); }
+static uint64_t p_sb_epptr(void) { return pptr(ARG(0)) + pavail(ARG(0)); }
+static uint64_t p_sb_pninc(void) { uint64_t sb = ARG(0), at = pptr(sb); pbump(sb, 1); return at; }
+static void sbSetPut(uint64_t sb, uint64_t first, uint64_t current, uint64_t last) {
+  wr64(rd64(sb + 32), first); wr64(rd64(sb + 64), current);
+  wr32(rd64(sb + 88), last >= current ? (uint32_t)(last - current) : 0);
+}
+static uint64_t p_sb_setp(void) { sbSetPut(ARG(0), ARG(1), ARG(1), ARG(2)); return 0; }
+static uint64_t p_sb_setp3(void) { sbSetPut(ARG(0), ARG(1), ARG(2), ARG(3)); return 0; }
+static uint64_t p_sb_setg(void) {
+  uint64_t sb = ARG(0), current = ARG(2), last = ARG(3);
+  wr64(rd64(sb + 24), ARG(1)); wr64(rd64(sb + 56), current);
+  wr32(rd64(sb + 80), last >= current ? (uint32_t)(last - current) : 0);
+  return 0;
+}
 static uint64_t p_sb_ctor(void) { uint64_t sb = ARG(0); memset(G(sb), 0, 104); wr64(sb, streambufVtable); wr64(sb + 96, newLocale()); p_sb_Init(); return sb; }
 static uint64_t p_sb_dtor(void) { uint64_t l = rd64(ARG(0) + 96); if (l) H.free(l - HEADER); wr64(ARG(0) + 96, 0); return 0; }
 static uint64_t p_sb_delete(void) { uint64_t sb = ARG(0), flags = ARG(1); p_sb_dtor(); if (flags & 1) H.free(sb - HEADER); return sb; }
@@ -2030,6 +2046,9 @@ static uint64_t p_ios_widen(void) { return ARG(1) & 255; }
 static uint64_t p_ios_narrow(void) { return ARG(1) & 255; }
 static uint64_t p_ios_bool(void) { return (rd32(ARG(0) + IOS_STATE) & 6) == 0; }
 static uint64_t p_ios_not(void) { return (rd32(ARG(0) + IOS_STATE) & 6) != 0; }
+static uint64_t p_ios_good(void) { return good(ARG(0)); }
+static uint64_t p_ios_rdbuf(void) { return rd64(ARG(0) + IOS_BUF); }
+static uint64_t p_ios_width(void) { return rd64(ARG(0) + IOS_WIDE); }
 // Manipulators: setw(n) and setprecision(n) return {function, n} by hidden pointer; the inline operator<< calls the
 // function with the stream's ios_base.
 static uint64_t p_setw_fn(void) { wr64(ARG(0) + IOS_WIDE, ARG(1)); return 0; }
@@ -2152,6 +2171,33 @@ static uint64_t p_os_write(void) {  // write(s, n)
   if (osPrefix(os)) { bool caught = false; int64_t w = vcall(NEST_CATCH, &caught, rd64(ios + IOS_BUF), 9, 2, s, (uint64_t)n); if (leaving()) return 0; if (w != n || caught) state = 4; }
   osSuffix(os); if (leaving()) return 0;
   iosSetstate(ios, state); return os;
+}
+
+static uint64_t p_os_streambuf(void) {
+  uint64_t stream = ARG(0), input = ARG(1), ios = vbase(stream);
+  bool caught = false;
+  int state = 0;
+  if (!input) state = 4;
+  else if (osPrefix(stream)) {
+    uint64_t output = rd64(ios + IOS_BUF);
+    unsigned written = 0;
+    while (written < 1024 * 1024) {
+      int byte = sbSgetc(input, NEST_CATCH, &caught);
+      if (leaving()) return 0;
+      if (caught || byte == EOF_) break;
+      if (sbSputc(output, byte, NEST_CATCH, &caught) == EOF_ || caught) break;
+      if (leaving()) return 0;
+      sbSbumpc(input, NEST_CATCH, &caught);
+      if (leaving()) return 0;
+      if (caught) break;
+      ++written;
+    }
+    if (!written || caught || written == 1024 * 1024) state = 2;
+  }
+  osSuffix(stream);
+  if (leaving()) return 0;
+  iosSetstate(ios, state);
+  return stream;
 }
 
 // basic_istream. _Ipfx: a good stream flushes its tie, then skips white space unless told not to (eof sets eof|fail).
@@ -2543,6 +2589,13 @@ static const Import cppImports[] = {
   {"?sgetc@" STREAMBUF "QEAAHXZ", p_sgetc}, {"?snextc@" STREAMBUF "QEAAHXZ", p_snextc}, {"?sbumpc@" STREAMBUF "QEAAHXZ", p_sbumpc},
   {"?sputc@" STREAMBUF "QEAAHD@Z", p_sputc}, {"?sputn@" STREAMBUF "QEAA_JPEBD_J@Z", p_sputn},
   {"?getloc@" STREAMBUF "QEBA?AVlocale@2@XZ", p_sb_getloc},
+  {"?eback@" STREAMBUF "IEBAPEADXZ", p_sb_eback}, {"?pptr@" STREAMBUF "IEBAPEADXZ", p_sb_pptr},
+  {"?epptr@" STREAMBUF "IEBAPEADXZ", p_sb_epptr}, {"?_Pninc@" STREAMBUF "IEAAPEADXZ", p_sb_pninc},
+  {"?setp@" STREAMBUF "IEAAXPEAD0@Z", p_sb_setp}, {"?setp@" STREAMBUF "IEAAXPEAD00@Z", p_sb_setp3},
+  {"?setg@" STREAMBUF "IEAAXPEAD00@Z", p_sb_setg},
+  {"?good@ios_base@std@@QEBA_NXZ", p_ios_good}, {"?fail@ios_base@std@@QEBA_NXZ", p_ios_not},
+  {"?width@ios_base@std@@QEBA_JXZ", p_ios_width}, {"?rdbuf@" BASIC_IOS "QEBAPEAV" STREAMBUF_PARAM "XZ", p_ios_rdbuf},
+  {"??6" OSTREAM "QEAAAEAV01@PEAV" STREAMBUF_PARAM "@Z", p_os_streambuf},
   {"?setw@std@@YA?AU?$_Smanip@_J@1@_J@Z", p_setw}, {"?setprecision@std@@YA?AU?$_Smanip@_J@1@_J@Z", p_setprecision},
   {"?setiosflags@std@@YA?AU?$_Smanip@H@1@H@Z", p_setiosflags}, {"?resetiosflags@std@@YA?AU?$_Smanip@H@1@H@Z", p_resetiosflags},
   {"??0_Lockit@std@@QEAA@H@Z", p_Lockit}, {"??1_Lockit@std@@QEAA@XZ", p_nothing}, {"?_Getgloballocale@locale@std@@CAPEAV_Locimp@12@XZ", p_Getgloballocale},

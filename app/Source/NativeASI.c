@@ -173,6 +173,7 @@ static void hostPath(const char *windows, char *out, size_t cap) {
   const char *rel = p; if (rel[0] && rel[1] == ':') rel += 2;
   while (*rel == '/') rel++;
   if (!strncasecmp(rel, "GTA5/", 5)) rel += 5;
+  else if (!strcasecmp(rel, "GTA5")) rel += 4;
   // Each script's folder stands in for the game folder (Mods/<mod>/ when installed per mod).
   const char *base = cur && cur->module >= 0 && cur->module < moduleCount && modules[cur->module].root[0] ? modules[cur->module].root : H.files;
   size_t o = (size_t)snprintf(out, cap, "%s", base);
@@ -391,10 +392,92 @@ static uint64_t openFile(const char *windows, uint64_t access, uint64_t disposit
   if (flags & O_CREAT) { char dir[1100]; snprintf(dir, sizeof dir, "%s", p); char *s = strrchr(dir, '/'); if (s) { *s = 0; for (char *c = dir + strlen(H.files) + 1; c < dir + strlen(dir) && *c; c++) if (*c == '/') { *c = 0; mkdir(dir, 0755); *c = '/'; } mkdir(dir, 0755); } }
   int fd = open(p, flags | O_CLOEXEC, 0644);
   if (fd < 0) { setError(errno == ENOENT ? 2 : errno == EEXIST ? 80 : 5); return (uint64_t)-1; }
-  return newHandle(fd, 0);
+  uint64_t handle = newHandle(fd, 0);
+  Handle *entry = handleFor(handle);
+  if (!entry) { close(fd); setError(4); return (uint64_t)-1; }
+  snprintf(entry->path, sizeof entry->path, "%s", p);
+  return handle;
 }
 static uint64_t k_CreateFileW(void) { char n[1024]; wToUtf8(ARG(0), -1, n, sizeof n); return openFile(n, ARG(1), ARG(4)); }
 static uint64_t k_CreateFileA(void) { return openFile((const char *)G(ARG(0)), ARG(1), ARG(4)); }
+static uint64_t k_CreateFile2(void) {
+  char name[1024];
+  wToUtf8(ARG(0), -1, name, sizeof name);
+  return openFile(name, ARG(1), ARG(3));
+}
+static uint64_t moveModFile(const char *from, const char *to, bool replace) {
+  int result = replace ? rename(from, to) : renamex_np(from, to, RENAME_EXCL);
+  if (!result) return 1;
+  setError(errno == ENOENT ? 2 : errno == EEXIST ? 183 : 5);
+  return 0;
+}
+static uint64_t k_MoveFileExW(void) {
+  if (!ARG(1)) { setError(87); return 0; }
+  char from[1100], to[1100], name[1024];
+  wToUtf8(ARG(0), -1, name, sizeof name); hostPath(name, from, sizeof from);
+  wToUtf8(ARG(1), -1, name, sizeof name); hostPath(name, to, sizeof to);
+  return moveModFile(from, to, ARG(2) & 1);
+}
+static uint64_t winFileTime(time_t t) { return ((uint64_t)t + 11644473600ull) * 10000000ull; }
+
+static uint64_t k_GetFileInformationByHandleEx(void) {
+  Handle *entry = handleFor(ARG(0));
+  uint64_t out = ARG(2), size = ARG(3);
+  struct stat st;
+  if (!entry || entry->fd < 0 || fstat(entry->fd, &st)) { setError(6); return 0; }
+  uint32_t attributes = S_ISDIR(st.st_mode) ? 0x10 : 0x80;
+  switch (ARG(1)) {
+    case 0: // FileBasicInfo
+      if (size < 40) break;
+      memset(G(out), 0, 40);
+      wr64(out, winFileTime(st.st_birthtime));
+      wr64(out + 8, winFileTime(st.st_atime));
+      wr64(out + 16, winFileTime(st.st_mtime));
+      wr64(out + 24, winFileTime(st.st_ctime));
+      wr32(out + 32, attributes);
+      return 1;
+    case 1: // FileStandardInfo
+      if (size < 24) break;
+      memset(G(out), 0, 24);
+      wr64(out, (uint64_t)st.st_blocks * 512);
+      wr64(out + 8, (uint64_t)st.st_size);
+      wr32(out + 16, (uint32_t)st.st_nlink);
+      *G(out + 21) = S_ISDIR(st.st_mode) ? 1 : 0;
+      return 1;
+    case 9: // FileAttributeTagInfo
+      if (size < 8) break;
+      wr32(out, attributes);
+      wr32(out + 4, 0);
+      return 1;
+    case 18: // FileIdInfo
+      if (size < 24) break;
+      wr64(out, (uint64_t)st.st_dev);
+      wr64(out + 8, (uint64_t)st.st_ino);
+      wr64(out + 16, 0);
+      return 1;
+    default:
+      setError(50);
+      return 0;
+  }
+  setError(122);
+  return 0;
+}
+static uint64_t k_SetFileInformationByHandle(void) {
+  Handle *entry = handleFor(ARG(0));
+  if (!entry || entry->fd < 0 || !entry->path[0]) { setError(6); return 0; }
+  if (ARG(1) != 3 && ARG(1) != 22) { setError(50); return 0; }
+  uint64_t info = ARG(2);
+  if (ARG(3) < 20 || rd64(info + 8)) { setError(87); return 0; }
+  uint32_t bytes = rd32(info + 16);
+  if (!bytes || bytes % 2 || bytes > 1022 || bytes > ARG(3) - 20) { setError(87); return 0; }
+  char name[1024], to[1100];
+  wToUtf8(info + 20, bytes / 2, name, sizeof name);
+  if (!name[0]) { setError(87); return 0; }
+  hostPath(name, to, sizeof to);
+  if (!moveModFile(entry->path, to, rd32(info) & 1)) return 0;
+  snprintf(entry->path, sizeof entry->path, "%s", to);
+  return 1;
+}
 static uint64_t k_ReadFile(void) {
   Handle *f = handleFor(ARG(0)); if (!f || f->fd < 0) { if (ARG(3)) wr32(ARG(3), 0); return ARG(0) == 0x10 ? 1 : 0; }
   ssize_t n = read(f->fd, G(ARG(1)), (size_t)(uint32_t)ARG(2)); if (n < 0) return 0; if (ARG(3)) wr32(ARG(3), (uint32_t)n); return 1;
@@ -614,7 +697,8 @@ static const Import imports[] = {
   {"GetACP", k_GetACP}, {"GetOEMCP", k_GetOEMCP}, {"IsValidCodePage", k_one}, {"GetCPInfo", k_GetCPInfo}, {"MultiByteToWideChar", k_MultiByteToWideChar}, {"WideCharToMultiByte", k_WideCharToMultiByte},
   {"LCMapStringEx", k_LCMapStringEx}, {"LCMapStringW", k_LCMapStringW}, {"GetStringTypeW", k_GetStringTypeW}, {"CompareStringW", k_CompareStringW},
   {"GetLocaleInfoW", unimplemented}, {"IsValidLocale", k_one}, {"GetUserDefaultLCID", k_GetUserDefaultLCID}, {"EnumSystemLocalesW", k_one},
-  {"CreateFileW", k_CreateFileW}, {"CreateFileA", k_CreateFileA}, {"ReadFile", k_ReadFile}, {"WriteFile", k_WriteFile}, {"WriteConsoleW", k_WriteConsoleW}, {"ReadConsoleW", unimplemented},
+  {"CreateFileW", k_CreateFileW}, {"CreateFile2", k_CreateFile2}, {"MoveFileExW", k_MoveFileExW},
+  {"GetFileInformationByHandleEx", k_GetFileInformationByHandleEx}, {"SetFileInformationByHandle", k_SetFileInformationByHandle}, {"CreateFileA", k_CreateFileA}, {"ReadFile", k_ReadFile}, {"WriteFile", k_WriteFile}, {"WriteConsoleW", k_WriteConsoleW}, {"ReadConsoleW", unimplemented},
   {"CloseHandle", k_CloseHandle}, {"GetFileSizeEx", k_GetFileSizeEx}, {"SetFilePointerEx", k_SetFilePointerEx}, {"SetEndOfFile", k_SetEndOfFile}, {"FlushFileBuffers", k_one},
   {"GetFileType", k_GetFileType}, {"GetStdHandle", k_GetStdHandle}, {"SetStdHandle", k_one}, {"GetConsoleMode", k_GetConsoleMode}, {"GetConsoleOutputCP", k_GetConsoleOutputCP},
   {"CreateDirectoryW", k_CreateDirectoryW}, {"GetFileAttributesW", k_GetFileAttributesW}, {"GetFileAttributesExW", k_GetFileAttributesExW}, {"FindFirstFileW", k_FindFirstFileW},

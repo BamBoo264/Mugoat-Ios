@@ -66,7 +66,16 @@ static bool pg_vehicle_make_room(w2c_game *instance, u64 scratch, u64 owner) {
 }
 static bool pg_vehicle_memory_available(void) {
   uint64_t headroom;
-  return !nativeProcessHeadroom(&headroom) || headroom >= guardReserve();
+  if (!nativeProcessHeadroom(&headroom)) return true;
+  uint64_t reserve = novaMovementEnabled ? novaMovement.reserveBytes : guardReserve();
+  uint64_t pressureUntil = atomic_load(&novaMovement.pressureUntilMS);
+  if (pressureUntil && timeMS(CLOCK_MONOTONIC) <= pressureUntil && reserve < (192ull << 20)) reserve = 192ull << 20;
+  if (headroom >= reserve) return true;
+  char line[128];
+  snprintf(line, sizeof line, "Vehicle menu: memory headroom %llu MiB below %llu MiB minimum.",
+           (unsigned long long)(headroom >> 20), (unsigned long long)(reserve >> 20));
+  pg_log(line);
+  return false;
 }
 // The name the game shows for a vehicle, in the game's language: its display-name label
 // (GET_DISPLAY_NAME_FROM_VEHICLE_MODEL, "ADDER") looked up in the game's text with _GET_LABEL_TEXT,

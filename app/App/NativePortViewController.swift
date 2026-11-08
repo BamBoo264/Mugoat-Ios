@@ -1225,10 +1225,15 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         present(alert, animated: true)
     }
 
-    override func didReceiveMemoryWarning(){
+    private var lastMemoryWarningLog = -Double.infinity
+    override func didReceiveMemoryWarning() {
         super.didReceiveMemoryWarning()
         PGNotifyMemoryPressure()
-        appendLog("RAM: iOS memory warning; bounded unused-resource reclaim requested; active entities remain engine-owned.")
+        let now = CACurrentMediaTime()
+        guard now - lastMemoryWarningLog >= 1 else { return }
+        lastMemoryWarningLog = now
+        let available = os_proc_available_memory() / 1_048_576
+        appendLog("RAM: iOS memory warning, \(available) MiB process headroom; requested reclaim of unused assets.")
     }
     private var healthLines = 0
     private var lastStoryMission = "", lastReplayState: Int32 = -1
@@ -1243,7 +1248,11 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         if used >= 0 { used += Int(PGGPUTextureBytes() / 1_048_576) }   // counted as an iPhone counts it (see EngineHost.c)
         #endif
         let available = Int(os_proc_available_memory() / 1_048_576)
+        #if targetEnvironment(simulator)
         let free = available > 0 ? available : max(0, GameSettings.shared.tier.memoryLimitMB - used)
+        #else
+        let free = available
+        #endif
         healthLines += 1
         // An interruption that never ends (another app's audio, logs 700 and 613) leaves the game silent while it plays on (GTA-132).
         // Not while another app still plays: the player's own music would be cut off every 10 s.
