@@ -1940,17 +1940,20 @@ static int64_t vcall(int kind, bool *caught, uint64_t obj, int slot, int n, uint
   return (int64_t)guestCallAs(kind, rd64(rd64(obj) + 8 * (uint64_t)slot), args, n + 1, caught);
 }
 #define EOF_ (-1)
-static int sbSgetc(uint64_t sb, int kind, bool *caught) { return gavail(sb) > 0 ? *G(gptr(sb)) : (int)vcall(kind, caught, sb, 6, 0, 0, 0); }
+static int sbSgetc(uint64_t sb, int kind, bool *caught) { if (!sb) return EOF_; return gavail(sb) > 0 ? *G(gptr(sb)) : (int)vcall(kind, caught, sb, 6, 0, 0, 0); }
 static int sbSbumpc(uint64_t sb, int kind, bool *caught) {
+  if (!sb) return EOF_;
   if (gavail(sb) > 0) { uint8_t c = *G(gptr(sb)); gbump(sb, 1); return c; }
   return (int)vcall(kind, caught, sb, 7, 0, 0, 0);
 }
 static int sbSnextc(uint64_t sb, int kind, bool *caught) {
+  if (!sb) return EOF_;
   if (gavail(sb) > 1) { gbump(sb, 1); return *G(gptr(sb)); }
   if (sbSbumpc(sb, kind, caught) == EOF_ || leaving() || (caught && *caught)) return EOF_;
   return sbSgetc(sb, kind, caught);
 }
 static int sbSputc(uint64_t sb, int c, int kind, bool *caught) {
+  if (!sb) return EOF_;
   if (pavail(sb) > 0) { *G(pptr(sb)) = (uint8_t)c; pbump(sb, 1); return (uint8_t)c; }
   return (int)vcall(kind, caught, sb, 3, 1, (uint8_t)c, 0);
 }
@@ -1998,6 +2001,7 @@ static uint64_t p_sb_Init6(void) {  // _Init(&gfirst, &gnext, &gcount, &pfirst, 
   return 0;
 }
 static uint64_t p_sb_eback(void) { return rd64(rd64(ARG(0) + 24)); }
+static uint64_t p_sb_egptr(void) { return gptr(ARG(0)) + gavail(ARG(0)); }
 static uint64_t p_sb_pptr(void) { return pptr(ARG(0)); }
 static uint64_t p_sb_epptr(void) { return pptr(ARG(0)) + pavail(ARG(0)); }
 static uint64_t p_sb_pninc(void) { uint64_t sb = ARG(0), at = pptr(sb); pbump(sb, 1); return at; }
@@ -2590,11 +2594,11 @@ static const Import cppImports[] = {
   {"?sputc@" STREAMBUF "QEAAHD@Z", p_sputc}, {"?sputn@" STREAMBUF "QEAA_JPEBD_J@Z", p_sputn},
   {"?getloc@" STREAMBUF "QEBA?AVlocale@2@XZ", p_sb_getloc},
   {"?eback@" STREAMBUF "IEBAPEADXZ", p_sb_eback}, {"?pptr@" STREAMBUF "IEBAPEADXZ", p_sb_pptr},
-  {"?epptr@" STREAMBUF "IEBAPEADXZ", p_sb_epptr}, {"?_Pninc@" STREAMBUF "IEAAPEADXZ", p_sb_pninc},
+  {"?epptr@" STREAMBUF "IEBAPEADXZ", p_sb_epptr}, {"?egptr@" STREAMBUF "IEBAPEADXZ", p_sb_egptr}, {"?_Pninc@" STREAMBUF "IEAAPEADXZ", p_sb_pninc},
   {"?setp@" STREAMBUF "IEAAXPEAD0@Z", p_sb_setp}, {"?setp@" STREAMBUF "IEAAXPEAD00@Z", p_sb_setp3},
   {"?setg@" STREAMBUF "IEAAXPEAD00@Z", p_sb_setg},
   {"?good@ios_base@std@@QEBA_NXZ", p_ios_good}, {"?fail@ios_base@std@@QEBA_NXZ", p_ios_not},
-  {"?width@ios_base@std@@QEBA_JXZ", p_ios_width}, {"?rdbuf@" BASIC_IOS "QEBAPEAV" STREAMBUF_PARAM "XZ", p_ios_rdbuf},
+  {"?width@ios_base@std@@QEBA_JXZ", p_ios_width}, {"?rdbuf@" BASIC_IOS "QEBAPEAV?$basic_streambuf@DU?$char_traits@D@std@@@2@XZ", p_ios_rdbuf},
   {"??6" OSTREAM "QEAAAEAV01@PEAV" STREAMBUF_PARAM "@Z", p_os_streambuf},
   {"?setw@std@@YA?AU?$_Smanip@_J@1@_J@Z", p_setw}, {"?setprecision@std@@YA?AU?$_Smanip@_J@1@_J@Z", p_setprecision},
   {"?setiosflags@std@@YA?AU?$_Smanip@H@1@H@Z", p_setiosflags}, {"?resetiosflags@std@@YA?AU?$_Smanip@H@1@H@Z", p_resetiosflags},
