@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <setjmp.h>
 #include <stdarg.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -619,6 +620,8 @@ static uint8_t polledKeys[256], polledThisFrame[256];
 static uint8_t keysClosed[256], keysOpen[256], keysOpening[256], keysHinted[256];
 static uint32_t frameDraws, tickNumber, lastPressed[256];
 static bool menuVisible;
+static unsigned lspatrolDraws;
+static _Atomic bool lspatrolMenuVisible;
 static uint64_t u_GetAsyncKeyState(void) { int vk = (int)(ARG(0) & 255); polledKeys[vk] = 1; polledThisFrame[vk] = 1; return H.key_down && H.key_down(vk) ? 0x8000 : 0; }
 static uint64_t u_GetForegroundWindow(void) { return 0x10001; }
 static uint64_t u_GetActiveWindow(void) { return 0x10001; }
@@ -648,7 +651,11 @@ static uint64_t nativeArgs;  // guest copy of the arguments
 static uint64_t v_nativeCall(void) {
   if (!nativeArgs) nativeArgs = galloc(8 * 32);
   // DRAW_RECT, DRAW_SPRITE, END_TEXT_COMMAND_DISPLAY_TEXT: a mod drawing its menu (Mod keys pad).
-  if (cur->hash == 0x3a618a217e5154f0ull || cur->hash == 0xe7ffae5ebf23d890ull || cur->hash == 0xcd015e5bb0d96a57ull) frameDraws++;
+  if (cur->hash == 0x3a618a217e5154f0ull || cur->hash == 0xe7ffae5ebf23d890ull || cur->hash == 0xcd015e5bb0d96a57ull) {
+    frameDraws++;
+    if (cur->module >= 0 && cur->module < moduleCount &&
+        !strcasecmp(modules[cur->module].name, "LSPatrol.asi")) lspatrolDraws++;
+  }
   memcpy(G(nativeArgs), cur->args, 8 * cur->argc); memset(G(cur->result), 0, 64);
   if (!H.native(cur->hash, nativeArgs, cur->argc, cur->result)) {
     static uint64_t told[64]; static int toldCount; bool seen = false;
@@ -904,6 +911,8 @@ void pg_asi_tick(void) {
   bool visible = frameDraws >= 4;
   if (visible && !menuVisible) for (int k = 1; k < 256; k++) if (lastPressed[k] && tickNumber - lastPressed[k] < 20 && keysOpening[k] < 255) keysOpening[k]++;
   menuVisible = visible; frameDraws = 0; tickNumber++;
+  atomic_store_explicit(&lspatrolMenuVisible, lspatrolDraws >= 4, memory_order_relaxed);
+  lspatrolDraws = 0;
   for (int k = 1; k < 256; k++) if (polledThisFrame[k]) { uint8_t *count = visible ? &keysOpen[k] : &keysClosed[k]; if (*count < 255) (*count)++; polledThisFrame[k] = 0; }
   static int debug = -1; if (debug < 0) debug = getenv("ASI_DEBUG") != 0;
   if (debug) for (int i = 0; i < threadCount; i++) { Co *co = threads[i]; Module *mod = moduleAt(co->m->ip);
@@ -912,6 +921,7 @@ void pg_asi_tick(void) {
 void pg_asi_key_info(PGAsiKeyInfo *info) {
   memcpy(info->closed, keysClosed, 256); memcpy(info->open, keysOpen, 256); memcpy(info->opens, keysOpening, 256); memcpy(info->hinted, keysHinted, 256);
   info->menuVisible = menuVisible; info->keyboardHandler = keyboardCount > 0;
+  info->lspatrolMenuVisible = atomic_load_explicit(&lspatrolMenuVisible, memory_order_relaxed);
 }
 void pg_asi_key(int vk, bool down) {
   if (down && vk > 0 && vk < 256) lastPressed[vk] = tickNumber ? tickNumber : 1;

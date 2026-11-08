@@ -1856,6 +1856,9 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             controllerRadioWheel = false
             PGSetRadioWheelDirection(0, 0, false)
         }
+        if touchControlsAvailable && stoppedPanel == nil {
+            state.merge(modKeys.frontendPadState(now: now))
+        }
         #if targetEnvironment(simulator)
         debugLastPad = state
         #endif

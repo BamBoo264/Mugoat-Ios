@@ -36,7 +36,7 @@ void pg_asi_key(int virtualKey, bool down);
 // checked while no mod menu was drawn and while one was, which key presses made a menu appear,
 // and whether a menu is on screen now (mods drawing rectangles, sprites and text this frame).
 // hinted: keys a mod's own .ini names as its menu key (MenuKey=114, OpenKey=0x77, ToggleKey=F8).
-typedef struct { uint8_t closed[256], open[256], opens[256], hinted[256]; bool menuVisible, keyboardHandler; } PGAsiKeyInfo;
+typedef struct { uint8_t closed[256], open[256], opens[256], hinted[256]; bool menuVisible, keyboardHandler, lspatrolMenuVisible; } PGAsiKeyInfo;
 void pg_asi_key_info(PGAsiKeyInfo *info);
 // Keys (Windows virtual-key codes, 0-255) that mods have asked about through GetAsyncKeyState or
 // GetKeyState since start: the on-screen Mod keys pad offers these. Returns true when a mod also

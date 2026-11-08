@@ -20,6 +20,18 @@ final class ModKeysView: UIView, UIKeyInput {
     var navigationChanged: ((Bool) -> Void)?
     var activeChanged: ((Bool) -> Void)?
     private(set) var active = false
+    private var lspatrolNavigation = false
+    private var frontendHeld: PadButtons = []
+    private var frontendPressedAt: [UInt32: CFTimeInterval] = [:]
+
+    func frontendPadState(now: CFTimeInterval) -> PGPadState {
+        var state = PGPadState()
+        guard !dpad.isHidden else { return state }
+        frontendPressedAt = frontendPressedAt.filter { now - $0.value < 0.09 }
+        state.padButtons = frontendHeld
+        for bit in frontendPressedAt.keys { state.buttons |= bit }
+        return state
+    }
 
     private let tray = UIView()
     private let firstRow = UIStackView()
@@ -162,6 +174,10 @@ final class ModKeysView: UIView, UIKeyInput {
             navKeys = defaultNavGroups.map { $0.first ?? 0 }
             buildDpad()
         }
+        if lspatrolNavigation != info.lspatrolMenuVisible {
+            releaseAll()
+            lspatrolNavigation = info.lspatrolMenuVisible
+        }
         showNavigation(info.menuVisible && tray.isHidden && !typing)
         // The tray's keys are laid out again only while it's closed, so nothing moves under a finger.
         let sorted = found.sorted { Self.rank($0) == Self.rank($1) ? $0 < $1 : Self.rank($0) < Self.rank($1) }
@@ -209,7 +225,7 @@ final class ModKeysView: UIView, UIKeyInput {
         confirmationPad.subviews.forEach { $0.removeFromSuperview() }
         let spots: [(CGFloat, CGFloat)] = [(1, 0), (1, 2), (0, 1), (2, 1), (0, 0), (0, 1)]
         for (index, keys) in navKeyGroups.enumerated() where !keys.isEmpty {
-            let button = makeNavButton(keys: keys, title: ["▲", "▼", "◀", "▶", "OK", "Back"][index])
+            let button = makeNavButton(keys: keys, frontend: [.up, .down, .left, .right, .a, .b][index], title: ["▲", "▼", "◀", "▶", "OK", "Back"][index])
             let width: CGFloat = index < 4 ? 52 : 68
             button.frame = CGRect(x: spots[index].0 * 56, y: spots[index].1 * 56, width: width, height: 52)
             (index < 4 ? dpad : confirmationPad).addSubview(button)
@@ -223,10 +239,22 @@ final class ModKeysView: UIView, UIKeyInput {
         confirmationPad.frame = CGRect(x: safe.maxX - 82, y: safe.maxY - 142, width: 68, height: 108)
     }
 
-    private func makeNavButton(keys: [Int], title: String) -> UIView {
+    private func makeNavButton(keys: [Int], frontend: PadButtons, title: String) -> UIView {
         let button = ModKeyButton(key: keys.first ?? 0, title: title, pinned: false, compact: true)
         button.pressed = { [weak self] down in
-            for k in keys { self?.press(k, down) }
+            guard let self else { return }
+            // LSPatrol reads GTA's controller inputs for its menu, while trainers such as
+            // Menyoo use Windows keys. Keep the same visible buttons and select the input here.
+            if self.lspatrolNavigation {
+                if down {
+                    self.frontendHeld.insert(frontend)
+                    self.frontendPressedAt[frontend.rawValue] = CACurrentMediaTime()
+                } else {
+                    self.frontendHeld.remove(frontend)
+                }
+            } else {
+                for key in keys { self.press(key, down) }
+            }
         }
         return button
     }
@@ -261,6 +289,8 @@ final class ModKeysView: UIView, UIKeyInput {
         for key in keys { PGAsiSetKey(Int32(key), false) }
         for group in navKeyGroups { for key in group { PGAsiSetKey(Int32(key), false) } }
         latched.removeAll()
+        frontendHeld = []
+        frontendPressedAt.removeAll()
     }
 
     // MARK: ⌨ Type: the iPhone keyboard, as PC key presses
