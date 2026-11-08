@@ -2001,6 +2001,14 @@ static uint64_t p_sb_Init6(void) {  // _Init(&gfirst, &gnext, &gcount, &pfirst, 
   return 0;
 }
 static uint64_t p_sb_eback(void) { return rd64(rd64(ARG(0) + 24)); }
+static uint64_t p_sb_gptr(void) { return gptr(ARG(0)); }
+static uint64_t p_sb_pbase(void) { return rd64(rd64(ARG(0) + 32)); }
+static uint64_t p_sb_gnavail(void) { return (uint64_t)(int64_t)gavail(ARG(0)); }
+static uint64_t p_sb_pnavail(void) { return (uint64_t)(int64_t)pavail(ARG(0)); }
+static uint64_t p_sb_gbump(void) { gbump(ARG(0), (int32_t)ARG(1)); return 0; }
+static uint64_t p_sb_pbump(void) { pbump(ARG(0), (int32_t)ARG(1)); return 0; }
+static uint64_t p_sb_gninc(void) { uint64_t sb = ARG(0), at = gptr(sb); gbump(sb, 1); return at; }
+static uint64_t p_sb_gndec(void) { uint64_t sb = ARG(0); gbump(sb, -1); return gptr(sb); }
 static uint64_t p_sb_egptr(void) { return gptr(ARG(0)) + gavail(ARG(0)); }
 static uint64_t p_sb_pptr(void) { return pptr(ARG(0)); }
 static uint64_t p_sb_epptr(void) { return pptr(ARG(0)) + pavail(ARG(0)); }
@@ -2052,6 +2060,11 @@ static uint64_t p_ios_bool(void) { return (rd32(ARG(0) + IOS_STATE) & 6) == 0; }
 static uint64_t p_ios_not(void) { return (rd32(ARG(0) + IOS_STATE) & 6) != 0; }
 static uint64_t p_ios_good(void) { return good(ARG(0)); }
 static uint64_t p_ios_rdbuf(void) { return rd64(ARG(0) + IOS_BUF); }
+static uint64_t p_ios_tie(void) { return rd64(ARG(0) + IOS_TIE); }
+static uint64_t p_ios_fill(void) { return *G(ARG(0) + IOS_FILL); }
+static uint64_t p_ios_flags(void) { return rd32(ARG(0) + IOS_FLAGS); }
+static uint64_t p_ios_bad(void) { return (rd32(ARG(0) + IOS_STATE) & 4) != 0; }
+static uint64_t p_ios_setwidth(void) { uint64_t old = rd64(ARG(0) + IOS_WIDE); wr64(ARG(0) + IOS_WIDE, ARG(1)); return old; }
 static uint64_t p_ios_width(void) { return rd64(ARG(0) + IOS_WIDE); }
 // Manipulators: setw(n) and setprecision(n) return {function, n} by hidden pointer; the inline operator<< calls the
 // function with the stream's ios_base.
@@ -2593,11 +2606,19 @@ static const Import cppImports[] = {
   {"?sgetc@" STREAMBUF "QEAAHXZ", p_sgetc}, {"?snextc@" STREAMBUF "QEAAHXZ", p_snextc}, {"?sbumpc@" STREAMBUF "QEAAHXZ", p_sbumpc},
   {"?sputc@" STREAMBUF "QEAAHD@Z", p_sputc}, {"?sputn@" STREAMBUF "QEAA_JPEBD_J@Z", p_sputn},
   {"?getloc@" STREAMBUF "QEBA?AVlocale@2@XZ", p_sb_getloc},
-  {"?eback@" STREAMBUF "IEBAPEADXZ", p_sb_eback}, {"?pptr@" STREAMBUF "IEBAPEADXZ", p_sb_pptr},
+  {"?eback@" STREAMBUF "IEBAPEADXZ", p_sb_eback}, {"?gptr@" STREAMBUF "IEBAPEADXZ", p_sb_gptr},
+  {"?pbase@" STREAMBUF "IEBAPEADXZ", p_sb_pbase}, {"?pptr@" STREAMBUF "IEBAPEADXZ", p_sb_pptr},
+  {"?gbump@" STREAMBUF "IEAAXH@Z", p_sb_gbump}, {"?pbump@" STREAMBUF "IEAAXH@Z", p_sb_pbump},
+  {"?_Gndec@" STREAMBUF "IEAAPEADXZ", p_sb_gndec}, {"?_Gninc@" STREAMBUF "IEAAPEADXZ", p_sb_gninc},
+  {"?_Gnavail@" STREAMBUF "IEBA_JXZ", p_sb_gnavail}, {"?_Pnavail@" STREAMBUF "IEBA_JXZ", p_sb_pnavail},
   {"?epptr@" STREAMBUF "IEBAPEADXZ", p_sb_epptr}, {"?egptr@" STREAMBUF "IEBAPEADXZ", p_sb_egptr}, {"?_Pninc@" STREAMBUF "IEAAPEADXZ", p_sb_pninc},
   {"?setp@" STREAMBUF "IEAAXPEAD0@Z", p_sb_setp}, {"?setp@" STREAMBUF "IEAAXPEAD00@Z", p_sb_setp3},
   {"?setg@" STREAMBUF "IEAAXPEAD00@Z", p_sb_setg},
   {"?good@ios_base@std@@QEBA_NXZ", p_ios_good}, {"?fail@ios_base@std@@QEBA_NXZ", p_ios_not},
+  {"?flags@ios_base@std@@QEBAHXZ", p_ios_flags}, {"?bad@ios_base@std@@QEBA_NXZ", p_ios_bad},
+  {"?width@ios_base@std@@QEAA_J_J@Z", p_ios_setwidth},
+  {"?tie@" BASIC_IOS "QEBAPEAV?$basic_ostream@DU?$char_traits@D@std@@@2@XZ", p_ios_tie},
+  {"?fill@" BASIC_IOS "QEBADXZ", p_ios_fill},
   {"?width@ios_base@std@@QEBA_JXZ", p_ios_width}, {"?rdbuf@" BASIC_IOS "QEBAPEAV?$basic_streambuf@DU?$char_traits@D@std@@@2@XZ", p_ios_rdbuf},
   {"??6" OSTREAM "QEAAAEAV01@PEAV" STREAMBUF_PARAM "@Z", p_os_streambuf},
   {"?setw@std@@YA?AU?$_Smanip@_J@1@_J@Z", p_setw}, {"?setprecision@std@@YA?AU?$_Smanip@_J@1@_J@Z", p_setprecision},
