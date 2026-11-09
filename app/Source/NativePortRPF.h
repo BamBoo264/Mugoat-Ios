@@ -23,6 +23,100 @@ static NSString *portRPFCacheDir = nil;
 static NSMutableDictionary<NSString *, NSValue *> *portRPFChildMap = nil;
 static pthread_mutex_t portRPFLock = PTHREAD_MUTEX_INITIALIZER;
 
+// Persistent file descriptor cache for top-level RPF archives to eliminate open()/close() syscall churn.
+typedef struct {
+    char relPath[128];
+    int fd;
+} PGPortArchiveFD;
+static PGPortArchiveFD portArchiveFDs[128];
+static int portArchiveFDCount = 0;
+static pthread_mutex_t portArchiveFDLock = PTHREAD_MUTEX_INITIALIZER;
+
+static int PGGetPortArchiveFD(const char *relPath) {
+    if (!portRPFRoot || !relPath || !*relPath) return -1;
+    pthread_mutex_lock(&portArchiveFDLock);
+    for (int i = 0; i < portArchiveFDCount; i++) {
+        if (strcmp(portArchiveFDs[i].relPath, relPath) == 0) {
+            int fd = portArchiveFDs[i].fd;
+            pthread_mutex_unlock(&portArchiveFDLock);
+            return fd;
+        }
+    }
+    if (portArchiveFDCount < 128) {
+        NSString *archPath = [portRPFRoot stringByAppendingPathComponent:@(relPath)];
+        int fd = open(archPath.fileSystemRepresentation, O_RDONLY);
+        if (fd >= 0) {
+            fcntl(fd, F_SETFD, FD_CLOEXEC);
+            strncpy(portArchiveFDs[portArchiveFDCount].relPath, relPath, sizeof(portArchiveFDs[portArchiveFDCount].relPath) - 1);
+            portArchiveFDs[portArchiveFDCount].fd = fd;
+            portArchiveFDCount++;
+            pthread_mutex_unlock(&portArchiveFDLock);
+            return fd;
+        }
+    }
+    pthread_mutex_unlock(&portArchiveFDLock);
+    return -1;
+}
+
+// Lightweight RAM cache for frequently-read small metadata / header blocks (<= 32 KB).
+#define PG_BLOCK_CACHE_LINES 256
+#define PG_BLOCK_CACHE_MAX_LEN 32768
+
+typedef struct {
+    uint32_t pathHash;
+    uint64_t offset;
+    uint32_t length;
+    uint8_t data[PG_BLOCK_CACHE_MAX_LEN];
+    pthread_mutex_t lock;
+} PGBlockCacheLine;
+
+static PGBlockCacheLine portBlockCache[PG_BLOCK_CACHE_LINES];
+static pthread_once_t portBlockCacheOnce = PTHREAD_ONCE_INIT;
+
+static void PGInitBlockCacheOnce(void) {
+    for (int i = 0; i < PG_BLOCK_CACHE_LINES; i++) {
+        pthread_mutex_init(&portBlockCache[i].lock, NULL);
+    }
+}
+
+static inline uint32_t pg_hash_path_offset(const char *path, uint64_t offset) {
+    uint32_t h = 2166136261u;
+    while (*path) { h ^= (uint8_t)*path++; h *= 16777619u; }
+    h ^= (uint32_t)offset; h *= 16777619u;
+    h ^= (uint32_t)(offset >> 32); h *= 16777619u;
+    return h;
+}
+
+static bool PGTryReadBlockCache(const char *relPath, uint64_t offset, uint8_t *dest, uint32_t length) {
+    if (length > PG_BLOCK_CACHE_MAX_LEN) return false;
+    pthread_once(&portBlockCacheOnce, PGInitBlockCacheOnce);
+    uint32_t h = pg_hash_path_offset(relPath, offset);
+    size_t idx = h % PG_BLOCK_CACHE_LINES;
+    PGBlockCacheLine *line = &portBlockCache[idx];
+    pthread_mutex_lock(&line->lock);
+    if (line->length == length && line->offset == offset && line->pathHash == h) {
+        memcpy(dest, line->data, length);
+        pthread_mutex_unlock(&line->lock);
+        return true;
+    }
+    pthread_mutex_unlock(&line->lock);
+    return false;
+}
+
+static void PGStoreBlockCache(const char *relPath, uint64_t offset, const uint8_t *src, uint32_t length) {
+    if (length > PG_BLOCK_CACHE_MAX_LEN) return;
+    pthread_once(&portBlockCacheOnce, PGInitBlockCacheOnce);
+    uint32_t h = pg_hash_path_offset(relPath, offset);
+    size_t idx = h % PG_BLOCK_CACHE_LINES;
+    PGBlockCacheLine *line = &portBlockCache[idx];
+    pthread_mutex_lock(&line->lock);
+    line->pathHash = h;
+    line->offset = offset;
+    line->length = length;
+    memcpy(line->data, src, length);
+    pthread_mutex_unlock(&line->lock);
+}
+
 static void PGIndexRPFChildren(NSString *rpfFullPath, NSString *relPath) {
     int fd = open(rpfFullPath.fileSystemRepresentation, O_RDONLY);
     if (fd < 0) return;
@@ -257,7 +351,43 @@ static inline void PGPatchRPFEncryptionHeader(NSString *relPath, uint64_t offset
 static int64_t PGReadPortRPFAsset(NSString *relPath, uint64_t offset, uint8_t *destination, uint32_t length) {
     if (!portRPFRoot || !length) return -1;
 
-    // 1. Check extracted metadata cache (<cacheRoot>/rpf_cache/<relPath>)
+    const char *relCStr = relPath.UTF8String;
+    if (relCStr && PGTryReadBlockCache(relCStr, offset, destination, length)) {
+        PGPatchRPFEncryptionHeader(relPath, offset, destination, (int64_t)length);
+        return (int64_t)length;
+    }
+
+    // 1. Fast path: check child RPF map FIRST
+    NSString *baseName = [relPath lastPathComponent].lowercaseString;
+    NSValue *val = [portRPFChildMap objectForKey:baseName];
+    if (val) {
+        PGPortRPFChildEntry child;
+        [val getValue:&child];
+        int afd = PGGetPortArchiveFD(child.archiveRel);
+        if (afd >= 0) {
+            ssize_t n = pread(afd, destination, length, (off_t)(child.blockOffset * 512 + offset));
+            if (n >= 0) {
+                PGPatchRPFEncryptionHeader(relPath, offset, destination, (int64_t)n);
+                if (n == (ssize_t)length && relCStr) PGStoreBlockCache(relCStr, offset, destination, length);
+                return (int64_t)n;
+            }
+        }
+    }
+
+    // 2. Audio fallback
+    if ([relPath isEqualToString:@"x64/audio/audio.rpf"]) {
+        int afd = PGGetPortArchiveFD("x64/audio/audio_rel.rpf");
+        if (afd >= 0) {
+            ssize_t n = pread(afd, destination, length, (off_t)offset);
+            if (n >= 0) {
+                PGPatchRPFEncryptionHeader(relPath, offset, destination, (int64_t)n);
+                if (n == (ssize_t)length && relCStr) PGStoreBlockCache(relCStr, offset, destination, length);
+                return (int64_t)n;
+            }
+        }
+    }
+
+    // 3. Check extracted metadata cache (<cacheRoot>/rpf_cache/<relPath>)
     if (portRPFCacheDir) {
         NSString *cachePath = [portRPFCacheDir stringByAppendingPathComponent:relPath];
         int cfd = open(cachePath.fileSystemRepresentation, O_RDONLY);
@@ -266,12 +396,13 @@ static int64_t PGReadPortRPFAsset(NSString *relPath, uint64_t offset, uint8_t *d
             close(cfd);
             if (n >= 0) {
                 PGPatchRPFEncryptionHeader(relPath, offset, destination, (int64_t)n);
+                if (n == (ssize_t)length && relCStr) PGStoreBlockCache(relCStr, offset, destination, length);
                 return (int64_t)n;
             }
         }
     }
 
-    // 2. Check loose file in port folder (<localDataRoot>/<relPath>)
+    // 4. Check loose file in port folder (<localDataRoot>/<relPath>)
     NSString *loosePath = [portRPFRoot stringByAppendingPathComponent:relPath];
     int lfd = open(loosePath.fileSystemRepresentation, O_RDONLY);
     if (lfd >= 0) {
@@ -279,39 +410,8 @@ static int64_t PGReadPortRPFAsset(NSString *relPath, uint64_t offset, uint8_t *d
         close(lfd);
         if (n >= 0) {
             PGPatchRPFEncryptionHeader(relPath, offset, destination, (int64_t)n);
+            if (n == (ssize_t)length && relCStr) PGStoreBlockCache(relCStr, offset, destination, length);
             return (int64_t)n;
-        }
-    }
-
-    // 3. Fallbacks for audio
-    if ([relPath isEqualToString:@"x64/audio/audio.rpf"]) {
-        NSString *audioRel = [portRPFRoot stringByAppendingPathComponent:@"x64/audio/audio_rel.rpf"];
-        int afd = open(audioRel.fileSystemRepresentation, O_RDONLY);
-        if (afd >= 0) {
-            ssize_t n = pread(afd, destination, length, (off_t)offset);
-            close(afd);
-            if (n >= 0) {
-                PGPatchRPFEncryptionHeader(relPath, offset, destination, (int64_t)n);
-                return (int64_t)n;
-            }
-        }
-    }
-
-    // 4. Check child RPF map
-    NSString *baseName = [relPath lastPathComponent].lowercaseString;
-    NSValue *val = [portRPFChildMap objectForKey:baseName];
-    if (val) {
-        PGPortRPFChildEntry child;
-        [val getValue:&child];
-        NSString *archPath = [portRPFRoot stringByAppendingPathComponent:@(child.archiveRel)];
-        int afd = open(archPath.fileSystemRepresentation, O_RDONLY);
-        if (afd >= 0) {
-            ssize_t n = pread(afd, destination, length, (off_t)(child.blockOffset * 512 + offset));
-            close(afd);
-            if (n >= 0) {
-                PGPatchRPFEncryptionHeader(relPath, offset, destination, (int64_t)n);
-                return (int64_t)n;
-            }
         }
     }
 

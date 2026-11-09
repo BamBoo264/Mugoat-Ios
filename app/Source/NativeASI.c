@@ -635,8 +635,18 @@ static uint8_t keysClosed[256], keysOpen[256], keysOpening[256], keysHinted[256]
 static uint32_t frameDraws, tickNumber, lastPressed[256];
 static bool menuVisible;
 static unsigned lspatrolDraws;
+static uint32_t lspatrolCalloutTicks;
 static _Atomic bool lspatrolMenuVisible;
-static uint64_t u_GetAsyncKeyState(void) { int vk = (int)(ARG(0) & 255); polledKeys[vk] = 1; polledThisFrame[vk] = 1; return H.key_down && H.key_down(vk) ? 0x8000 : 0; }
+static _Atomic bool lspatrolCalloutPending;
+static _Atomic bool lspatrolLoaded;
+static uint64_t u_GetAsyncKeyState(void) {
+  int vk = (int)(ARG(0) & 255);
+  polledKeys[vk] = 1; polledThisFrame[vk] = 1;
+  if (cur->module >= 0 && cur->module < moduleCount && modules[cur->module].lspatrol) {
+    if (vk == 0x59 || vk == 0x4E) lspatrolCalloutTicks = tickNumber ? tickNumber : 1;
+  }
+  return H.key_down && H.key_down(vk) ? 0x8000 : 0;
+}
 static uint64_t u_GetForegroundWindow(void) { return 0x10001; }
 static uint64_t u_GetActiveWindow(void) { return 0x10001; }
 static uint64_t u_GetWindowThreadProcessId(void) {
@@ -817,6 +827,9 @@ bool pg_asi_init(const PGAsiHost *host) {
 // never ask about them, but their .ini files name them ("MenuKey=114", "OpenKey=0x77", "ToggleKey=F8").
 static int keyFromName(const char *v) {
   while (*v == ' ' || *v == '\t') v++;
+  if ((v[0] >= 'A' && v[0] <= 'Z') || (v[0] >= 'a' && v[0] <= 'z')) {
+    if (v[1] == 0 || v[1] == ' ' || v[1] == '\t' || v[1] == '\r' || v[1] == '\n') return (int)toupper((unsigned char)v[0]);
+  }
   if ((v[0] == 'F' || v[0] == 'f') && v[1] >= '1' && v[1] <= '9') { int n = atoi(v + 1); if (n >= 1 && n <= 24) return 0x6F + n; }
   if (v[0] == '0' && (v[1] == 'x' || v[1] == 'X')) return (int)strtol(v, 0, 16);
   if (v[0] >= '0' && v[0] <= '9') return atoi(v);
@@ -838,7 +851,8 @@ static void hintKeys(const char *folder, int depth) {
       key[k] = 0;
       // Only settings that mean "open the menu": MenuKey, OpenKey, MenuOpenKey, ToggleMenuKey...
       static const char *names[] = {"menukey", "openkey", "menuopenkey", "openmenukey", "togglekey", "togglemenukey", "menutogglekey",
-                                     "keymenu", "keyopen", "openmenu", "menuopen", "togglemenu", "menutoggle", "menuhotkey", "openmenuhotkey"};
+                                     "keymenu", "keyopen", "openmenu", "menuopen", "togglemenu", "menutoggle", "menuhotkey", "openmenuhotkey",
+                                     "acceptkey", "declinekey", "backupkey", "forcecalloutkey"};
       bool wanted = false; for (size_t i = 0; i < sizeof names / sizeof *names; i++) if (!strcmp(key, names[i])) wanted = true;
       if (!wanted) continue;
       int vk = keyFromName(eq + 1);
@@ -899,6 +913,10 @@ int pg_asi_load(const char *name, const char *root, const uint8_t *bytes, uint64
   if (missing) logf_("ASI %s: %d Windows function%s not available on iOS (they return 0): %s", name, missing, missing == 1 ? "" : "s", missingList);
   Module *mod = &modules[moduleCount++]; snprintf(mod->name, sizeof mod->name, "%s", name); snprintf(mod->root, sizeof mod->root, "%s", root ? root : H.files);
   mod->lspatrol = !strcasecmp(name, "LSPatrol.asi");
+  if (mod->lspatrol) {
+    atomic_store_explicit(&lspatrolLoaded, true, memory_order_relaxed);
+    keysHinted[0x59] = 1; keysHinted[0x4E] = 1; keysHinted[0x42] = 1; keysHinted[0x79] = 1;
+  }
   hintKeys(mod->root, 0); mod->base = base; mod->size = sizeOfImage; mod->entry = entry ? base + entry : 0;
   mod->pdata = pdataAt ? base + pdataAt : 0; mod->pdataCount = pdataSize / 12;
   if (tlsAt) {
@@ -928,6 +946,8 @@ void pg_asi_tick(void) {
   menuVisible = visible; frameDraws = 0; tickNumber++;
   atomic_store_explicit(&lspatrolMenuVisible, lspatrolDraws >= 4, memory_order_relaxed);
   lspatrolDraws = 0;
+  bool calloutPending = lspatrolCalloutTicks && (tickNumber >= lspatrolCalloutTicks) && (tickNumber - lspatrolCalloutTicks < 60);
+  atomic_store_explicit(&lspatrolCalloutPending, calloutPending, memory_order_relaxed);
   for (int k = 1; k < 256; k++) if (polledThisFrame[k]) { uint8_t *count = visible ? &keysOpen[k] : &keysClosed[k]; if (*count < 255) (*count)++; polledThisFrame[k] = 0; }
   static int debug = -1; if (debug < 0) debug = getenv("ASI_DEBUG") != 0;
   if (debug) for (int i = 0; i < threadCount; i++) { Co *co = threads[i]; Module *mod = moduleAt(co->m->ip);
@@ -937,6 +957,8 @@ void pg_asi_key_info(PGAsiKeyInfo *info) {
   memcpy(info->closed, keysClosed, 256); memcpy(info->open, keysOpen, 256); memcpy(info->opens, keysOpening, 256); memcpy(info->hinted, keysHinted, 256);
   info->menuVisible = menuVisible; info->keyboardHandler = keyboardCount > 0;
   info->lspatrolMenuVisible = atomic_load_explicit(&lspatrolMenuVisible, memory_order_relaxed);
+  info->lspatrolCalloutPending = atomic_load_explicit(&lspatrolCalloutPending, memory_order_relaxed);
+  info->lspatrolLoaded = atomic_load_explicit(&lspatrolLoaded, memory_order_relaxed);
 }
 void pg_asi_key(int vk, bool down) {
   if (down && vk > 0 && vk < 256) lastPressed[vk] = tickNumber ? tickNumber : 1;

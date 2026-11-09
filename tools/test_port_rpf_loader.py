@@ -141,5 +141,45 @@ class TestPortRPFLoader(unittest.TestCase):
         _, _, _, enc = struct.unpack("<IIII", res)
         self.assertEqual(enc, 0x0FFFFFF9)
 
+    def test_persistent_archive_fd_cache_and_optimization(self):
+        root = Path(__file__).resolve().parents[1]
+        rpf_h = root / "app/Source/NativePortRPF.h"
+        content_h = rpf_h.read_text(encoding="utf-8")
+        self.assertIn("PGGetPortArchiveFD", content_h, "PGGetPortArchiveFD must exist for persistent FD caching")
+        self.assertIn("portArchiveFDs", content_h, "portArchiveFDs table must be defined")
+        self.assertIn("PGTryReadBlockCache", content_h, "RAM block cache lookup must be implemented")
+        self.assertIn("PGStoreBlockCache", content_h, "RAM block cache store must be implemented")
+
+        assets_m = root / "app/Source/NativeAssets.m"
+        content_m = assets_m.read_text(encoding="utf-8")
+        # Ensure isLocalPortRPF check precedes loose file open() to eliminate ENOENT churn
+        port_check_idx = content_m.find("if(isLocalPortRPF)")
+        loose_open_idx = content_m.find("int descriptor=open(file.fileSystemRepresentation,O_RDONLY);")
+        self.assertGreater(port_check_idx, -1)
+        self.assertGreater(loose_open_idx, -1)
+        self.assertLess(port_check_idx, loose_open_idx, "isLocalPortRPF check must come before loose file open()")
+
+    def test_lspatrol_blip_natives_and_callout_support(self):
+        root = Path(__file__).resolve().parents[1]
+        inc = root / "app/Generated/asi-natives.inc"
+        self.assertTrue(inc.exists(), "asi-natives.inc must exist")
+        inc_content = inc.read_text(encoding="utf-8")
+        self.assertIn("0x586afe3ff72d996eull", inc_content, "GET_BLIP_COORDS must be in asi-natives.inc")
+        self.assertIn("0xc0296a2edf545e92ull", inc_content, "IS_MODEL_VALID must be in asi-natives.inc")
+        self.assertIn("0xe83a3e3557a56640ull", inc_content, "SCALEFORM_MOVIE_METHOD_ADD_PARAM_PLAYER_NAME_STRING must be in asi-natives.inc")
+
+        asi_h = root / "app/Source/NativeASI.h"
+        asi_h_content = asi_h.read_text(encoding="utf-8")
+        self.assertIn("lspatrolCalloutPending", asi_h_content, "lspatrolCalloutPending must be declared in PGAsiKeyInfo")
+        self.assertIn("lspatrolLoaded", asi_h_content, "lspatrolLoaded must be declared in PGAsiKeyInfo")
+
+        modkeys_swift = root / "app/App/ModKeysView.swift"
+        mk_content = modkeys_swift.read_text(encoding="utf-8")
+        self.assertIn("calloutPad", mk_content, "ModKeysView must define calloutPad for callout acceptance")
+        self.assertIn("calloutAcceptDown", mk_content, "ModKeysView must have accept handler")
+        self.assertIn("calloutDeclineDown", mk_content, "ModKeysView must have decline handler")
+        self.assertIn("PGAsiSetKey(0x59", mk_content, "ModKeysView must send key 0x59 (Y)")
+        self.assertIn("PGAsiSetKey(0x4E", mk_content, "ModKeysView must send key 0x4E (N)")
+
 if __name__ == "__main__":
     unittest.main()

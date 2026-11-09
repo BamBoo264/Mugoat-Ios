@@ -550,7 +550,9 @@ void pg_assets_configure(const char *manifest,const char *root) {
     prefetchQueue=dispatch_queue_create("playgta5.assets.prefetch",assetBalancedQOS?dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_CONCURRENT,QOS_CLASS_UTILITY,0):DISPATCH_QUEUE_CONCURRENT);
     speculativeQueue=assetBalancedQOS?dispatch_queue_create("playgta5.assets.speculation",dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_CONCURRENT,QOS_CLASS_BACKGROUND,0)):prefetchQueue;
     pg_log(assetBalancedQOS?"Native background asset priorities: utility hints, background speculation (opt-in).":"Native background asset priorities: original.");
-    if(!localDataRoot)[[assetSession dataTaskWithURL:[NSURL URLWithString:[assetServer stringByAppendingString:@"/data/manifest.json"]] completionHandler:^(NSData *body,NSURLResponse *response,NSError *error){
+    if(localDataRoot){
+      pg_log("[NativeAssets] Local game data active: direct zero-copy disk access enabled. AssetCache folder remains empty by design to avoid duplicating 65 GB on local storage.");
+    } else [[assetSession dataTaskWithURL:[NSURL URLWithString:[assetServer stringByAppendingString:@"/data/manifest.json"]] completionHandler:^(NSData *body,NSURLResponse *response,NSError *error){
       if(error){NSString *message=[@"Asset server connection failed: " stringByAppendingString:error.localizedDescription];pg_log(message.UTF8String);}
       else if([(NSHTTPURLResponse *)response statusCode]==200){pg_log("Connected to the asset server.");}
       else {NSString *message=[NSString stringWithFormat:@"Asset server probe HTTP %ld, URL %@, server %@",(long)[(NSHTTPURLResponse *)response statusCode],response.URL,[(NSHTTPURLResponse *)response valueForHTTPHeaderField:@"Server"]];pg_log(message.UTF8String);}
@@ -689,8 +691,7 @@ static int64_t readLocalAsset(uint32_t id,uint64_t offset,uint8_t *destination,u
   NSString *file=modFiles[@(id)]?:[localDataRoot stringByAppendingPathComponent:entry[0]];
   PGModArchive *changed=modArchiveCount?modArchiveFor(id):NULL;
   if(changed){int64_t got=readModArchive(changed,file,offset,destination,length);if(got>=0)assetReadSource=4;return got;}
-  int descriptor=open(file.fileSystemRepresentation,O_RDONLY);
-  if(descriptor<0 && isLocalPortRPF){
+  if(isLocalPortRPF){
     int64_t rpfGot = PGReadPortRPFAsset(entry[0], offset, destination, length);
     if(rpfGot >= 0){
       assetReadSource=4;
@@ -698,6 +699,7 @@ static int64_t readLocalAsset(uint32_t id,uint64_t offset,uint8_t *destination,u
       return rpfGot;
     }
   }
+  int descriptor=open(file.fileSystemRepresentation,O_RDONLY);
   if(descriptor<0){NSString *message=[@"Game file missing from your folder: " stringByAppendingString:entry[0]];pg_log(message.UTF8String);return -1;}
   uint64_t done=0;
   while(done<length){

@@ -1900,6 +1900,21 @@ static bool pg_asi_text_command(uint64_t hash, uint64_t arguments, uint32_t coun
     uint64_t pointer = atomic_load(&pg_asi_text_state) == 1 ? text : 0; memcpy(pg_pointer(&env, result, 8), &pointer, 8); return true;
   }
   if (hash == 0x58a39be597ce99cdull) { atomic_store(&pg_asi_text_state, 2); return true; }  // CANCEL_ONSCREEN_KEYBOARD
+  if (hash == 0xd0ef8a959b8a4cb9ull) {  // GET_STREET_NAME_FROM_HASH_KEY
+    static uint64_t streetBuf;
+    if (!streetBuf) {
+      streetBuf = pg_asi_alloc(64);
+      char *ptr = pg_pointer(&env, streetBuf, 64);
+      if (ptr) snprintf(ptr, 64, "San Andreas Blvd");
+    }
+    memcpy(pg_pointer(&env, result, 8), &streetBuf, 8);
+    return true;
+  }
+  if (hash == 0x6638c0f19de692feull) {  // _IS_VEHICLE_GEN9_EXCLUSIVE_MODEL
+    uint64_t zero = 0;
+    memcpy(pg_pointer(&env, result, 8), &zero, 8);
+    return true;
+  }
   return false;
 }
 static bool pg_asi_native(uint64_t hash, uint64_t arguments, uint32_t count, uint64_t result) {

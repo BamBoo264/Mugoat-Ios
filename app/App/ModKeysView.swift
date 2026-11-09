@@ -26,7 +26,7 @@ final class ModKeysView: UIView, UIKeyInput {
 
     func frontendPadState(now: CFTimeInterval) -> PGPadState {
         var state = PGPadState()
-        guard !dpad.isHidden else { return state }
+        guard !dpad.isHidden || !calloutPad.isHidden else { return state }
         frontendPressedAt = frontendPressedAt.filter { now - $0.value < 0.09 }
         state.padButtons = frontendHeld
         for bit in frontendPressedAt.keys { state.buttons |= bit }
@@ -39,6 +39,7 @@ final class ModKeysView: UIView, UIKeyInput {
     private let grid = UIStackView()
     private let dpad = UIView()
     private let confirmationPad = UIView()
+    private let calloutPad = UIView()
     private var trayTop: NSLayoutConstraint?, trayCenter: NSLayoutConstraint?
     private var keys: [Int] = []
     private var firstRowKeys: [Int] = []
@@ -73,8 +74,13 @@ final class ModKeysView: UIView, UIKeyInput {
         scroll.addSubview(grid)
         dpad.isHidden = true
         confirmationPad.isHidden = true
+        calloutPad.backgroundColor = UIColor.black.withAlphaComponent(0.65)
+        calloutPad.layer.cornerRadius = 14
+        calloutPad.isHidden = true
         addSubview(dpad)
         addSubview(confirmationPad)
+        addSubview(calloutPad)
+        buildCalloutPad()
         trayTop = tray.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 60)
         trayCenter = tray.centerXAnchor.constraint(equalTo: centerXAnchor)
         NSLayoutConstraint.activate([
@@ -140,6 +146,7 @@ final class ModKeysView: UIView, UIKeyInput {
         // usual keys (F-keys, number pad, arrows...), and the keys their .ini names.
         var found = (1..<256).filter { (closed[$0] != 0 || open[$0] != 0 || hinted[$0] != 0) && Self.name($0) != nil }
         if info.keyboardHandler { found = Array(Set(found).union(Self.standard)) }
+        if info.lspatrolLoaded { found = Array(Set(found).union([0x59, 0x4E, 0x42, 0x79])) }
         let nowActive = !found.isEmpty
         if nowActive != active { active = nowActive; activeChanged?(active); if !active { closeTray(); showNavigation(false) } }
         guard active else { return }
@@ -179,6 +186,15 @@ final class ModKeysView: UIView, UIKeyInput {
             lspatrolNavigation = info.lspatrolMenuVisible
         }
         showNavigation(info.menuVisible && tray.isHidden && !typing)
+        let calloutWanted = info.lspatrolCalloutPending && tray.isHidden && !typing
+        if calloutPad.isHidden == calloutWanted {
+            calloutPad.isHidden = !calloutWanted
+            if !calloutWanted {
+                PGAsiSetKey(0x59, false)
+                PGAsiSetKey(0x4E, false)
+                frontendHeld.remove([.right, .left, .a, .b])
+            }
+        }
         // The tray's keys are laid out again only while it's closed, so nothing moves under a finger.
         let sorted = found.sorted { Self.rank($0) == Self.rank($1) ? $0 < $1 : Self.rank($0) < Self.rank($1) }
         if sorted != keys && tray.isHidden { keys = sorted }
@@ -237,6 +253,56 @@ final class ModKeysView: UIView, UIKeyInput {
         let safe = bounds.inset(by: safeAreaInsets)
         dpad.frame = CGRect(x: safe.minX + 14, y: safe.maxY - 178, width: 164, height: 164)
         confirmationPad.frame = CGRect(x: safe.maxX - 82, y: safe.maxY - 142, width: 68, height: 108)
+        calloutPad.frame = CGRect(x: safe.maxX - 168, y: safe.maxY - 246, width: 160, height: 98)
+    }
+
+    private func buildCalloutPad() {
+        calloutPad.subviews.forEach { $0.removeFromSuperview() }
+        let accept = UIButton(type: .system)
+        accept.setTitle("✔ Accept (Y)", for: .normal)
+        accept.setTitleColor(.white, for: .normal)
+        accept.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .bold)
+        accept.backgroundColor = UIColor(red: 0.15, green: 0.65, blue: 0.25, alpha: 0.9)
+        accept.layer.cornerRadius = 8
+        accept.frame = CGRect(x: 6, y: 6, width: 148, height: 40)
+        accept.addTarget(self, action: #selector(calloutAcceptDown), for: .touchDown)
+        accept.addTarget(self, action: #selector(calloutAcceptUp), for: [.touchUpInside, .touchUpOutside, .touchCancel])
+        calloutPad.addSubview(accept)
+
+        let decline = UIButton(type: .system)
+        decline.setTitle("✖ Decline (N)", for: .normal)
+        decline.setTitleColor(.white, for: .normal)
+        decline.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .bold)
+        decline.backgroundColor = UIColor(red: 0.75, green: 0.2, blue: 0.2, alpha: 0.85)
+        decline.layer.cornerRadius = 8
+        decline.frame = CGRect(x: 6, y: 52, width: 148, height: 40)
+        decline.addTarget(self, action: #selector(calloutDeclineDown), for: .touchDown)
+        decline.addTarget(self, action: #selector(calloutDeclineUp), for: [.touchUpInside, .touchUpOutside, .touchCancel])
+        calloutPad.addSubview(decline)
+    }
+
+    @objc private func calloutAcceptDown() {
+        PGAsiSetKey(0x59, true)
+        frontendHeld.insert([.right, .a])
+        let now = CACurrentMediaTime()
+        frontendPressedAt[PadButtons.right.rawValue] = now
+        frontendPressedAt[PadButtons.a.rawValue] = now
+    }
+    @objc private func calloutAcceptUp() {
+        PGAsiSetKey(0x59, false)
+        frontendHeld.remove([.right, .a])
+    }
+
+    @objc private func calloutDeclineDown() {
+        PGAsiSetKey(0x4E, true)
+        frontendHeld.insert([.left, .b])
+        let now = CACurrentMediaTime()
+        frontendPressedAt[PadButtons.left.rawValue] = now
+        frontendPressedAt[PadButtons.b.rawValue] = now
+    }
+    @objc private func calloutDeclineUp() {
+        PGAsiSetKey(0x4E, false)
+        frontendHeld.remove([.left, .b])
     }
 
     private func makeNavButton(keys: [Int], frontend: PadButtons, title: String) -> UIView {
@@ -249,8 +315,10 @@ final class ModKeysView: UIView, UIKeyInput {
                 if down {
                     self.frontendHeld.insert(frontend)
                     self.frontendPressedAt[frontend.rawValue] = CACurrentMediaTime()
+                    for key in keys { self.press(key, true) }
                 } else {
                     self.frontendHeld.remove(frontend)
+                    for key in keys { self.press(key, false) }
                 }
             } else {
                 for key in keys { self.press(key, down) }
@@ -288,6 +356,8 @@ final class ModKeysView: UIView, UIKeyInput {
     private func releaseAll() {
         for key in keys { PGAsiSetKey(Int32(key), false) }
         for group in navKeyGroups { for key in group { PGAsiSetKey(Int32(key), false) } }
+        PGAsiSetKey(0x59, false)
+        PGAsiSetKey(0x4E, false)
         latched.removeAll()
         frontendHeld = []
         frontendPressedAt.removeAll()
