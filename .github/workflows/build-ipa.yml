@@ -36,7 +36,6 @@ jobs:
         run: |
           test "$(uname -m)" = arm64
           xcodebuild -version
-          python3 app/Scripts/prepare_asi_natives.py
           python3 tools/test_native_codegen.py
           python3 tools/test_nova_integrity.py
           python3 tools/test_nova_online.py

@@ -162,9 +162,6 @@ class TestPortRPFLoader(unittest.TestCase):
     def test_lspatrol_blip_natives_and_callout_support(self):
         root = Path(__file__).resolve().parents[1]
         inc = root / "app/Generated/asi-natives.inc"
-        if not inc.exists():
-            import subprocess
-            subprocess.run([sys.executable, str(root / "app/Scripts/prepare_asi_natives.py")], check=True)
         self.assertTrue(inc.exists(), "asi-natives.inc must exist")
         inc_content = inc.read_text(encoding="utf-8")
         self.assertIn("0x586afe3ff72d996eull", inc_content, "GET_BLIP_COORDS must be in asi-natives.inc")
