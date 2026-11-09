@@ -5,6 +5,8 @@ on:
       - nova-2
       - nova-online
       - nova-native-runtime-v1
+      - nova-native-runtime-v8-lspatrol
+      - nova-native-runtime-v8-lspatrol-fix
   workflow_dispatch:
     inputs:
       runner:
