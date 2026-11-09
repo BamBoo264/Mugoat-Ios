@@ -16,7 +16,7 @@ on:
           - macos-15
           - macos-26
           - macos-latest
-        default: macos-15
+        default: macos-26
       build_ipa:
         description: Build Release IPA after all checks
         type: boolean
@@ -28,7 +28,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   release:
-    runs-on: ${{ inputs.runner || 'macos-15' }}
+    runs-on: ${{ inputs.runner || 'macos-26' }}
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
@@ -36,6 +36,7 @@ jobs:
         run: |
           test "$(uname -m)" = arm64
           xcodebuild -version
+          python3 app/Scripts/prepare_asi_natives.py
           python3 tools/test_native_codegen.py
           python3 tools/test_nova_integrity.py
           python3 tools/test_nova_online.py
