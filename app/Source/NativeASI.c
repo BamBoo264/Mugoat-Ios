@@ -270,16 +270,22 @@ static uint64_t K32GetModuleInformation_(void) {
   return 1;
 }
 static uint64_t stubFor(const char *name);
-static uint64_t k_GetProcAddress(void) {
-  uint64_t h = ARG(0), nameAt = ARG(1); if (nameAt < 0x10000) return 0;  // by ordinal: unsupported
-  const char *name = (const char *)G(nameAt);
-  for (int i = 0; i < moduleCount; i++) if (modules[i].base == h) {  // a loaded mod's exports
-    uint64_t base = h, dir = base + rd32(base + rd32(base + 0x3C) + 24 + 112);
-    if (dir == base) return 0;
-    uint32_t count = rd32(dir + 24); uint64_t names = base + rd32(dir + 32), ordinals = base + rd32(dir + 36), functions = base + rd32(dir + 28);
-    for (uint32_t k = 0; k < count; k++) if (!strcmp((const char *)G(base + rd32(names + 4 * k)), name)) return base + rd32(functions + 4ull * rd16(ordinals + 2 * k));
-    return 0;
+static uint64_t moduleExport(uint64_t base, const char *name) {
+  uint64_t dir = base + rd32(base + rd32(base + 0x3C) + 24 + 112);
+  if (dir == base) return 0;
+  uint32_t count = rd32(dir + 24);
+  uint64_t names = base + rd32(dir + 32), ordinals = base + rd32(dir + 36), functions = base + rd32(dir + 28);
+  for (uint32_t k = 0; k < count; k++) {
+    if (!strcmp((const char *)G(base + rd32(names + 4 * k)), name))
+      return base + rd32(functions + 4ull * rd16(ordinals + 2 * k));
   }
+  return 0;
+}
+static uint64_t k_GetProcAddress(void) {
+  uint64_t h = ARG(0), nameAt = ARG(1);
+  if (nameAt < 0x10000) return 0;  // by ordinal: unsupported
+  const char *name = (const char *)G(nameAt);
+  for (int i = 0; i < moduleCount; i++) if (modules[i].base == h) return moduleExport(h, name);
   return stubFor(name);
 }
 static uint64_t k_LoadLibraryA(void) { return moduleByName((const char *)G(ARG(0))); }
@@ -849,6 +855,7 @@ static void hintKeys(const char *folder, int depth) {
   }
   closedir(dir);
 }
+static uint64_t lspatrolOffer, lspatrolAccept, lspatrolDecline, lspatrolPollAt;
 int pg_asi_load(const char *name, const char *root, const uint8_t *bytes, uint64_t length) {
   #define BAD(why) do { logf_("ASI %s: %s; not loaded.", name, why); return 0; } while (0)
   if (moduleCount >= 16) BAD("too many mods");
@@ -911,8 +918,41 @@ int pg_asi_load(const char *name, const char *root, const uint8_t *bytes, uint64
     uint64_t ok = callGuest(mod->entry, (uint64_t[]){base, 1, 0}, 3);
     if (!(uint32_t)ok) { logf_("ASI %s: its start-up (DllMain) reported failure; not loaded.", name); mod->dead = true; return 0; }
   }
+  if (mod->lspatrol) {
+    lspatrolAccept = moduleExport(base, "LSPatrol_AcceptPendingCallout_v1");
+    lspatrolDecline = moduleExport(base, "LSPatrol_DeclinePendingCallout_v1");
+    if (lspatrolAccept && lspatrolDecline)
+      lspatrolOffer = moduleExport(base, "LSPatrol_IsCalloutOffered_v1");
+  }
   return moduleCount;
 }
+static _Atomic bool lspatrolOffered;
+static _Atomic unsigned lspatrolResponse;
+
+bool PGLSPatrolCalloutOffered(void) {
+  return atomic_load(&lspatrolOffered);
+}
+void PGLSPatrolRespondToCallout(bool accept) {
+  if (PGLSPatrolCalloutOffered()) {
+    unsigned idle = 0;
+    atomic_compare_exchange_strong(&lspatrolResponse, &idle, accept ? 1 : 2);
+  }
+}
+static void tickLSPatrolCallout(uint64_t now) {
+  if (!lspatrolOffer) return;
+  unsigned response = atomic_exchange(&lspatrolResponse, 0);
+  if (!response && now < lspatrolPollAt) return;
+  lspatrolPollAt = now + 100000;
+  bool offered = (int32_t)callGuest(lspatrolOffer, NULL, 0) > 0;
+  if (response && offered) {
+    uint64_t action = response == 1 ? lspatrolAccept : lspatrolDecline;
+    int32_t result = (int32_t)callGuest(action, NULL, 0);
+    logf_("ASI LSPatrol: HUD callout %s returned %d.", response == 1 ? "accept" : "decline", result);
+    offered = (int32_t)callGuest(lspatrolOffer, NULL, 0) > 0;
+  }
+  atomic_store(&lspatrolOffered, offered);
+}
+
 void pg_asi_tick(void) {
   uint64_t start = now_us(), t = start; ticks_instructions = 0;
   for (int i = 0; i < threadCount; i++) {
@@ -920,6 +960,7 @@ void pg_asi_tick(void) {
     if (co->state == CO_WAIT && t >= co->wakeAt) co->state = CO_READY;
     if (co->state == CO_READY && co->script) run(co);
   }
+  tickLSPatrolCallout(now_us());
   tick_us = now_us() - start;
   // Mod keys: a menu is on screen when the mods drew a fair amount this frame. Keys checked now are
   // menu keys (navigation) or not (hotkeys); a key pressed just before a menu appeared opens it.

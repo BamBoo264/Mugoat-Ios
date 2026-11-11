@@ -33,6 +33,7 @@ final class ModKeysView: UIView, UIKeyInput {
         return state
     }
 
+    private let calloutActions = UIStackView()
     private let tray = UIView()
     private let firstRow = UIStackView()
     private let scroll = UIScrollView()
@@ -75,6 +76,25 @@ final class ModKeysView: UIView, UIKeyInput {
         confirmationPad.isHidden = true
         addSubview(dpad)
         addSubview(confirmationPad)
+        calloutActions.axis = .horizontal
+        calloutActions.spacing = 10
+        calloutActions.isHidden = true
+        calloutActions.translatesAutoresizingMaskIntoConstraints = false
+        for (title, accept) in [("Chấp nhận", true), ("Từ chối", false)] {
+            var style = UIButton.Configuration.filled()
+            style.title = title
+            style.baseBackgroundColor = accept ? .systemGreen : .darkGray
+            let button = UIButton(configuration: style, primaryAction: UIAction { _ in
+                PGLSPatrolRespondToCallout(accept)
+            })
+            calloutActions.addArrangedSubview(button)
+        }
+        addSubview(calloutActions)
+        NSLayoutConstraint.activate([
+            calloutActions.centerXAnchor.constraint(equalTo: safeAreaLayoutGuide.centerXAnchor),
+            calloutActions.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 62),
+            calloutActions.heightAnchor.constraint(greaterThanOrEqualToConstant: 44)
+        ])
         trayTop = tray.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 60)
         trayCenter = tray.centerXAnchor.constraint(equalTo: centerXAnchor)
         NSLayoutConstraint.activate([
@@ -120,6 +140,7 @@ final class ModKeysView: UIView, UIKeyInput {
         }
         rebuild()
         tray.isHidden = false
+        calloutActions.isHidden = true
         showNavigation(false)
     }
     private func closeTray() {
@@ -132,6 +153,7 @@ final class ModKeysView: UIView, UIKeyInput {
     private var menuChips: [Int] = []
     private var menuWasVisible = false
     private func refresh() {
+        calloutActions.isHidden = !PGLSPatrolCalloutOffered() || !tray.isHidden || typing
         var info = PGAsiKeyInfo()
         PGAsiGetKeyInfo(&info)
         let closed = withUnsafeBytes(of: info.closed) { Array($0) }, open = withUnsafeBytes(of: info.open) { Array($0) }

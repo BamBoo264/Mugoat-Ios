@@ -30,6 +30,8 @@ bool pg_asi_init(const PGAsiHost *host);
 int pg_asi_load(const char *name, const char *root, const uint8_t *bytes, uint64_t length);
 // Runs every registered script until it waits again. Call once per game frame on the script thread.
 void pg_asi_tick(void);
+bool PGLSPatrolCalloutOffered(void);
+void PGLSPatrolRespondToCallout(bool accept);
 // Keyboard events for mods that registered a keyboard handler (Windows virtual-key codes).
 void pg_asi_key(int virtualKey, bool down);
 // What the Mod keys pad learns from the mods (Windows virtual-key codes): how often each key was
