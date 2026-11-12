@@ -1907,6 +1907,10 @@ static bool pg_asi_native(uint64_t hash, uint64_t arguments, uint32_t count, uin
   size_t low = 0, high = sizeof pg_asi_natives / sizeof *pg_asi_natives;
   while (low < high) { size_t middle = (low + high) / 2; if (pg_asi_natives[middle].hash < hash) low = middle + 1; else high = middle; }
   if (low == sizeof pg_asi_natives / sizeof *pg_asi_natives || pg_asi_natives[low].hash != hash) {
+    // Legacy Nova may lack IS_MODEL_VALID. Use its real streaming registry check
+    // for ASI plugins rather than returning false for every model.
+    if (hash == 0xc0296a2edf545e92ull && count == 1)
+      return pg_asi_native(0x35b9e0803292b641ull, arguments, count, result);
     // Entity handles are also ped/vehicle/object handles: these only convert between them.
     if (hash == 0x04a2a40c73395041ull || hash == 0x4b53f92932adfac0ull || hash == 0xd7e3b9735c0f89d6ull) {
       if (count) memcpy(pg_pointer(&env, result, 8), pg_pointer(&env, arguments, 8), 8);
