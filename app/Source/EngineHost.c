@@ -1904,6 +1904,23 @@ static bool pg_asi_text_command(uint64_t hash, uint64_t arguments, uint32_t coun
 }
 static bool pg_asi_native(uint64_t hash, uint64_t arguments, uint32_t count, uint64_t result) {
   if (pg_asi_text_command(hash, arguments, count, result)) return true;
+  if (hash == 0x6b76dc1f3ae6e6a3ull) {  // SET_ENTITY_HEALTH
+    if (count < 2) return false;
+    // This engine's GetBaseFromGuid traps when the handle's slot exceeds the
+    // script GUID pool capacity. PC mods may omit the instigator or pass a stale handle.
+    uint64_t pool;
+    uint32_t capacity;
+    uint64_t slots[3] = {0};
+    memcpy(slots, pg_pointer(&env, arguments, count >= 3 ? 24 : 16), count >= 3 ? 24 : 16);
+    if (!pg_context_u64(env.memory.data, env.memory.size, 12318120, &pool) || !pool ||
+        pool > env.memory.size || env.memory.size - pool < 36) return true;
+    memcpy(&capacity, pg_pointer(&env, pool + 32, 4), 4);
+    if (((uint32_t)slots[0] >> 8) >= capacity) return true;
+    if (((uint32_t)slots[2] >> 8) >= capacity) slots[2] = 0;
+    PG_FN_SET_ENTITY_HEALTH(pg_asi_game, (uint32_t)slots[0], (uint32_t)slots[1], (uint32_t)slots[2]);
+    return true;
+  }
+
   size_t low = 0, high = sizeof pg_asi_natives / sizeof *pg_asi_natives;
   while (low < high) { size_t middle = (low + high) / 2; if (pg_asi_natives[middle].hash < hash) low = middle + 1; else high = middle; }
   if (low == sizeof pg_asi_natives / sizeof *pg_asi_natives || pg_asi_natives[low].hash != hash) {
