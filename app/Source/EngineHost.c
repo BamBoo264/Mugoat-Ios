@@ -1203,7 +1203,6 @@ u32 PG_FN_STAT_GET_INT(w2c_game*, u32, u64, u32); // stats_commands::CommandStat
 static uint32_t pg_joaat(const char *text);
 u32 PG_FN_STAT_SET_INT(w2c_game*, u32, u32, u32); // stats_commands::CommandStatSetInt
 void PG_FN_DO_AUTO_SAVE(w2c_game*); // misc_commands::CommandDoAutoSave
-void PG_FN_SET_ENTITY_HEALTH(w2c_game*, u32, u32, u32); // entity_commands::CommandSetEntityHealth
 u32 PG_FN_PLAYER_PED_ID(w2c_game*); // PLAYER_PED_ID
 // Test (PG_TEST_CASH=1): every 30 s from about 30 s in, logs each character's cash stat (the save-load
 // cash guard above). PG_TEST_CASH=set first gives them 1111, 2222 and 3333 and autosaves, so a later
@@ -1859,6 +1858,7 @@ void PGAsiTextFinish(const char *text) {
   pthread_mutex_unlock(&pg_asi_text_lock);
   atomic_store(&pg_asi_text_state, text ? 1 : 2);
 }
+void PG_FN_SET_ENTITY_HEALTH(w2c_game*, u32, u32, u32); // entity_commands::CommandSetEntityHealth
 static bool pg_asi_native(uint64_t hash, uint64_t arguments, uint32_t count, uint64_t result);
 static const char *pg_asi_guest_string(uint64_t address) { return address ? pg_string(&env, address) : ""; }
 static bool pg_asi_text_command(uint64_t hash, uint64_t arguments, uint32_t count, uint64_t result) {
