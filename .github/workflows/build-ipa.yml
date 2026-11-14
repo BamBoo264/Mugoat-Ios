@@ -5,6 +5,7 @@ on:
       - nova-2
       - nova-online
       - nova-native-runtime-v1
+      - nova-native-runtime-v8-lspatrol
   workflow_dispatch:
     inputs:
       runner:
@@ -127,8 +128,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success() && (github.event_name == 'push' || inputs.build_ipa)
         with:
-          name: Mugoat-Nova-NativeRuntime-V8.4-UDP
-          path: Mugoat-Nova-NativeRuntime-V8.4-UDP.ipa
+          name: Mugoat-Nova-NativeRuntime-V8.5-UDP
+          path: Mugoat-Nova-NativeRuntime-V8.5-UDP.ipa
           retention-days: 14
       - uses: actions/upload-artifact@v4
         if: failure()

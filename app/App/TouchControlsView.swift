@@ -1067,7 +1067,12 @@ final class TouchControlsView: UIView {
     // A finger by its identity, so the debug channel's synthetic fingers (debugTouch) take the same path.
     private func beginTouch(_ id: ObjectIdentifier, at point: CGPoint) {
         if pluginNavigationActive {
-            if let button = button(at: point) { press(button, id: id, at: point) }
+            if let button = button(at: point) {
+                press(button, id: id, at: point)
+            } else if !utilityOnly && context != .menu && !has(isLook) {
+                roles[id] = .look
+                if !swipeCameraEnabled { lookStick.begin(at: point) }
+            }
             return
         }
         // A quick tap on the game's minimap (wherever Settings put it) opens the full-screen map; a drag

@@ -152,6 +152,7 @@ final class ModKeysView: UIView, UIKeyInput {
 
     private var menuChips: [Int] = []
     private var menuWasVisible = false
+    private var lastLSPatrolMenuFrame: CFTimeInterval?
     private func refresh() {
         calloutActions.isHidden = !PGLSPatrolCalloutOffered() || !tray.isHidden || typing
         var info = PGAsiKeyInfo()
@@ -196,11 +197,15 @@ final class ModKeysView: UIView, UIKeyInput {
             navKeys = defaultNavGroups.map { $0.first ?? 0 }
             buildDpad()
         }
-        if lspatrolNavigation != info.lspatrolMenuVisible {
-            releaseAll()
-            lspatrolNavigation = info.lspatrolMenuVisible
+        let now = CACurrentMediaTime()
+        if info.lspatrolMenuVisible { lastLSPatrolMenuFrame = now }
+        let lspatrolVisible = lastLSPatrolMenuFrame.map { now - $0 < 0.4 } ?? false
+        if lspatrolNavigation != lspatrolVisible {
+            frontendHeld = []
+            frontendPressedAt.removeAll()
+            lspatrolNavigation = lspatrolVisible
         }
-        showNavigation(info.menuVisible && tray.isHidden && !typing)
+        showNavigation((info.menuVisible || lspatrolVisible) && tray.isHidden && !typing)
         // The tray's keys are laid out again only while it's closed, so nothing moves under a finger.
         let sorted = found.sorted { Self.rank($0) == Self.rank($1) ? $0 < $1 : Self.rank($0) < Self.rank($1) }
         if sorted != keys && tray.isHidden { keys = sorted }

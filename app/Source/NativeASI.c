@@ -663,7 +663,13 @@ static uint64_t v_scriptUnregister(void) {
   return 0;
 }
 static uint64_t v_scriptWait(void) { cur->wakeAt = now_us() + (uint64_t)(uint32_t)ARG(0) * 1000; cur->state = CO_WAIT; cur->yield = true; return 0; }
-static uint64_t v_keyboardHandlerRegister(void) { if (keyboardCount < 8) keyboardHandlers[keyboardCount++] = ARG(0); return 0; }
+static uint64_t v_keyboardHandlerRegister(void) {
+  uint64_t handler = ARG(0);
+  if (!handler) return 0;
+  for (int i = 0; i < keyboardCount; ++i) if (keyboardHandlers[i] == handler) return 0;
+  if (keyboardCount < 8) keyboardHandlers[keyboardCount++] = handler;
+  return 0;
+}
 static uint64_t v_keyboardHandlerUnregister(void) { for (int i = 0; i < keyboardCount; i++) if (keyboardHandlers[i] == ARG(0)) keyboardHandlers[i] = keyboardHandlers[--keyboardCount]; return 0; }
 static uint64_t v_nativeInit(void) { cur->hash = ARG(0); cur->argc = 0; return 0; }
 static uint64_t v_nativePush64(void) { if (cur->argc < 32) cur->args[cur->argc++] = ARG(0); return 0; }
